@@ -1,8 +1,8 @@
 use crate::{
     custodian::Custodian,
     indexer::Indexer,
-    parameterized_operation::SkeletonOperation,
-    parameterized_prerequisite::SkeletonPrerequisite,
+    parameterized_operation::ParameterizedOperation,
+    parameterized_prerequisite::ParameterizedPrerequisite,
     result::{TxError, TxResult},
 };
 use hashbrown::HashMap;
@@ -17,8 +17,8 @@ where
     owned_key: fn(&K) -> K,
     custodian: &'txmap Custodian<K, V>,
     guards_bitmask: u128,
-    prerequisites: Vec<SkeletonPrerequisite<K, V, P>>,
-    operations: Vec<SkeletonOperation<K, V, P>>,
+    prerequisites: Vec<ParameterizedPrerequisite<K, V, P>>,
+    operations: Vec<ParameterizedOperation<K, V, P>>,
 }
 
 impl<'txmap, K, V, P> ParameterizedTransaction<'txmap, K, V, P>
@@ -46,7 +46,7 @@ where
 
     fn is_prerequisite_met(
         &self,
-        prerequisite: &SkeletonPrerequisite<K, V, P>,
+        prerequisite: &ParameterizedPrerequisite<K, V, P>,
         guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
         params: &P,
     ) -> bool {
@@ -64,7 +64,7 @@ where
     }
     fn operation_value(
         &self,
-        operation: &SkeletonOperation<K, V, P>,
+        operation: &ParameterizedOperation<K, V, P>,
         guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
         params: &P,
     ) -> Option<V> {
@@ -89,8 +89,8 @@ where
     indexer: Indexer,
     owned_key: fn(&K) -> K,
     custodian: &'txmap Custodian<K, V>,
-    prerequisites: Vec<SkeletonPrerequisite<K, V, P>>,
-    operations: Vec<SkeletonOperation<K, V, P>>,
+    prerequisites: Vec<ParameterizedPrerequisite<K, V, P>>,
+    operations: Vec<ParameterizedOperation<K, V, P>>,
 }
 
 impl<'txmap, K, V, P> ParameterizedTransactionBuilder<'txmap, K, V, P>
@@ -120,7 +120,7 @@ where
         F: Fn([Option<&V>; N], &P) -> bool + 'static,
     {
         let prerequisite =
-            SkeletonPrerequisite::new(self.indexer, name.as_ref().into(), keys, prerequisite);
+            ParameterizedPrerequisite::new(self.indexer, name.as_ref().into(), keys, prerequisite);
         self.prerequisites.push(prerequisite);
         self
     }
@@ -128,7 +128,7 @@ where
     where
         F: Fn(Option<&V>, &P) -> Option<V> + 'static,
     {
-        let operation = SkeletonOperation::new(&self.indexer, key, operator);
+        let operation = ParameterizedOperation::new(&self.indexer, key, operator);
         self.operations.push(operation);
         self
     }
@@ -142,7 +142,7 @@ where
         F: Fn(Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
     {
         let operation =
-            SkeletonOperation::new_with_context(&self.indexer, key, operator, context_keys);
+            ParameterizedOperation::new_with_context(&self.indexer, key, operator, context_keys);
         self.operations.push(operation);
         self
     }

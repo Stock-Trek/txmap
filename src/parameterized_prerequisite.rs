@@ -1,7 +1,7 @@
 use crate::indexer::{IndexedData, Indexer};
 use std::hash::Hash;
 
-pub(crate) struct SkeletonPrerequisite<K, V, P>
+pub(crate) struct ParameterizedPrerequisite<K, V, P>
 where
     K: Hash + Eq,
 {
@@ -12,7 +12,7 @@ where
     pub is_satisfied: Box<dyn Fn(&[Option<&V>], &P) -> bool>,
 }
 
-impl<K, V, P> SkeletonPrerequisite<K, V, P>
+impl<K, V, P> ParameterizedPrerequisite<K, V, P>
 where
     K: Hash + Eq,
 {

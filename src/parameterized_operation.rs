@@ -1,7 +1,7 @@
 use crate::indexer::{IndexedData, Indexer};
 use std::hash::Hash;
 
-pub(crate) struct SkeletonOperation<K, V, P>
+pub(crate) struct ParameterizedOperation<K, V, P>
 where
     K: Hash + Eq,
 {
@@ -13,7 +13,7 @@ where
     pub operator: Box<dyn Fn(Option<&V>, &[Option<&V>], &P) -> Option<V>>,
 }
 
-impl<K, V, P> SkeletonOperation<K, V, P>
+impl<K, V, P> ParameterizedOperation<K, V, P>
 where
     K: Hash + Eq,
 {
