@@ -4,7 +4,6 @@ use crate::{
 };
 use std::hash::{DefaultHasher, Hash};
 
-#[allow(dead_code)]
 pub struct TxMap<K, V>
 where
     K: Hash + Eq,

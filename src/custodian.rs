@@ -4,7 +4,6 @@ use intmap::IntMap;
 use parking_lot::{Mutex, MutexGuard};
 use std::hash::Hash;
 
-#[allow(dead_code)]
 pub(crate) struct Custodian<K, V>
 where
     K: Hash + Eq,

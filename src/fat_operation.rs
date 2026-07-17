@@ -1,7 +1,6 @@
 use crate::indexer::{IndexedData, Indexer};
 use std::hash::Hash;
 
-#[allow(dead_code)]
 pub(crate) struct FatOperation<K, V>
 where
     K: Hash + Eq,
