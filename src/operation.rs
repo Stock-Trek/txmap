@@ -1,7 +1,7 @@
 use crate::indexer::{IndexedData, Indexer};
 use std::hash::Hash;
 
-pub(crate) struct SkeletonOperation<K, V, P>
+pub(crate) struct Operation<K, V>
 where
     K: Hash + Eq,
 {
@@ -10,16 +10,16 @@ where
     pub key: K,
     pub indexed_context_keys: IndexedData<K>,
     #[allow(clippy::type_complexity)]
-    pub operator: Box<dyn Fn(Option<&V>, &[Option<&V>], &P) -> Option<V>>,
+    pub operator: Box<dyn Fn(Option<&V>, &[Option<&V>]) -> Option<V>>,
 }
 
-impl<K, V, P> SkeletonOperation<K, V, P>
+impl<K, V> Operation<K, V>
 where
     K: Hash + Eq,
 {
-    pub fn new<O>(indexer: &Indexer, key: K, operator: O) -> Self
+    pub fn new<F>(indexer: &Indexer, key: K, operator: F) -> Self
     where
-        O: Fn(Option<&V>, &P) -> Option<V> + 'static,
+        F: Fn(Option<&V>) -> Option<V> + 'static,
     {
         let key_index = indexer.index(&key);
         Self {
@@ -30,17 +30,17 @@ where
                 bitmask: 0,
                 indexed: vec![],
             },
-            operator: Box::new(move |value, _, params| (operator)(value, params)),
+            operator: Box::new(move |value, _| (operator)(value)),
         }
     }
-    pub fn new_with_context<const N: usize, O>(
+    pub fn new_with_context<const N: usize, F>(
         indexer: &Indexer,
         key: K,
-        operator: O,
+        operator: F,
         context_keys: [K; N],
     ) -> Self
     where
-        O: Fn(Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
+        F: Fn(Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
     {
         let key_index = indexer.index(&key);
         let indexed_context_keys = indexer.indexes(context_keys, |k| k);
@@ -49,11 +49,11 @@ where
             key_index,
             key,
             indexed_context_keys,
-            operator: Box::new(move |value, context_values, params| {
+            operator: Box::new(move |value, context_values| {
                 let context_array: [Option<&V>; N] = context_values
                     .try_into()
                     .expect("Incorrect operation values length");
-                (operator)(value, context_array, params)
+                (operator)(value, context_array)
             }),
         }
     }

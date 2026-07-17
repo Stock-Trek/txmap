@@ -1,7 +1,7 @@
 use crate::indexer::{IndexedData, Indexer};
 use std::hash::Hash;
 
-pub(crate) struct FatPrerequisite<K, V>
+pub(crate) struct Prerequisite<K, V>
 where
     K: Hash + Eq,
 {
@@ -12,7 +12,7 @@ where
     pub is_satisfied: Box<dyn Fn(&[Option<&V>]) -> bool>,
 }
 
-impl<K, V> FatPrerequisite<K, V>
+impl<K, V> Prerequisite<K, V>
 where
     K: Hash + Eq,
 {

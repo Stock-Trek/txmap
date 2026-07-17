@@ -1,8 +1,8 @@
 use crate::{
     custodian::Custodian,
-    fat_operation::FatOperation,
-    fat_prerequisite::FatPrerequisite,
     indexer::Indexer,
+    parameterized_operation::SkeletonOperation,
+    parameterized_prerequisite::SkeletonPrerequisite,
     result::{TxError, TxResult},
 };
 use hashbrown::HashMap;
@@ -10,30 +10,30 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub struct FatTransaction<'txmap, K, V>
+pub struct ParameterizedTransaction<'txmap, K, V, P>
 where
     K: Hash + Eq,
 {
     owned_key: fn(&K) -> K,
     custodian: &'txmap Custodian<K, V>,
     guards_bitmask: u128,
-    prerequisites: Vec<FatPrerequisite<K, V>>,
-    operations: Vec<FatOperation<K, V>>,
+    prerequisites: Vec<SkeletonPrerequisite<K, V, P>>,
+    operations: Vec<SkeletonOperation<K, V, P>>,
 }
 
-impl<'txmap, K, V> FatTransaction<'txmap, K, V>
+impl<'txmap, K, V, P> ParameterizedTransaction<'txmap, K, V, P>
 where
     K: Hash + Eq,
 {
-    pub fn execute(&self) -> TxResult<()> {
+    pub fn execute(&self, params: &P) -> TxResult<()> {
         let mut guards = self.custodian.guards(self.guards_bitmask);
         for (i, prerequisite) in self.prerequisites.iter().enumerate() {
-            if !self.is_prerequisite_met(prerequisite, &guards) {
+            if !self.is_prerequisite_met(prerequisite, &guards, params) {
                 return Err(TxError::UnmetPrerequisite(i, prerequisite.name.clone()));
             }
         }
         for operation in &self.operations {
-            let new_value = self.operation_value(operation, &guards);
+            let new_value = self.operation_value(operation, &guards, params);
             let guard = guards.get_mut(operation.key_index);
             let shard = guard.expect("Missing shard lock");
             match new_value {
@@ -46,8 +46,9 @@ where
 
     fn is_prerequisite_met(
         &self,
-        prerequisite: &FatPrerequisite<K, V>,
+        prerequisite: &SkeletonPrerequisite<K, V, P>,
         guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
+        params: &P,
     ) -> bool {
         let mut values = Vec::with_capacity(prerequisite.indexed_keys.indexed.len());
         for (shard_index, key) in &prerequisite.indexed_keys.indexed {
@@ -55,7 +56,7 @@ where
             let shard = guard.expect("Missing shard lock");
             let value = shard.get(key);
             values.push(value);
-            if !(prerequisite.is_satisfied)(&values) {
+            if !(prerequisite.is_satisfied)(&values, params) {
                 return false;
             }
         }
@@ -63,8 +64,9 @@ where
     }
     fn operation_value(
         &self,
-        operation: &FatOperation<K, V>,
+        operation: &SkeletonOperation<K, V, P>,
         guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
+        params: &P,
     ) -> Option<V> {
         let mut context_values = Vec::with_capacity(operation.indexed_context_keys.indexed.len());
         for (shard_index, context_key) in &operation.indexed_context_keys.indexed {
@@ -76,22 +78,22 @@ where
         let key_guard = guards.get(operation.key_index);
         let key_shard = key_guard.expect("Missing shard lock");
         let key_value = key_shard.get(&operation.key);
-        (operation.operator)(key_value, context_values.as_slice())
+        (operation.operator)(key_value, context_values.as_slice(), params)
     }
 }
 
-pub struct FatTransactionBuilder<'txmap, K, V>
+pub struct ParameterizedTransactionBuilder<'txmap, K, V, P>
 where
     K: Hash + Eq,
 {
     indexer: Indexer,
     owned_key: fn(&K) -> K,
     custodian: &'txmap Custodian<K, V>,
-    prerequisites: Vec<FatPrerequisite<K, V>>,
-    operations: Vec<FatOperation<K, V>>,
+    prerequisites: Vec<SkeletonPrerequisite<K, V, P>>,
+    operations: Vec<SkeletonOperation<K, V, P>>,
 }
 
-impl<'txmap, K, V> FatTransactionBuilder<'txmap, K, V>
+impl<'txmap, K, V, P> ParameterizedTransactionBuilder<'txmap, K, V, P>
 where
     K: Hash + Eq,
 {
@@ -115,34 +117,36 @@ where
         prerequisite: F,
     ) -> Self
     where
-        F: Fn([Option<&V>; N]) -> bool + 'static,
+        F: Fn([Option<&V>; N], &P) -> bool + 'static,
     {
-        let p = FatPrerequisite::new(self.indexer, name.as_ref().into(), keys, prerequisite);
-        self.prerequisites.push(p);
+        let prerequisite =
+            SkeletonPrerequisite::new(self.indexer, name.as_ref().into(), keys, prerequisite);
+        self.prerequisites.push(prerequisite);
         self
     }
-    pub fn with_operation<O>(mut self, key: K, operator: O) -> Self
+    pub fn with_operation<F>(mut self, key: K, operator: F) -> Self
     where
-        O: Fn(Option<&V>) -> Option<V> + 'static,
+        F: Fn(Option<&V>, &P) -> Option<V> + 'static,
     {
-        let operation = FatOperation::new(&self.indexer, key, operator);
+        let operation = SkeletonOperation::new(&self.indexer, key, operator);
         self.operations.push(operation);
         self
     }
-    pub fn with_operation_and_context<const N: usize, O>(
+    pub fn with_operation_and_context<const N: usize, F>(
         mut self,
         key: K,
-        operator: O,
+        operator: F,
         context_keys: [K; N],
     ) -> Self
     where
-        O: Fn(Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
+        F: Fn(Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
     {
-        let operation = FatOperation::new_with_context(&self.indexer, key, operator, context_keys);
+        let operation =
+            SkeletonOperation::new_with_context(&self.indexer, key, operator, context_keys);
         self.operations.push(operation);
         self
     }
-    pub fn build(self) -> FatTransaction<'txmap, K, V> {
+    pub fn build(self) -> ParameterizedTransaction<'txmap, K, V, P> {
         let Self {
             owned_key,
             custodian,
@@ -157,7 +161,7 @@ where
         for operation in &operations {
             guards_bitmask |= operation.guards_bitmask;
         }
-        FatTransaction {
+        ParameterizedTransaction {
             owned_key,
             custodian,
             guards_bitmask,
