@@ -83,30 +83,17 @@ pub struct ParameterizedTransactionBuilder<'txmap, K, V, P>
 where
     K: Hash + Eq,
 {
-    indexer: Indexer,
-    owned_key: fn(&K) -> K,
-    custodian: &'txmap Custodian<K, V>,
-    prerequisites: Vec<ParameterizedPrerequisite<K, V, P>>,
-    operations: Vec<ParameterizedOperation<K, V, P>>,
+    pub(crate) indexer: Indexer,
+    pub(crate) owned_key: fn(&K) -> K,
+    pub(crate) custodian: &'txmap Custodian<K, V>,
+    pub(crate) prerequisites: Vec<ParameterizedPrerequisite<K, V, P>>,
+    pub(crate) operations: Vec<ParameterizedOperation<K, V, P>>,
 }
 
 impl<'txmap, K, V, P> ParameterizedTransactionBuilder<'txmap, K, V, P>
 where
     K: Hash + Eq,
 {
-    pub(crate) fn new(
-        indexer: Indexer,
-        owned_key: fn(&K) -> K,
-        custodian: &'txmap Custodian<K, V>,
-    ) -> Self {
-        Self {
-            indexer,
-            owned_key,
-            custodian,
-            prerequisites: Vec::new(),
-            operations: Vec::new(),
-        }
-    }
     pub fn with_prerequisite<const N: usize, F>(
         mut self,
         name: impl AsRef<str>,

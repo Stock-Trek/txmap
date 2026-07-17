@@ -1,6 +1,5 @@
 use crate::{
-    custodian::Custodian, indexer::Indexer, operation::Operation, prerequisite::Prerequisite,
-    result::TxResult,
+    custodian::Custodian, operation::Operation, prerequisite::Prerequisite, result::TxResult,
 };
 use hashbrown::HashMap;
 use intmap::IntMap;
@@ -11,11 +10,11 @@ pub struct Transaction<'txmap, K, V>
 where
     K: Hash + Eq,
 {
-    owned_key: fn(&K) -> K,
-    custodian: &'txmap Custodian<K, V>,
-    guards_bitmask: u128,
-    prerequisites: Vec<Prerequisite<K, V>>,
-    operations: Vec<Operation<K, V>>,
+    pub(crate) owned_key: fn(&K) -> K,
+    pub(crate) custodian: &'txmap Custodian<K, V>,
+    pub(crate) guards_bitmask: u128,
+    pub(crate) prerequisites: Vec<Prerequisite<K, V>>,
+    pub(crate) operations: Vec<Operation<K, V>>,
 }
 
 impl<'txmap, K, V> Transaction<'txmap, K, V>
@@ -74,93 +73,5 @@ where
         let key_shard = key_guard.expect("Missing shard lock");
         let key_value = key_shard.get(&operation.key);
         (operation.operator)(key_value, context_values.as_slice())
-    }
-}
-
-pub struct TransactionBuilder<'txmap, K, V>
-where
-    K: Hash + Eq,
-{
-    indexer: Indexer,
-    owned_key: fn(&K) -> K,
-    custodian: &'txmap Custodian<K, V>,
-    prerequisites: Vec<Prerequisite<K, V>>,
-    operations: Vec<Operation<K, V>>,
-}
-
-impl<'txmap, K, V> TransactionBuilder<'txmap, K, V>
-where
-    K: Hash + Eq,
-{
-    pub(crate) fn new(
-        indexer: Indexer,
-        owned_key: fn(&K) -> K,
-        custodian: &'txmap Custodian<K, V>,
-    ) -> Self {
-        Self {
-            indexer,
-            owned_key,
-            custodian,
-            prerequisites: Vec::new(),
-            operations: Vec::new(),
-        }
-    }
-    pub fn with_prerequisite<const N: usize, F>(
-        mut self,
-        name: impl AsRef<str>,
-        keys: [K; N],
-        prerequisite: F,
-    ) -> Self
-    where
-        F: Fn([Option<&V>; N]) -> bool + 'static,
-    {
-        let prerequisite =
-            Prerequisite::new(self.indexer, name.as_ref().into(), keys, prerequisite);
-        self.prerequisites.push(prerequisite);
-        self
-    }
-    pub fn with_operation<F>(mut self, key: K, operator: F) -> Self
-    where
-        F: Fn(Option<&V>) -> Option<V> + 'static,
-    {
-        let operation = Operation::new(&self.indexer, key, operator);
-        self.operations.push(operation);
-        self
-    }
-    pub fn with_operation_and_context<const N: usize, F>(
-        mut self,
-        key: K,
-        operator: F,
-        context_keys: [K; N],
-    ) -> Self
-    where
-        F: Fn(Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
-    {
-        let operation = Operation::new_with_context(&self.indexer, key, operator, context_keys);
-        self.operations.push(operation);
-        self
-    }
-    pub fn build(self) -> Transaction<'txmap, K, V> {
-        let Self {
-            owned_key,
-            custodian,
-            prerequisites,
-            operations,
-            ..
-        } = self;
-        let mut guards_bitmask: u128 = 0;
-        for prerequisite in &prerequisites {
-            guards_bitmask |= prerequisite.guards_bitmask;
-        }
-        for operation in &operations {
-            guards_bitmask |= operation.guards_bitmask;
-        }
-        Transaction {
-            owned_key,
-            custodian,
-            guards_bitmask,
-            prerequisites,
-            operations,
-        }
     }
 }

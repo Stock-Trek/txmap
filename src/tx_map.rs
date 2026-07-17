@@ -1,6 +1,5 @@
 use crate::{
-    custodian::Custodian, indexer::Indexer, shard_count::ShardCount,
-    transaction_builder_stem::TransactionBuilderStem,
+    custodian::Custodian, indexer::Indexer, shard_count::ShardCount, tx_stem_builder::TxStemBuilder,
 };
 use std::hash::{DefaultHasher, Hash};
 
@@ -37,14 +36,18 @@ where
             custodian: Custodian::new(shard_count),
         }
     }
-    pub fn transaction<'txmap>(&'txmap self) -> TransactionBuilderStem<'txmap, K, V> {
-        TransactionBuilderStem::new(self.indexer, self.owned_key, &self.custodian)
+    pub fn transaction<'txmap>(&'txmap self) -> TxStemBuilder<'txmap, K, V> {
+        TxStemBuilder {
+            indexer: self.indexer,
+            owned_key: self.owned_key,
+            custodian: &self.custodian,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{shard_count::ShardCount, tx_map::TxMap};
+    use crate::prelude::*;
 
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     struct User {
