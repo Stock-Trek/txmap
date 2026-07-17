@@ -8,6 +8,7 @@ pub mod prerequisite;
 pub mod result;
 pub mod shard_count;
 pub mod transaction;
+pub mod transaction_builder_stem;
 pub mod tx_map;
 
 pub mod prelude {

@@ -1,7 +1,6 @@
 use crate::{
-    custodian::Custodian, indexer::Indexer,
-    parameterized_transaction::ParameterizedTransactionBuilder, shard_count::ShardCount,
-    transaction::TransactionBuilder,
+    custodian::Custodian, indexer::Indexer, shard_count::ShardCount,
+    transaction_builder_stem::TransactionBuilderStem,
 };
 use std::hash::{DefaultHasher, Hash};
 
@@ -38,12 +37,7 @@ where
             custodian: Custodian::new(shard_count),
         }
     }
-    pub fn transaction<'txmap>(&'txmap self) -> TransactionBuilder<'txmap, K, V> {
-        TransactionBuilder::new(self.indexer, self.owned_key, &self.custodian)
-    }
-    pub fn parameterized_transaction<'txmap, P>(
-        &'txmap self,
-    ) -> ParameterizedTransactionBuilder<'txmap, K, V, P> {
-        ParameterizedTransactionBuilder::new(self.indexer, self.owned_key, &self.custodian)
+    pub fn transaction<'txmap>(&'txmap self) -> TransactionBuilderStem<'txmap, K, V> {
+        TransactionBuilderStem::new(self.indexer, self.owned_key, &self.custodian)
     }
 }
