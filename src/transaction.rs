@@ -1,9 +1,6 @@
 use crate::{
-    custodian::Custodian,
-    indexer::Indexer,
-    operation::Operation,
-    prerequisite::Prerequisite,
-    result::{TxError, TxResult},
+    custodian::Custodian, indexer::Indexer, operation::Operation, prerequisite::Prerequisite,
+    result::TxResult,
 };
 use hashbrown::HashMap;
 use intmap::IntMap;
@@ -25,11 +22,11 @@ impl<'txmap, K, V> Transaction<'txmap, K, V>
 where
     K: Hash + Eq,
 {
-    pub fn execute(&self) -> TxResult<()> {
+    pub fn execute(&self) -> TxResult {
         let mut guards = self.custodian.guards(self.guards_bitmask);
         for (i, prerequisite) in self.prerequisites.iter().enumerate() {
             if !self.is_prerequisite_met(prerequisite, &guards) {
-                return Err(TxError::UnmetPrerequisite(i, prerequisite.name.clone()));
+                return TxResult::UnmetPrerequisite(i, prerequisite.name.clone());
             }
         }
         for operation in &self.operations {
@@ -41,7 +38,7 @@ where
                 None => shard.remove(&operation.key),
             };
         }
-        Ok(())
+        TxResult::Completed
     }
 
     fn is_prerequisite_met(

@@ -13,9 +13,7 @@ pub mod tx_map;
 
 pub mod prelude {
     pub use crate::{
-        parameterized_transaction::{ParameterizedTransaction, ParameterizedTransactionBuilder},
-        result::{TxError, TxResult},
-        transaction::{Transaction, TransactionBuilder},
-        tx_map::TxMap,
+        parameterized_transaction::ParameterizedTransaction, result::TxResult,
+        transaction::Transaction, tx_map::TxMap,
     };
 }
