@@ -66,9 +66,6 @@ impl<K, V> OpTrait<K, V> for MapPeekOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    fn mutex_guards_bitmask(&self) -> u128 {
-        self.guards_bitmask
-    }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
         let new_value = self.mapped_value(&mutex_guards);
         let guard = mutex_guards.get_mut(self.key_index);
