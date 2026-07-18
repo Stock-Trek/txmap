@@ -33,13 +33,9 @@ jobs:
       request-type: ${{ steps.save-request-type.outputs.request-type }}
     steps:
       - name: Debug OIDC Claims
-        env:
-          TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
         run: |
-          # Fetch the OIDC token (default audience)
-          TOKEN=$(curl -s -H "Authorization: bearer $TOKEN_REQUEST_TOKEN" "$TOKEN_REQUEST_URL")
-          # Extract the payload (second segment of the JWT) and base64-decode it
+          echo "Request URL: $ACTIONS_ID_TOKEN_REQUEST_URL"
+          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL")
           PAYLOAD=$(echo -n "$TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null || echo -n "$TOKEN" | cut -d. -f2 | base64 -d - 2>/dev/null)
           echo "=== OIDC Token Payload ==="
           echo "$PAYLOAD" | jq .
