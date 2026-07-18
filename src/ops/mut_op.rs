@@ -1,11 +1,14 @@
-use crate::indexer::Indexer;
+use crate::{indexer::Indexer, ops::op_trait::OpTrait};
+use hashbrown::HashMap;
+use intmap::IntMap;
+use parking_lot::MutexGuard;
 use std::hash::Hash;
 
 pub(crate) struct MutOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    guards_bitmask: u128,
+    pub guards_bitmask: u128,
     key_index: u8,
     key: K,
     mutator: Box<dyn Fn(&mut V)>,
@@ -46,6 +49,24 @@ where
             key,
             mutator: Box::new(mutate),
             value_generator: Some(Box::new(value_generator)),
+        }
+    }
+}
+
+impl<K, V> OpTrait<K, V> for MutOp<K, V>
+where
+    K: Clone + Hash + Eq,
+{
+    fn mutex_guards_bitmask(&self) -> u128 {
+        self.guards_bitmask
+    }
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
+        let mutex_guard = mutex_guards.get_mut(self.key_index).expect("No Guard");
+        if let Some((_, value)) = mutex_guard.get_key_value_mut(&self.key) {
+            (self.mutator)(value);
+        } else if let Some(value_generator) = &self.value_generator {
+            let new_value = value_generator();
+            mutex_guard.insert(self.key.clone(), new_value);
         }
     }
 }

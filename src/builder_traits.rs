@@ -106,23 +106,23 @@ where
     fn remove_if<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool;
+        C: Fn(&K, &V) -> bool + 'static;
     fn retain<I>(self, keys: I) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>;
     fn retain_if<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool;
+        C: Fn(&K, &V) -> bool + 'static;
 
     // global ops
     fn clear(self) -> impl TxBuildable<'txmap, K, V>;
     fn remove_any_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
-        C: Fn(&K, &V) -> bool;
+        C: Fn(&K, &V) -> bool + 'static;
     fn retain_any_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
-        C: Fn(&K, &V) -> bool;
+        C: Fn(&K, &V) -> bool + 'static;
 }
 
 pub trait TxResultBuilder<'txmap, K, V>
@@ -131,7 +131,7 @@ where
 {
     fn get<T, R>(self, key: K, transform: T) -> impl IntoTransaction<'txmap, K, V, Option<R>>
     where
-        T: Fn(&K, &V) -> R;
+        T: Fn(&K, &V) -> R + 'static;
     fn get_all<I, T, R>(
         self,
         keys: I,
@@ -139,7 +139,7 @@ where
     ) -> impl IntoTransaction<'txmap, K, V, Vec<Option<R>>>
     where
         I: IntoIterator<Item = K>,
-        T: Fn(&K, &V) -> R;
+        T: Fn(&K, &V) -> R + 'static;
 }
 
 pub trait IntoTransaction<'txmap, K, V, R>

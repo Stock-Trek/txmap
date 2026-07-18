@@ -7,20 +7,21 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct ModifyPeekOp<K, V>
+pub(crate) struct ModifyPeekOrDefaultOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
     pub guards_bitmask: u128,
-    key_index: u8,
-    key: K,
+    pub key_index: u8,
+    pub key: K,
     indexed_peek_keys: IndexedData<K>,
     mutate: Box<dyn Fn(&K, &mut V, &[Option<&V>])>,
 }
 
-impl<K, V> ModifyPeekOp<K, V>
+impl<K, V> ModifyPeekOrDefaultOp<K, V>
 where
     K: Clone + Hash + Eq,
+    V: Default,
 {
     pub fn new<const N: usize, M>(indexer: &Indexer, key: K, peek_keys: [K; N], mutate: M) -> Self
     where
@@ -29,7 +30,7 @@ where
         let key_index = indexer.index(&key);
         let indexed_peek_keys = indexer.indexes(peek_keys, |k| k);
         Self {
-            guards_bitmask: 1 << key_index,
+            guards_bitmask: (1 << key_index) | indexed_peek_keys.bitmask,
             key_index,
             key,
             indexed_peek_keys,
@@ -58,9 +59,10 @@ where
     }
 }
 
-impl<K, V> OpTrait<K, V> for ModifyPeekOp<K, V>
+impl<K, V> OpTrait<K, V> for ModifyPeekOrDefaultOp<K, V>
 where
     K: Clone + Hash + Eq,
+    V: Default,
 {
     fn mutex_guards_bitmask(&self) -> u128 {
         self.guards_bitmask
@@ -75,6 +77,10 @@ where
                 peek_values.push(peek_value);
             }
             (self.mutate)(&self.key, &mut value, peek_values.as_slice());
+            self.insert_value(value, mutex_guards);
+        } else {
+            let mut value = V::default();
+            (self.mutate)(&self.key, &mut value, &[]);
             self.insert_value(value, mutex_guards);
         }
     }

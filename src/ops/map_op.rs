@@ -8,11 +8,11 @@ pub(crate) struct MapOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    guards_bitmask: u128,
+    pub guards_bitmask: u128,
     key_index: u8,
     key: K,
     #[allow(clippy::type_complexity)]
-    transform: Box<dyn Fn(Option<&V>) -> Option<V>>,
+    transform: Box<dyn Fn(&K, Option<&V>) -> Option<V>>,
 }
 
 impl<K, V> MapOp<K, V>
@@ -21,7 +21,7 @@ where
 {
     pub fn new<T>(indexer: &Indexer, key: K, transform: T) -> Self
     where
-        T: Fn(Option<&V>) -> Option<V> + 'static,
+        T: Fn(&K, Option<&V>) -> Option<V> + 'static,
     {
         let key_index = indexer.index(&key);
         Self {
@@ -35,7 +35,7 @@ where
         let key_guard = mutex_guards.get(self.key_index);
         let key_shard = key_guard.expect("Missing shard lock");
         let key_value = key_shard.get(&self.key);
-        (self.transform)(key_value)
+        (self.transform)(&self.key, key_value)
     }
 }
 

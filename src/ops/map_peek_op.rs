@@ -11,12 +11,12 @@ pub(crate) struct MapPeekOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    guards_bitmask: u128,
+    pub guards_bitmask: u128,
     key_index: u8,
     key: K,
     indexed_peek_keys: IndexedData<K>,
     #[allow(clippy::type_complexity)]
-    transform: Box<dyn Fn(Option<&V>, &[Option<&V>]) -> Option<V>>,
+    transform: Box<dyn Fn(&K, Option<&V>, &[Option<&V>]) -> Option<V>>,
 }
 
 impl<K, V> MapPeekOp<K, V>
@@ -30,7 +30,7 @@ where
         transform: T,
     ) -> Self
     where
-        T: Fn(Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
+        T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
     {
         let key_index = indexer.index(&key);
         let indexed_peek_keys = indexer.indexes(peek_keys, |k| k);
@@ -39,11 +39,11 @@ where
             key_index,
             key,
             indexed_peek_keys,
-            transform: Box::new(move |value, peek_values| {
+            transform: Box::new(move |key, value, peek_values| {
                 let peek_array: [Option<&V>; N] = peek_values
                     .try_into()
                     .expect("Incorrect operation values length");
-                (transform)(value, peek_array)
+                (transform)(key, value, peek_array)
             }),
         }
     }
@@ -58,7 +58,7 @@ where
         let key_guard = mutex_guards.get(self.key_index);
         let key_shard = key_guard.expect("Missing shard lock");
         let key_value = key_shard.get(&self.key);
-        (self.transform)(key_value, peek_values.as_slice())
+        (self.transform)(&self.key, key_value, peek_values.as_slice())
     }
 }
 
