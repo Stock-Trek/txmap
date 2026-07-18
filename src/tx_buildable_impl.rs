@@ -66,13 +66,13 @@ where
     fn modify_peek<const N: usize, M>(
         mut self,
         key: K,
-        context_keys: [K; N],
+        peek_keys: [K; N],
         mutate: M,
     ) -> impl TxBuildable<'txmap, K, V>
     where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
     {
-        let op = ModifyPeekOp::new(&self.indexer, key, context_keys, mutate);
+        let op = ModifyPeekOp::new(&self.indexer, key, peek_keys, mutate);
         self.ops.push(Op::ModifyPeek(op));
         self
     }
@@ -93,7 +93,7 @@ where
     fn modify_peek_or_insert_with<const N: usize, M, G>(
         mut self,
         key: K,
-        context_keys: [K; N],
+        peek_keys: [K; N],
         mutate: M,
         value_generator: G,
     ) -> impl TxBuildable<'txmap, K, V>
@@ -101,13 +101,8 @@ where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
         G: Fn(&K) -> V + 'static,
     {
-        let op = ModifyPeekOrInsertWithOp::new(
-            &self.indexer,
-            key,
-            context_keys,
-            mutate,
-            value_generator,
-        );
+        let op =
+            ModifyPeekOrInsertWithOp::new(&self.indexer, key, peek_keys, mutate, value_generator);
         self.ops.push(Op::ModifyPeekOrInsertWith(op));
         self
     }
@@ -123,14 +118,14 @@ where
     fn modify_peek_or_default<const N: usize, M>(
         mut self,
         key: K,
-        context_keys: [K; N],
+        peek_keys: [K; N],
         mutate: M,
     ) -> impl TxBuildable<'txmap, K, V>
     where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
         V: Default,
     {
-        let op = ModifyPeekOrDefaultOp::new(&self.indexer, key, context_keys, mutate);
+        let op = ModifyPeekOrDefaultOp::new(&self.indexer, key, peek_keys, mutate);
         self.ops.push(Op::ModifyPeekOrDefault(op));
         self
     }
@@ -146,12 +141,12 @@ where
         mut self,
         key: K,
         transform: T,
-        context_keys: [K; N],
+        peek_keys: [K; N],
     ) -> impl TxBuildable<'txmap, K, V>
     where
         T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
     {
-        let map_peek_op = MapPeekOp::new(&self.indexer, key, context_keys, transform);
+        let map_peek_op = MapPeekOp::new(&self.indexer, key, peek_keys, transform);
         self.ops.push(Op::MapPeek(map_peek_op));
         self
     }

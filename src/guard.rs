@@ -1,4 +1,7 @@
-use crate::indexer::{IndexedData, Indexer};
+use crate::{
+    indexer::{IndexedData, Indexer},
+    result::INCORRECT_GUARD_VALUES_LENGTH,
+};
 use std::hash::Hash;
 
 pub(crate) struct Guard<K, V>
@@ -27,9 +30,7 @@ where
     {
         let indexed_keys = indexer.indexes(keys, |k| k);
         let is_condition_met = Box::new(move |values: &[Option<&V>]| {
-            let array: [Option<&V>; N] = values
-                .try_into()
-                .expect("Incorrect prerequisite values length");
+            let array: [Option<&V>; N] = values.try_into().expect(INCORRECT_GUARD_VALUES_LENGTH);
             (condition)(array)
         });
         Self {

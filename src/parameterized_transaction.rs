@@ -1,6 +1,8 @@
 use crate::{
-    custodian::Custodian, parameterized_operation::ParameterizedOperation,
-    parameterized_prerequisite::ParameterizedPrerequisite, result::TxResult,
+    custodian::Custodian,
+    parameterized_operation::ParameterizedOperation,
+    parameterized_prerequisite::ParameterizedPrerequisite,
+    result::{MISSING_MUTEX_GUARD_ERROR, TxResult},
 };
 use hashbrown::HashMap;
 use intmap::IntMap;
@@ -32,7 +34,7 @@ where
         for operation in &self.operations {
             let new_value = self.operation_value(operation, &guards, params);
             let guard = guards.get_mut(operation.key_index);
-            let shard = guard.expect("Missing shard lock");
+            let shard = guard.expect(MISSING_MUTEX_GUARD_ERROR);
             match new_value {
                 Some(v) => shard.insert((self.owned_key)(&operation.key), v),
                 None => shard.remove(&operation.key),
@@ -50,7 +52,7 @@ where
         let mut values = Vec::with_capacity(prerequisite.indexed_keys.indexed.len());
         for (shard_index, key) in &prerequisite.indexed_keys.indexed {
             let guard = guards.get(*shard_index);
-            let shard = guard.expect("Missing shard lock");
+            let shard = guard.expect(MISSING_MUTEX_GUARD_ERROR);
             let value = shard.get(key);
             values.push(value);
             if !(prerequisite.is_satisfied)(&values, params) {
@@ -65,16 +67,16 @@ where
         guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
         params: &P,
     ) -> Option<V> {
-        let mut context_values = Vec::with_capacity(operation.indexed_context_keys.indexed.len());
-        for (shard_index, context_key) in &operation.indexed_context_keys.indexed {
-            let context_guard = guards.get(*shard_index);
-            let context_shard = context_guard.expect("Missing shard lock");
-            let context_value = context_shard.get(context_key);
-            context_values.push(context_value);
+        let mut peek_values = Vec::with_capacity(operation.indexed_peek_keys.indexed.len());
+        for (shard_index, peek_key) in &operation.indexed_peek_keys.indexed {
+            let peek_guard = guards.get(*shard_index);
+            let peek_shard = peek_guard.expect(MISSING_MUTEX_GUARD_ERROR);
+            let peek_value = peek_shard.get(peek_key);
+            peek_values.push(peek_value);
         }
         let key_guard = guards.get(operation.key_index);
-        let key_shard = key_guard.expect("Missing shard lock");
+        let key_shard = key_guard.expect(MISSING_MUTEX_GUARD_ERROR);
         let key_value = key_shard.get(&operation.key);
-        (operation.operator)(key_value, context_values.as_slice(), params)
+        (operation.operator)(key_value, peek_values.as_slice(), params)
     }
 }

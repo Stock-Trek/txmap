@@ -1,4 +1,4 @@
-use crate::{indexer::Indexer, ops::op_trait::OpTrait};
+use crate::{indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
@@ -39,16 +39,22 @@ where
     K: Clone + Hash + Eq,
 {
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
-        let a_guard = mutex_guards.get_mut(self.a_index).expect("No Guard");
+        let a_guard = mutex_guards
+            .get_mut(self.a_index)
+            .expect(MISSING_MUTEX_GUARD_ERROR);
         let a_value = a_guard.remove(&self.a);
         drop(a_guard);
 
-        let b_guard = mutex_guards.get_mut(self.b_index).expect("No Guard");
+        let b_guard = mutex_guards
+            .get_mut(self.b_index)
+            .expect(MISSING_MUTEX_GUARD_ERROR);
         let b_value = b_guard.remove(&self.b);
         drop(b_guard);
 
         if self.a_index == self.b_index {
-            let guard = mutex_guards.get_mut(self.a_index).expect("No Guard");
+            let guard = mutex_guards
+                .get_mut(self.a_index)
+                .expect(MISSING_MUTEX_GUARD_ERROR);
             if let Some(v) = b_value {
                 guard.insert(self.a.clone(), v);
             }
@@ -57,13 +63,17 @@ where
             }
         } else {
             // Insert a's old value at b's position and vice versa
-            let a_guard = mutex_guards.get_mut(self.a_index).expect("No Guard");
+            let a_guard = mutex_guards
+                .get_mut(self.a_index)
+                .expect(MISSING_MUTEX_GUARD_ERROR);
             if let Some(v) = b_value {
                 a_guard.insert(self.a.clone(), v);
             }
             drop(a_guard);
 
-            let b_guard = mutex_guards.get_mut(self.b_index).expect("No Guard");
+            let b_guard = mutex_guards
+                .get_mut(self.b_index)
+                .expect(MISSING_MUTEX_GUARD_ERROR);
             if let Some(v) = a_value {
                 b_guard.insert(self.b.clone(), v);
             }

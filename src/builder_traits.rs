@@ -46,7 +46,7 @@ where
     fn modify_peek<const N: usize, M>(
         self,
         key: K,
-        context_keys: [K; N],
+        peek_keys: [K; N],
         mutate: M,
     ) -> impl TxBuildable<'txmap, K, V>
     where
@@ -63,7 +63,7 @@ where
     fn modify_peek_or_insert_with<const N: usize, M, G>(
         self,
         key: K,
-        context_keys: [K; N],
+        peek_keys: [K; N],
         mutate: M,
         value_generator: G,
     ) -> impl TxBuildable<'txmap, K, V>
@@ -77,7 +77,7 @@ where
     fn modify_peek_or_default<const N: usize, M>(
         self,
         key: K,
-        context_keys: [K; N],
+        peek_keys: [K; N],
         mutate: M,
     ) -> impl TxBuildable<'txmap, K, V>
     where
@@ -90,7 +90,7 @@ where
         self,
         key: K,
         transform: T,
-        context_keys: [K; N],
+        peek_keys: [K; N],
     ) -> impl TxBuildable<'txmap, K, V>
     where
         T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static;

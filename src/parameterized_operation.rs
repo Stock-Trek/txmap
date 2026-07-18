@@ -1,4 +1,7 @@
-use crate::indexer::{IndexedData, Indexer};
+use crate::{
+    indexer::{IndexedData, Indexer},
+    result::INCORRECT_PEEK_VALUES_LENGTH,
+};
 use std::hash::Hash;
 
 pub(crate) struct ParameterizedOperation<K, V, P>
@@ -8,7 +11,7 @@ where
     pub guards_bitmask: u128,
     pub key_index: u8,
     pub key: K,
-    pub indexed_context_keys: IndexedData<K>,
+    pub indexed_peek_keys: IndexedData<K>,
     #[allow(clippy::type_complexity)]
     pub operator: Box<dyn Fn(Option<&V>, &[Option<&V>], &P) -> Option<V>>,
 }
@@ -26,7 +29,7 @@ where
             guards_bitmask: 1 << key_index,
             key_index,
             key,
-            indexed_context_keys: IndexedData {
+            indexed_peek_keys: IndexedData {
                 bitmask: 0,
                 indexed: vec![],
             },
@@ -37,23 +40,22 @@ where
         indexer: &Indexer,
         key: K,
         operator: F,
-        context_keys: [K; N],
+        peek_keys: [K; N],
     ) -> Self
     where
         F: Fn(Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
     {
         let key_index = indexer.index(&key);
-        let indexed_context_keys = indexer.indexes(context_keys, |k| k);
+        let indexed_peek_keys = indexer.indexes(peek_keys, |k| k);
         Self {
-            guards_bitmask: (1 << key_index) | indexed_context_keys.bitmask,
+            guards_bitmask: (1 << key_index) | indexed_peek_keys.bitmask,
             key_index,
             key,
-            indexed_context_keys,
-            operator: Box::new(move |value, context_values, params| {
-                let context_array: [Option<&V>; N] = context_values
-                    .try_into()
-                    .expect("Incorrect operation values length");
-                (operator)(value, context_array, params)
+            indexed_peek_keys,
+            operator: Box::new(move |value, peek_values, params| {
+                let peek_array: [Option<&V>; N] =
+                    peek_values.try_into().expect(INCORRECT_PEEK_VALUES_LENGTH);
+                (operator)(value, peek_array, params)
             }),
         }
     }

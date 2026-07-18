@@ -1,4 +1,4 @@
-use crate::{indexer::Indexer, ops::op_trait::OpTrait};
+use crate::{indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
@@ -37,7 +37,9 @@ where
     K: Clone + Hash + Eq,
 {
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
-        let mutex_guard = mutex_guards.get_mut(self.key_index).expect("No Guard");
+        let mutex_guard = mutex_guards
+            .get_mut(self.key_index)
+            .expect(MISSING_MUTEX_GUARD_ERROR);
         let new_value = (self.value_generator)(&self.key);
         mutex_guard.insert(self.key.clone(), new_value);
     }

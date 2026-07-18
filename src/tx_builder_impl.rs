@@ -104,7 +104,7 @@ where
     fn modify_peek<const N: usize, M>(
         self,
         key: K,
-        context_keys: [K; N],
+        peek_keys: [K; N],
         mutate: M,
     ) -> impl TxBuildable<'txmap, K, V>
     where
@@ -123,7 +123,7 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.modify_peek(key, context_keys, mutate)
+        builder.modify_peek(key, peek_keys, mutate)
     }
     fn modify_or_insert_with<M, G>(
         self,
@@ -153,7 +153,7 @@ where
     fn modify_peek_or_insert_with<const N: usize, M, G>(
         self,
         key: K,
-        context_keys: [K; N],
+        peek_keys: [K; N],
         mutate: M,
         value_generator: G,
     ) -> impl TxBuildable<'txmap, K, V>
@@ -174,7 +174,7 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.modify_peek_or_insert_with(key, context_keys, mutate, value_generator)
+        builder.modify_peek_or_insert_with(key, peek_keys, mutate, value_generator)
     }
     fn modify_or_default<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
     where
@@ -199,7 +199,7 @@ where
     fn modify_peek_or_default<const N: usize, M>(
         self,
         key: K,
-        context_keys: [K; N],
+        peek_keys: [K; N],
         mutate: M,
     ) -> impl TxBuildable<'txmap, K, V>
     where
@@ -219,7 +219,7 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.modify_peek_or_default(key, context_keys, mutate)
+        builder.modify_peek_or_default(key, peek_keys, mutate)
     }
     fn map<T>(self, key: K, transform: T) -> impl TxBuildable<'txmap, K, V>
     where
@@ -244,7 +244,7 @@ where
         self,
         key: K,
         transform: T,
-        context_keys: [K; N],
+        peek_keys: [K; N],
     ) -> impl TxBuildable<'txmap, K, V>
     where
         T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
@@ -262,7 +262,7 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.map_peek(key, transform, context_keys)
+        builder.map_peek(key, transform, peek_keys)
     }
 
     // multi key ops

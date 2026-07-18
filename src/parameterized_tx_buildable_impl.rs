@@ -49,13 +49,13 @@ where
         mut self,
         key: K,
         operator: F,
-        context_keys: [K; N],
+        peek_keys: [K; N],
     ) -> impl ParameterizedTxBuildable<'txmap, K, V, P>
     where
         F: Fn(Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
     {
         let operation =
-            ParameterizedOperation::new_with_context(&self.indexer, key, operator, context_keys);
+            ParameterizedOperation::new_with_context(&self.indexer, key, operator, peek_keys);
         self.operations.push(operation);
         self
     }

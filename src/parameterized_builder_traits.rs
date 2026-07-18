@@ -44,7 +44,7 @@ where
         self,
         key: K,
         operator: F,
-        context_keys: [K; N],
+        peek_keys: [K; N],
     ) -> impl ParameterizedTxBuildable<'txmap, K, V, P>
     where
         F: Fn(Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static;

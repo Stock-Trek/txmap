@@ -1,5 +1,9 @@
 use std::fmt;
 
+pub(crate) const INCORRECT_GUARD_VALUES_LENGTH: &str = "Incorrect guard values length";
+pub(crate) const INCORRECT_PEEK_VALUES_LENGTH: &str = "Incorrect peek values length";
+pub(crate) const MISSING_MUTEX_GUARD_ERROR: &str = "Missing mutex guard";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TxResult {
     Completed,

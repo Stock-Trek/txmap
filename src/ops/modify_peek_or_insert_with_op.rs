@@ -1,6 +1,7 @@
 use crate::{
     indexer::{IndexedData, Indexer},
     ops::op_trait::OpTrait,
+    result::{INCORRECT_PEEK_VALUES_LENGTH, MISSING_MUTEX_GUARD_ERROR},
 };
 use hashbrown::HashMap;
 use intmap::IntMap;
@@ -42,9 +43,8 @@ where
             key,
             indexed_peek_keys,
             mutate: Box::new(move |key, value, peek_values| {
-                let peek_array: [Option<&V>; N] = peek_values
-                    .try_into()
-                    .expect("Incorrect operation values length");
+                let peek_array: [Option<&V>; N] =
+                    peek_values.try_into().expect(INCORRECT_PEEK_VALUES_LENGTH);
                 (mutate)(key, value, peek_array)
             }),
             value_generator: Box::new(value_generator),
@@ -54,7 +54,9 @@ where
         &self,
         mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
     ) -> Option<V> {
-        let mutex_guard = mutex_guards.get_mut(self.key_index).expect("No Guard");
+        let mutex_guard = mutex_guards
+            .get_mut(self.key_index)
+            .expect(MISSING_MUTEX_GUARD_ERROR);
         mutex_guard.remove(&self.key)
     }
     fn insert_value(
@@ -62,7 +64,9 @@ where
         value: V,
         mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
     ) -> Option<V> {
-        let mutex_guard = mutex_guards.get_mut(self.key_index).expect("No Guard");
+        let mutex_guard = mutex_guards
+            .get_mut(self.key_index)
+            .expect(MISSING_MUTEX_GUARD_ERROR);
         mutex_guard.insert(self.key.clone(), value)
     }
 }
@@ -76,7 +80,7 @@ where
             let mut peek_values = Vec::with_capacity(self.indexed_peek_keys.indexed.len());
             for (shard_index, peek_key) in &self.indexed_peek_keys.indexed {
                 let peek_guard = mutex_guards.get(*shard_index);
-                let peek_shard = peek_guard.expect("Missing shard lock");
+                let peek_shard = peek_guard.expect(MISSING_MUTEX_GUARD_ERROR);
                 let peek_value = peek_shard.get(peek_key);
                 peek_values.push(peek_value);
             }

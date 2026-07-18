@@ -1,4 +1,4 @@
-use crate::{indexer::Indexer, ops::op_trait::OpTrait};
+use crate::{indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
@@ -33,7 +33,7 @@ where
     }
     fn mapped_value(&self, mutex_guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) -> Option<V> {
         let key_guard = mutex_guards.get(self.key_index);
-        let key_shard = key_guard.expect("Missing shard lock");
+        let key_shard = key_guard.expect(MISSING_MUTEX_GUARD_ERROR);
         let key_value = key_shard.get(&self.key);
         (self.transform)(&self.key, key_value)
     }
@@ -46,7 +46,7 @@ where
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
         let new_value = self.mapped_value(&mutex_guards);
         let guard = mutex_guards.get_mut(self.key_index);
-        let shard = guard.expect("Missing shard lock");
+        let shard = guard.expect(MISSING_MUTEX_GUARD_ERROR);
         match new_value {
             Some(v) => shard.insert(self.key.clone(), v),
             None => shard.remove(&self.key),

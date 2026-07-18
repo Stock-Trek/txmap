@@ -1,5 +1,9 @@
 use crate::{
-    builder_traits::IntoTransaction, custodian::Custodian, guard::Guard, op::Op, result::TxResult,
+    builder_traits::IntoTransaction,
+    custodian::Custodian,
+    guard::Guard,
+    op::Op,
+    result::{MISSING_MUTEX_GUARD_ERROR, TxResult},
 };
 use hashbrown::HashMap;
 use intmap::IntMap;
@@ -58,7 +62,7 @@ where
         let mut values = Vec::with_capacity(guard.indexed_keys.indexed.len());
         for (shard_index, key) in &guard.indexed_keys.indexed {
             let mutex_guard = mutex_guards.get(*shard_index);
-            let shard = mutex_guard.expect("Missing shard lock");
+            let shard = mutex_guard.expect(MISSING_MUTEX_GUARD_ERROR);
             let value = shard.get(key);
             values.push(value);
             if !(guard.is_condition_met)(&values) {

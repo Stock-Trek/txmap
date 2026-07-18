@@ -80,7 +80,7 @@ where
         self,
         key: K,
         operator: F,
-        context_keys: [K; N],
+        peek_keys: [K; N],
     ) -> impl ParameterizedTxBuildable<'txmap, K, V, P>
     where
         F: Fn(Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
@@ -98,6 +98,6 @@ where
             prerequisites,
             operations: Vec::new(),
         };
-        builder.with_operation_and_context(key, operator, context_keys)
+        builder.with_operation_and_context(key, operator, peek_keys)
     }
 }
