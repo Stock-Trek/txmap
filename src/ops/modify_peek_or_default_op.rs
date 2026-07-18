@@ -64,9 +64,6 @@ where
     K: Clone + Hash + Eq,
     V: Default,
 {
-    fn mutex_guards_bitmask(&self) -> u128 {
-        self.guards_bitmask
-    }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
         if let Some(mut value) = self.remove_value(mutex_guards) {
             let mut peek_values = Vec::with_capacity(self.indexed_peek_keys.indexed.len());

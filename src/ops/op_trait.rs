@@ -7,6 +7,5 @@ pub(crate) trait OpTrait<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    fn mutex_guards_bitmask(&self) -> u128;
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>);
 }

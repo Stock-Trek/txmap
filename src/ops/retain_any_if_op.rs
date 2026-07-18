@@ -39,9 +39,6 @@ impl<K, V> OpTrait<K, V> for RetainAnyIfOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    fn mutex_guards_bitmask(&self) -> u128 {
-        self.guards_bitmask
-    }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
         for i in 0..self.shard_count {
             if let Some(guard) = mutex_guards.get_mut(i) {

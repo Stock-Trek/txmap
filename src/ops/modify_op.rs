@@ -36,9 +36,6 @@ impl<K, V> OpTrait<K, V> for ModifyOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    fn mutex_guards_bitmask(&self) -> u128 {
-        self.guards_bitmask
-    }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
         let mutex_guard = mutex_guards.get_mut(self.key_index).expect("No Guard");
         if let Some(key_mut_value) = mutex_guard.get_key_value_mut(&self.key) {
