@@ -17,7 +17,8 @@ where
     pub(crate) guards: Vec<Guard<K, V>>,
 }
 
-impl<'txmap, K, V> TxBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V> where K: Hash + Eq {}
+impl<'txmap, K, V> TxBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V> where K: Clone + Hash + Eq
+{}
 
 impl<'txmap, K, V> TxGuardBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V>
 where
@@ -321,7 +322,7 @@ where
     fn remove_if<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool,
+        C: Fn(&K, &V) -> bool + 'static,
     {
         let Self {
             indexer,
@@ -360,7 +361,7 @@ where
     fn retain_if<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool,
+        C: Fn(&K, &V) -> bool + 'static,
     {
         let Self {
             indexer,
@@ -397,7 +398,7 @@ where
     }
     fn remove_any_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
-        C: Fn(&K, &V) -> bool,
+        C: Fn(&K, &V) -> bool + 'static,
     {
         let Self {
             indexer,
@@ -416,7 +417,7 @@ where
     }
     fn retain_any_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
-        C: Fn(&K, &V) -> bool,
+        C: Fn(&K, &V) -> bool + 'static,
     {
         let Self {
             indexer,

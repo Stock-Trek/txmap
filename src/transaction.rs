@@ -1,5 +1,5 @@
 use crate::{
-    custodian::Custodian, guard::Guard, map_op::MapOp, mut_op::MutOp, op::Op, result::TxResult,
+    builder_traits::IntoTransaction, custodian::Custodian, guard::Guard, op::Op, result::TxResult,
 };
 use hashbrown::HashMap;
 use intmap::IntMap;
@@ -18,9 +18,19 @@ where
     pub(crate) get: Box<dyn Fn(&V) -> R>,
 }
 
+impl<'txmap, K, V, R> IntoTransaction<'txmap, K, V, R> for Transaction<'txmap, K, V, R>
+where
+    K: Clone + Hash + Eq,
+{
+    fn into_transaction(self) -> Transaction<'txmap, K, V, R> {
+        self
+    }
+}
+
 impl<'txmap, K, V, R> Transaction<'txmap, K, V, R>
 where
     K: Clone + Hash + Eq,
+    V: Default,
 {
     pub fn execute(&self) -> TxResult {
         let mut mutex_guards = self.custodian.guards(self.guards_bitmask);
@@ -30,24 +40,16 @@ where
             }
         }
         for op in &self.ops {
-            match op {
-                Op::Map(map_op) => {
-                    let new_value = self.mapped_value(map_op, &mutex_guards);
-                    let guard = mutex_guards.get_mut(map_op.key_index);
-                    let shard = guard.expect("Missing shard lock");
-                    match new_value {
-                        Some(v) => shard.insert((self.owned_key)(&map_op.key), v),
-                        None => shard.remove(&map_op.key),
-                    };
-                }
-                Op::Mut(mut_op) => {
-                    self.mut_value(mut_op, &mut mutex_guards);
-                }
-            }
+            execute_op(op, &mut mutex_guards);
         }
         TxResult::Completed
     }
+}
 
+impl<'txmap, K, V, R> Transaction<'txmap, K, V, R>
+where
+    K: Clone + Hash + Eq,
+{
     fn is_condition_met(
         &self,
         guard: &Guard<K, V>,
@@ -65,36 +67,34 @@ where
         }
         true
     }
-    fn mapped_value(
-        &self,
-        map_op: &MapOp<K, V>,
-        mutex_guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
-    ) -> Option<V> {
-        let mut context_values = Vec::with_capacity(map_op.indexed_context_keys.indexed.len());
-        for (shard_index, context_key) in &map_op.indexed_context_keys.indexed {
-            let context_guard = mutex_guards.get(*shard_index);
-            let context_shard = context_guard.expect("Missing shard lock");
-            let context_value = context_shard.get(context_key);
-            context_values.push(context_value);
-        }
-        let key_guard = mutex_guards.get(map_op.key_index);
-        let key_shard = key_guard.expect("Missing shard lock");
-        let key_value = key_shard.get(&map_op.key);
-        (map_op.mapper)(key_value, context_values.as_slice())
-    }
-    fn mut_value(
-        &self,
-        mut_op: &MutOp<K, V>,
-        mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
-    ) {
-        let key_guard = mutex_guards.get_mut(mut_op.key_index);
-        let key_shard = key_guard.expect("Missing shard lock");
-        let key_value = key_shard.get_mut(&mut_op.key);
-        if let Some(mut mutable_value) = key_value {
-            (mut_op.mutator)(&mut mutable_value)
-        } else if let Some(value_generator) = &mut_op.value_generator {
-            let new_value = value_generator();
-            key_shard.insert((self.owned_key)(&mut_op.key), new_value);
-        }
+}
+
+fn execute_op<K, V>(op: &Op<K, V>, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>)
+where
+    K: Clone + Hash + Eq,
+    V: Default,
+{
+    use crate::ops::op_trait::OpTrait;
+    match op {
+        Op::InsertWith(op) => op.apply(mutex_guards),
+        Op::InsertDefault(op) => op.apply(mutex_guards),
+        Op::Modify(op) => op.apply(mutex_guards),
+        Op::ModifyPeek(op) => op.apply(mutex_guards),
+        Op::ModifyOrInsertWith(op) => op.apply(mutex_guards),
+        Op::ModifyPeekOrInsertWith(op) => op.apply(mutex_guards),
+        Op::ModifyOrDefault(op) => op.apply(mutex_guards),
+        Op::ModifyPeekOrDefault(op) => op.apply(mutex_guards),
+        Op::Map(op) => op.apply(mutex_guards),
+        Op::MapPeek(op) => op.apply(mutex_guards),
+        Op::Mut(op) => op.apply(mutex_guards),
+        Op::SwapValue(op) => op.apply(mutex_guards),
+        Op::MoveValue(op) => op.apply(mutex_guards),
+        Op::Remove(op) => op.apply(mutex_guards),
+        Op::RemoveIf(op) => op.apply(mutex_guards),
+        Op::Retain(op) => op.apply(mutex_guards),
+        Op::RetainIf(op) => op.apply(mutex_guards),
+        Op::Clear(op) => op.apply(mutex_guards),
+        Op::RemoveAnyIf(op) => op.apply(mutex_guards),
+        Op::RetainAnyIf(op) => op.apply(mutex_guards),
     }
 }

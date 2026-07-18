@@ -7,29 +7,37 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct ModifyPeekOp<K, V>
+pub(crate) struct ModifyPeekOrInsertWithOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
     pub guards_bitmask: u128,
-    key_index: u8,
-    key: K,
+    pub key_index: u8,
+    pub key: K,
     indexed_peek_keys: IndexedData<K>,
     mutate: Box<dyn Fn(&K, &mut V, &[Option<&V>])>,
+    value_generator: Box<dyn Fn(&K) -> V>,
 }
 
-impl<K, V> ModifyPeekOp<K, V>
+impl<K, V> ModifyPeekOrInsertWithOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn new<const N: usize, M>(indexer: &Indexer, key: K, peek_keys: [K; N], mutate: M) -> Self
+    pub fn new<const N: usize, M, G>(
+        indexer: &Indexer,
+        key: K,
+        peek_keys: [K; N],
+        mutate: M,
+        value_generator: G,
+    ) -> Self
     where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
+        G: Fn(&K) -> V + 'static,
     {
         let key_index = indexer.index(&key);
         let indexed_peek_keys = indexer.indexes(peek_keys, |k| k);
         Self {
-            guards_bitmask: 1 << key_index,
+            guards_bitmask: (1 << key_index) | indexed_peek_keys.bitmask,
             key_index,
             key,
             indexed_peek_keys,
@@ -39,6 +47,7 @@ where
                     .expect("Incorrect operation values length");
                 (mutate)(key, value, peek_array)
             }),
+            value_generator: Box::new(value_generator),
         }
     }
     fn remove_value(
@@ -58,7 +67,7 @@ where
     }
 }
 
-impl<K, V> OpTrait<K, V> for ModifyPeekOp<K, V>
+impl<K, V> OpTrait<K, V> for ModifyPeekOrInsertWithOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
@@ -76,6 +85,9 @@ where
             }
             (self.mutate)(&self.key, &mut value, peek_values.as_slice());
             self.insert_value(value, mutex_guards);
+        } else {
+            let new_value = (self.value_generator)(&self.key);
+            self.insert_value(new_value, mutex_guards);
         }
     }
 }

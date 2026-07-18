@@ -8,7 +8,7 @@ pub(crate) struct InsertWithOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    guards_bitmask: u128,
+    pub guards_bitmask: u128,
     key_index: u8,
     key: K,
     value_generator: Box<dyn Fn(&K) -> V>,
