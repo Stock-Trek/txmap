@@ -1,0 +1,4 @@
+Read the GitHub issue, comment and comment history.
+Are any code changes required to address this request?
+Output exactly one boolean word, exactly one of [true, false].
+No explanations, introductions or conclusions, just a one word response.

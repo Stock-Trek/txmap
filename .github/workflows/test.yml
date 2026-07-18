@@ -1,0 +1,48 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - '**'
+      - '!master'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get secrets
+        uses: Infisical/secrets-action@v1.0.16
+        with:
+          method: "oidc"
+          identity-id: "c603d49b-292c-42ae-b838-52e03e3c3a84"
+          project-slug: "agents"
+          env-slug: "dev"
+
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Set up shipyard ssh auth
+        env:
+          SHIPYARD_KNOWN_HOST: ${{ env.SHIPYARD_KNOWN_HOST }}
+          SHIPYARD_SSH_PRIVATE_KEY_CLIENT: ${{ env.SHIPYARD_SSH_PRIVATE_KEY_CLIENT }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ env.SHIPYARD_SSH_PRIVATE_KEY_CLIENT }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ env.SHIPYARD_KNOWN_HOST }}" >> ~/.ssh/known_hosts
+          ssh -T git@ssh.shipyard.rs
+
+      - name: Run checks
+        run: |
+          cargo fmt --check
+          cargo clippy
+          cargo test

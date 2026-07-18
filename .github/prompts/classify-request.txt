@@ -1,0 +1,4 @@
+Read the GitHub issue, comment and comment history.
+Classify what type of request it is.
+Output exactly one of [BUG_FIX, CHANGE_REQUEST, FEATURE_REQUEST, INVESTIGATION, QUESTION, SPAM, CAN_IGNORE, OTHER].
+No explanations, introductions or conclusions, just a one word response.

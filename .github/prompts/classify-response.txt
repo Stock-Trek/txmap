@@ -1,0 +1,9 @@
+No explanations, introductions or conclusions, just a one word response.
+Read the GitHub issue, comment and comment history.
+Classify the type of response we can respond with.
+Output exactly one of [ALREADY_ADDRESSED, REQUIRES_HUMAN, REQUIRES_MORE_INFORMATION, CAN_ADDRESS_FULLY].
+If this has already been addressed, reply with ALREADY_ADDRESSED.
+If this requires a human to address and cannot be addressed in code, reply with REQUIRES_HUMAN.
+If there is not enough information, reply with REQUIRES_MORE_INFORMATION.
+If the issue can be addressed fully, reply with CAN_ADDRESS_FULLY.
+IMPORTANT: Reply with one single word from the 4 options available, nothing else.

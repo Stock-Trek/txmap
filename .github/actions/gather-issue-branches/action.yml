@@ -1,0 +1,29 @@
+name: "Gather issue branches"
+description: "Gather issue branches as outputs"
+inputs:
+  issue-number:
+    description: "Issue number"
+    required: true
+  issue-branch-base:
+    description: "Issue branch base"
+    required: false
+    default: master
+outputs:
+  issue-branch:
+    description: "Issue branch"
+    value: ${{ steps.gather-branches.outputs.issue-branch }}
+  issue-branch-base:
+    description: "Issue branch base"
+    value: ${{ steps.gather-branches.outputs.issue-branch-base }}
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      id: gather-branches
+      run: |
+        ISSUE_BRANCH="agent/issue-${{ inputs.issue-number }}"
+        ISSUE_BRANCH_BASE="${{ inputs.issue-branch-base }}"
+        echo "Issue branch: ${ISSUE_BRANCH}"
+        echo "Issue branch base: ${ISSUE_BRANCH_BASE}"
+        echo "issue-branch=${ISSUE_BRANCH}" >> $GITHUB_OUTPUT
+        echo "issue-branch-base=${ISSUE_BRANCH_BASE}" >> $GITHUB_OUTPUT

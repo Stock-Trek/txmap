@@ -1,0 +1,13 @@
+{
+  "type": "string",
+  "enum": [
+    "BUG_FIX",
+    "CHANGE_REQUEST",
+    "FEATURE_REQUEST",
+    "INVESTIGATION",
+    "QUESTION",
+    "SPAM",
+    "CAN_IGNORE",
+    "OTHER"
+  ]
+}

@@ -1,0 +1,484 @@
+name: Agent
+
+on:
+  issues:
+    types: [edited, opened, reopened]
+  issue_comment:
+    types: [created, edited]
+
+jobs:
+  triage:
+    if: |
+      (github.event_name == 'issues' && (contains(github.event.issue.title, '@agent') || contains(github.event.issue.body, '@agent'))) ||
+      (github.event_name == 'issue_comment' && (contains(github.event.comment.body, '@agent')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      issues: write
+    outputs:
+      issue-branch-base: ${{ steps.gather-branches.outputs.issue-branch-base }}
+      issue-branch: ${{ steps.gather-branches.outputs.issue-branch }}
+      address-issue-base64: ${{ steps.prompts.outputs.address-issue-base64 }}
+      are-code-changes-required-base64: ${{ steps.prompts.outputs.are-code-changes-required-base64 }}
+      classify-request-base64: ${{ steps.prompts.outputs.classify-request-base64 }}
+      classify-response-base64: ${{ steps.prompts.outputs.classify-response-base64 }}
+      extra-information-required-base64: ${{ steps.prompts.outputs.extra-information-required-base64 }}
+      boolean-base64: ${{ steps.schemas.outputs.boolean-base64 }}
+      information-list-base64: ${{ steps.schemas.outputs.information-list-base64 }}
+      request-classification-base64: ${{ steps.schemas.outputs.request-classification-base64 }}
+      response-classification-base64: ${{ steps.schemas.outputs.response-classification-base64 }}
+      issue-context-base64: ${{ steps.gather-context.outputs.context-base64 }}
+      request-type: ${{ steps.save-request-type.outputs.request-type }}
+    steps:
+      - name: Get secrets
+        uses: Infisical/secrets-action@v1.0.16
+        with:
+          method: "oidc"
+          identity-id: "c603d49b-292c-42ae-b838-52e03e3c3a84"
+          project-slug: "agents"
+          env-slug: "dev"
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        env:
+          GITHUB_APP_AGENT_HELPER_CLIENT_ID: ${{ env.GITHUB_APP_AGENT_HELPER_CLIENT_ID }}
+          GITHUB_APP_AGENT_HELPER_PRIVATE_KEY: ${{ env.GITHUB_APP_AGENT_HELPER_PRIVATE_KEY }}
+        with:
+          client-id: ${{ env.GITHUB_APP_AGENT_HELPER_CLIENT_ID }}
+          private-key: ${{ env.GITHUB_APP_AGENT_HELPER_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Acknowledge
+        uses: ./.github/actions/emoji-react
+        with:
+          comment-id: ${{ github.event.comment.id }}
+          issue-number: ${{ github.event.issue.number }}
+          reaction: 'eyes'
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Gather issue branches
+        id: gather-branches
+        uses: ./.github/actions/gather-issue-branches
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          issue-branch-base: master
+
+      - name: Save base64 prompts
+        id: prompts
+        run: |
+          echo "address-issue-base64=$(cat .github/prompts/address-issue.txt | base64 -w 0)" >> $GITHUB_OUTPUT
+          echo "are-code-changes-required-base64=$(cat .github/prompts/are-code-changes-required.txt | base64 -w 0)" >> $GITHUB_OUTPUT
+          echo "classify-request-base64=$(cat .github/prompts/classify-request.txt | base64 -w 0)" >> $GITHUB_OUTPUT
+          echo "classify-response-base64=$(cat .github/prompts/classify-response.txt | base64 -w 0)" >> $GITHUB_OUTPUT
+          echo "extra-information-required-base64=$(cat .github/prompts/extra-information-required.txt | base64 -w 0)" >> $GITHUB_OUTPUT
+
+      - name: Save base64 schemas
+        id: schemas
+        run: |
+          echo "boolean-base64=$(cat .github/schemas/boolean.json | base64 -w 0)" >> $GITHUB_OUTPUT
+          echo "information-list-base64=$(cat .github/schemas/information-list.json | base64 -w 0)" >> $GITHUB_OUTPUT
+          echo "request-classification-base64=$(cat .github/schemas/request-classification.json | base64 -w 0)" >> $GITHUB_OUTPUT
+          echo "response-classification-base64=$(cat .github/schemas/response-classification.json | base64 -w 0)" >> $GITHUB_OUTPUT
+
+      - name: Get last 50 comments
+        id: gather-context
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 50
+            });
+            const lastComments = comments.slice(-50);
+            const history = lastComments.map(comment => ({
+              author: comment.user.login,
+              date: comment.created_at,
+              body: comment.body,
+            }));
+            const issueContext = {
+              title: issue.title,
+              body: issue.body,
+              history
+            };
+            console.log(issueContext);
+            const stringified = JSON.stringify(issueContext);
+            const context_base64 = Buffer.from(stringified).toString('base64');
+            core.setOutput('context-base64', context_base64);
+
+      - name: Set up DeepSeek via pi
+        uses: ./.github/actions/set-up-deepseek-via-pi
+        env:
+          DEEPSEEK_API_KEY: ${{ env.DEEPSEEK_API_KEY }}
+        with:
+          api-key: ${{ env.DEEPSEEK_API_KEY }}
+
+      - name: Classify request
+        id: classify-request
+        uses: ./.github/actions/question-pi
+        with:
+          context-base64: ${{ steps.gather-context.outputs.context-base64 }}
+          prompt-base64: ${{ steps.prompts.outputs.classify-request-base64 }}
+          schema-base64: ${{ steps.schemas.outputs.request-classification-base64 }}
+
+      - name: Save request type
+        id: save-request-type
+        run: |
+          REQUEST_TYPE=$(echo "${{ steps.classify-request.outputs.response-base64 }}" | base64 -d)
+          echo "request-type: ${REQUEST_TYPE}"
+          echo "request-type=${REQUEST_TYPE}" >> $GITHUB_OUTPUT
+
+  thumbs-down-spam:
+    needs: [triage]
+    if: needs.triage.outputs.request-type == 'SPAM'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Get secrets
+        uses: Infisical/secrets-action@v1.0.16
+        with:
+          method: "oidc"
+          identity-id: "c603d49b-292c-42ae-b838-52e03e3c3a84"
+          project-slug: "agents"
+          env-slug: "dev"
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        env:
+          GITHUB_APP_AGENT_HELPER_CLIENT_ID: ${{ env.GITHUB_APP_AGENT_HELPER_CLIENT_ID }}
+          GITHUB_APP_AGENT_HELPER_PRIVATE_KEY: ${{ env.GITHUB_APP_AGENT_HELPER_PRIVATE_KEY }}
+        with:
+          client-id: ${{ env.GITHUB_APP_AGENT_HELPER_CLIENT_ID }}
+          private-key: ${{ env.GITHUB_APP_AGENT_HELPER_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Thumbs down
+        uses: ./.github/actions/emoji-react
+        with:
+          comment-id: ${{ github.event.comment.id }}
+          issue-number: ${{ github.event.issue.number }}
+          reaction: '-1'
+          token: ${{ steps.app-token.outputs.token }}
+
+  other-request:
+    needs: [triage]
+    if: needs.triage.outputs.request-type == 'OTHER'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      issues: write
+    steps:
+      - name: Get secrets
+        uses: Infisical/secrets-action@v1.0.16
+        with:
+          method: "oidc"
+          identity-id: "c603d49b-292c-42ae-b838-52e03e3c3a84"
+          project-slug: "agents"
+          env-slug: "dev"
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        env:
+          GITHUB_APP_AGENT_HELPER_CLIENT_ID: ${{ env.GITHUB_APP_AGENT_HELPER_CLIENT_ID }}
+          GITHUB_APP_AGENT_HELPER_PRIVATE_KEY: ${{ env.GITHUB_APP_AGENT_HELPER_PRIVATE_KEY }}
+        with:
+          client-id: ${{ env.GITHUB_APP_AGENT_HELPER_CLIENT_ID }}
+          private-key: ${{ env.GITHUB_APP_AGENT_HELPER_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: React confused
+        uses: ./.github/actions/emoji-react
+        with:
+          comment-id: ${{ github.event.comment.id }}
+          issue-number: ${{ github.event.issue.number }}
+          reaction: 'confused'
+          token: ${{ steps.app-token.outputs.token }}
+      - name: Add comment
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const body = "I'm sorry I wasn't able to understand the issue type. If it's a bug fix, change request, feature request, investigation or question please mention it specifically.";
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+
+  respond:
+    needs: [triage]
+    if: (needs.triage.outputs.request-type == 'BUG_FIX') || (needs.triage.outputs.request-type == 'CHANGE_REQUEST') || (needs.triage.outputs.request-type == 'FEATURE_REQUEST') || (needs.triage.outputs.request-type == 'INVESTIGATION') || (needs.triage.outputs.request-type == 'QUESTION')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Get secrets
+        uses: Infisical/secrets-action@v1.0.16
+        with:
+          method: "oidc"
+          identity-id: "c603d49b-292c-42ae-b838-52e03e3c3a84"
+          project-slug: "agents"
+          env-slug: "dev"
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        env:
+          GITHUB_APP_AGENT_HELPER_CLIENT_ID: ${{ env.GITHUB_APP_AGENT_HELPER_CLIENT_ID }}
+          GITHUB_APP_AGENT_HELPER_PRIVATE_KEY: ${{ env.GITHUB_APP_AGENT_HELPER_PRIVATE_KEY }}
+        with:
+          client-id: ${{ env.GITHUB_APP_AGENT_HELPER_CLIENT_ID }}
+          private-key: ${{ env.GITHUB_APP_AGENT_HELPER_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Checkout issue branch if it exists
+        id: checkout-issue-branch
+        uses: ./.github/actions/checkout-branch
+        with:
+          branch: ${{ needs.triage.outputs.issue-branch }}
+          base: ${{ needs.triage.outputs.issue-branch-base }}
+          create-if-not-exists: false
+
+      - name: Set up DeepSeek via pi
+        uses: ./.github/actions/set-up-deepseek-via-pi
+        env:
+          DEEPSEEK_API_KEY: ${{ env.DEEPSEEK_API_KEY }}
+        with:
+          api-key: ${{ env.DEEPSEEK_API_KEY }}
+
+      - name: Classify response
+        id: classify-response
+        uses: ./.github/actions/question-pi
+        with:
+          context-base64: ${{ needs.triage.outputs.issue-context-base64 }}
+          prompt-base64: ${{ needs.triage.outputs.classify-response-base64 }}
+          schema-base64: ${{ needs.triage.outputs.response-classification-base64 }}
+      - name: Save response type
+        id: save-response-type
+        run: |
+          RESPONSE_TYPE=$(echo ${{ steps.classify-response.outputs.response-base64 }} | base64 -d)
+          echo "RESPONSE_TYPE: ${RESPONSE_TYPE}"
+          echo "response-type=${RESPONSE_TYPE}" >> $GITHUB_OUTPUT
+
+      - name: Classify code changes required
+        id: classify-are-code-changes-required
+        if: steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY'
+        uses: ./.github/actions/question-pi
+        with:
+          context-base64: ${{ needs.triage.outputs.issue-context-base64 }}
+          prompt-base64: ${{ needs.triage.outputs.are-code-changes-required-base64 }}
+          schema-base64: ${{ needs.triage.outputs.boolean-base64 }}
+      - name: Save code changes required
+        id: save-are-code-changes-required
+        if: steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY'
+        run: |
+          ARE_CODE_CHANGES_REQUIRED=$(echo ${{ steps.classify-are-code-changes-required.outputs.response-base64 }} | base64 -d)
+          echo "ARE_CODE_CHANGES_REQUIRED: ${ARE_CODE_CHANGES_REQUIRED}"
+          echo "are-code-changes-required=${ARE_CODE_CHANGES_REQUIRED}" >> $GITHUB_OUTPUT
+
+      - name: Classify extra information required
+        id: classify-extra-information-required
+        if: steps.save-response-type.outputs.response-type == 'REQUIRES_MORE_INFORMATION'
+        uses: ./.github/actions/question-pi
+        with:
+          context-base64: ${{ needs.triage.outputs.issue-context-base64 }}
+          prompt-base64: ${{ needs.triage.outputs.extra-information-required-base64 }}
+          schema-base64: ${{ needs.triage.outputs.information-list-base64 }}
+      - name: Save extra information required
+        id: save-extra-information-required
+        if: steps.save-response-type.outputs.response-type == 'REQUIRES_MORE_INFORMATION'
+        run: |
+          EXTRA_INFORMATION_REQUIRED=$(echo ${{ steps.classify-extra-information-required.outputs.response-base64 }} | base64 -d)
+          echo "EXTRA_INFORMATION_REQUIRED: ${EXTRA_INFORMATION_REQUIRED}"
+          echo "extra-information-required<<EOF" >> $GITHUB_OUTPUT
+          echo "${EXTRA_INFORMATION_REQUIRED}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+# Already addressed
+      - name: Reply as already addressed
+        if: steps.save-response-type.outputs.response-type == 'ALREADY_ADDRESSED'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            let body = "I think this has already been addressed.\nIf it hasn't please add another comment.";
+            if (${{ steps.checkout-issue-branch.outputs.issue-branch-exists }} == true) {
+              body += "\n[The changes I have made can be found here.](https://github.com/" + `${context.repo.owner}/${context.repo.repo}` + "/compare/${{ needs.triage.outputs.issue-branch-base }}...${{ needs.triage.outputs.issue-branch }})";
+            }
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+
+# Require human
+      - name: Require human
+        if: steps.save-response-type.outputs.response-type == 'REQUIRES_HUMAN'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const body = "I'm sorry I cannot address this issue as it requires a human.";
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+
+# Ask for more information
+      - name: Add confused reaction
+        if: steps.save-response-type.outputs.response-type == 'REQUIRES_MORE_INFORMATION'
+        uses: ./.github/actions/emoji-react
+        with:
+          comment-id: ${{ github.event.comment.id }}
+          issue-number: ${{ github.event.issue.number }}
+          reaction: 'confused'
+          token: ${{ steps.app-token.outputs.token }}
+      - name: Ask for required information
+        if: steps.save-response-type.outputs.response-type == 'REQUIRES_MORE_INFORMATION'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const extraInfo = ${{ toJson(steps.save-extra-information-required.outputs.extra-information-required) }};
+            let body = "The following additional information is required:\n";
+            if (Array.isArray(extraInfo)) {
+              extraInfo.forEach(item => {
+                body += `- ${item}\n`;
+              });
+            } else {
+              body += `${extraInfo}`;
+            }
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+
+# Respond
+      - name: Add thumbs up reaction
+        if: steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY'
+        uses: ./.github/actions/emoji-react
+        with:
+          comment-id: ${{ github.event.comment.id }}
+          issue-number: ${{ github.event.issue.number }}
+          reaction: '+1'
+          token: ${{ steps.app-token.outputs.token }}
+      - name: Ensure issue branch
+        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.save-are-code-changes-required.outputs.are-code-changes-required == 'true')
+        uses: ./.github/actions/checkout-branch
+        with:
+          branch: ${{ needs.triage.outputs.issue-branch }}
+          base: ${{ needs.triage.outputs.issue-branch-base }}
+          create-if-not-exists: true
+      - name: Set up shipyard ssh auth
+        if: steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY'
+        env:
+          SHIPYARD_KNOWN_HOST: ${{ env.SHIPYARD_KNOWN_HOST }}
+          SHIPYARD_SSH_PRIVATE_KEY_CLIENT: ${{ env.SHIPYARD_SSH_PRIVATE_KEY_CLIENT }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ env.SHIPYARD_SSH_PRIVATE_KEY_CLIENT }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ env.SHIPYARD_KNOWN_HOST }}" >> ~/.ssh/known_hosts
+          ssh -T git@ssh.shipyard.rs
+      - name: Address issue
+        id: address-issue
+        if: steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY'
+        uses: ./.github/actions/invoke-pi
+        with:
+          context-base64: ${{ needs.triage.outputs.issue-context-base64 }}
+          prompt-base64: ${{ needs.triage.outputs.address-issue-base64 }}
+      - name: Save address response
+        id: save-address-issue-summary
+        if: steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY'
+        run: |
+          SUMMARY=$(echo "${{ steps.address-issue.outputs.response-base64 }}" | base64 -d)
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "${SUMMARY}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      - name: Commit and push code changes
+        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.save-are-code-changes-required.outputs.are-code-changes-required == 'true')
+        run: |
+          git config --global user.email "agent@stock-trek.com"
+          git config --global user.name "Stock-Trek Agent"
+          git add .
+          git commit --allow-empty -m "Commit changes made by pi"
+          git push
+      - name: Reply if no code changes required
+        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.save-are-code-changes-required.outputs.are-code-changes-required == 'false')
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const body = ${{ toJson(steps.save-address-issue-summary.outputs.summary) }};
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+      - name: Raise PR if code changes required
+        id: raise-pr
+        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.save-are-code-changes-required.outputs.are-code-changes-required == 'true')
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          # Write title and body to temporary files to handle quotes and backticks
+          echo "Closes #${{ github.event.issue.number }} ${{ github.event.issue.title }}" > /tmp/pr_title.txt
+          cat > /tmp/pr_body.txt << 'EOF'
+          ${{ steps.save-address-issue-summary.outputs.summary }}
+          EOF
+          PR_URL=$(gh pr create \
+            --base "${{ needs.triage.outputs.issue-branch-base }}" \
+            --head "${{ needs.triage.outputs.issue-branch }}" \
+            --title "$(cat /tmp/pr_title.txt)" \
+            --body-file /tmp/pr_body.txt) || true
+          echo "pull-request-url=$PR_URL" >> "$GITHUB_OUTPUT"
+      - name: Reply with diff and PR link
+        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.save-are-code-changes-required.outputs.are-code-changes-required == 'true')
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const body = "I have now addressed this.\n" +
+                          "[The changes I have made can be found here.](https://github.com/" + `${context.repo.owner}/${context.repo.repo}` + "/compare/${{ needs.triage.outputs.issue-branch-base }}...${{ needs.triage.outputs.issue-branch }})\n" +
+                          "[The PR is available here.](${{ steps.raise-pr.outputs.pull-request-url }})";
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });

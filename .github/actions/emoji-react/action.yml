@@ -1,0 +1,36 @@
+name: "Emoji react"
+description: "Add an emoji reaction to a comment and/or an issue"
+inputs:
+  comment-id:
+    description: "Comment ID to react to"
+  issue-number:
+    description: "Issue Number to react to"
+  reaction:
+    description: "Emoji reaction to use, one of [+1, -1, laugh, confused, heart, hooray, rocket, eyes]"
+    required: true
+  token:
+    description: "GitHub token used for request"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      if: inputs.comment-id != ''
+      run: |
+        curl -L \
+          -X POST \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer ${{ inputs.token }}" \
+          -H "X-GitHub-Api-Version: 2026-03-10" \
+          "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/comments/${{ inputs.comment-id }}/reactions" \
+          -d '{ "content": "${{ inputs.reaction }}" }'
+    - shell: bash
+      if: inputs.issue-number != ''
+      run: |
+        curl -L \
+          -X POST \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: Bearer ${{ inputs.token }}" \
+          -H "X-GitHub-Api-Version: 2026-03-10" \
+          "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${{ inputs.issue-number }}/reactions" \
+          -d '{ "content": "${{ inputs.reaction }}" }'

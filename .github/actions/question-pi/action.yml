@@ -1,0 +1,40 @@
+name: "Question pi"
+description: "Ask a question of pi providing a validated response according to the json schema"
+inputs:
+  context-base64:
+    description: "Context to send to pi in base64"
+    required: true
+  prompt-base64:
+    description: "Prompt to send to pi in base64"
+    required: true
+  schema-base64:
+    description: "Json schema to validate the response with in base64"
+    required: true
+outputs:
+  response-base64:
+    description: "Response json formatted in schema in base64"
+    value: ${{ steps.pi-response.outputs.pi-response-base64 }}
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      id: pi-response
+      run: |
+        CONTEXT=$(echo ${{ inputs.context-base64 }} | base64 -d)
+        PROMPT=$(echo ${{ inputs.prompt-base64 }} | base64 -d)
+        SCHEMA=$(echo ${{ inputs.schema-base64 }} | base64 -d)
+        echo "${PROMPT}"
+        echo "${CONTEXT}"
+        echo "${SCHEMA}"
+        PI_PROMPT="${PROMPT}\n\n <Start of context> ${CONTEXT} <End of context>"
+        PI_RESPONSE=$(pi \
+          --provider deepseek \
+          --model deepseek-reasoner \
+          --tools read,bash,grep,find,ls \
+          --json-schema "${SCHEMA}" \
+          --json-fallback force \
+          --print "${PI_PROMPT}" \
+          )
+        echo "${PI_RESPONSE}"
+        PI_RESPONSE_BASE64=$(echo "${PI_RESPONSE}" | base64 -w 0)
+        echo "pi-response-base64=${PI_RESPONSE_BASE64}" >> $GITHUB_OUTPUT

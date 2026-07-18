@@ -1,0 +1,37 @@
+name: "DeepSeek via pi"
+description: "Configure pi to connect to DeepSeek"
+inputs:
+  api-key:
+    description: "DeepSeek API key"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+
+    - name: Install pi-coding-agent and json-schema extension
+      shell: bash
+      run: |
+        bun install -g @mariozechner/pi-coding-agent
+        pi install npm:@nqbao/pi-json-schema
+
+    - name: Configure DeepSeek as custom provider
+      shell: bash
+      run: |
+        mkdir -p ~/.pi/agent
+        cat > ~/.pi/agent/models.json << 'EOF'
+        {
+          "providers": {
+            "deepseek": {
+              "baseUrl": "https://api.deepseek.com/v1",
+              "api": "openai-completions",
+              "apiKey": "${{ inputs.api-key }}",
+              "models": [
+                { "id": "deepseek-chat" },
+                { "id": "deepseek-reasoner" }
+              ]
+            }
+          }
+        }
+        EOF

@@ -1,0 +1,37 @@
+name: "Checkout branch"
+description: "Checkout the existing branch, create it if the branch is required, fall back to base"
+inputs:
+  branch:
+    description: "Branch to checkout or create"
+    required: true
+  base:
+    description: "Branch off when creating new"
+    required: false
+    default: master
+  create-if-not-exists:
+    description: "Whether to create a new branch if it doesn't yet exist"
+outputs:
+  issue-branch-exists:
+    value: ${{ steps.checkout.outputs.BRANCH_EXISTS }}
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      id: checkout
+      run: |
+        git fetch --all
+        BRANCH_EXISTS=
+        if ! git branch -r | grep -q "origin/${{ inputs.branch }}"; then
+          git checkout ${{ inputs.base }}
+          if [ "${{ inputs.create-if-not-exists }}" == "true" ]; then
+            git checkout -b ${{ inputs.branch }}
+            git push -u origin HEAD
+            BRANCH_EXISTS=true
+          else
+            BRANCH_EXISTS=false
+          fi
+        else
+          git checkout ${{ inputs.branch }}
+          BRANCH_EXISTS=true
+        fi
+        echo "BRANCH_EXISTS=${BRANCH_EXISTS}" >> $GITHUB_OUTPUT

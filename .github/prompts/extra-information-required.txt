@@ -1,0 +1,3 @@
+Read the GitHub issue, comment and comment history.
+Is there any extra information needed before this can be addressed?
+Output all the extra information needed before this request can be fully addressed, one question per line.

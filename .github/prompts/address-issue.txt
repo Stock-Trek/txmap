@@ -1,0 +1,7 @@
+Follow this 5 step plan.
+
+1. Read the GitHub issue, comment and comment history.
+2. Address the issue. Do not add any comments.
+3. Run `git fetch origin master` then `git pull --rebase origin master` and fix any merge errors.
+4. Run `cargo fmt` and `cargo clippy` and fix any issues that arise.
+5. Output a concise high level summary of your actions that can be used in a pull request.
