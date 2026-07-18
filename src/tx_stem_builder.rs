@@ -2,7 +2,7 @@ use crate::{
     builder_traits::{TxBuildable, TxBuilder, WithOperation, WithPrerequisite},
     custodian::Custodian,
     indexer::Indexer,
-    parameterized_transaction::ParameterizedTransactionBuilder,
+    parameterized_tx_builder_impl::ParameterizedTxBuilderImpl,
     tx_buildable_impl::TxBuildableImpl,
     tx_builder_impl::TxBuilderImpl,
 };
@@ -21,18 +21,17 @@ impl<'txmap, K, V> TxStemBuilder<'txmap, K, V>
 where
     K: Hash + Eq,
 {
-    pub fn with_param<P>(self) -> ParameterizedTransactionBuilder<'txmap, K, V, P> {
+    pub fn with_param<P>(self) -> ParameterizedTxBuilderImpl<'txmap, K, V, P> {
         let Self {
             indexer,
             owned_key,
             custodian,
         } = self;
-        ParameterizedTransactionBuilder {
+        ParameterizedTxBuilderImpl {
             indexer,
             owned_key,
             custodian,
             prerequisites: Vec::new(),
-            operations: Vec::new(),
         }
     }
 }

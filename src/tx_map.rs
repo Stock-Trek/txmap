@@ -47,7 +47,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::prelude::*;
+    use crate::{
+        parameterized_builder_traits::{
+            IntoParameterizedTransaction, WithParameterizedOperation, WithParameterizedPrerequisite,
+        },
+        prelude::*,
+    };
 
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     struct User {
@@ -57,6 +62,9 @@ mod tests {
     struct Funds {
         usd_and_cents: u64,
         sterling_and_pence: u64,
+    }
+    struct Transfer {
+        usd_and_cents: u64,
     }
 
     #[test]
@@ -79,20 +87,20 @@ mod tests {
                     sterling_and_pence: 0,
                 })
             })
-            .build()
+            .into_transaction()
             .execute();
         let send_1_usd_from_bob_to_tim = db
             .transaction()
             .with_prerequisite("Has available funds", [tim.clone()], |[tim_funds]| {
                 tim_funds.is_some_and(|f| f.usd_and_cents > 100)
             })
-            .with_operation(tim, |tim_funds| {
+            .with_operation(tim.clone(), |tim_funds| {
                 Some(Funds {
                     sterling_and_pence: tim_funds.unwrap().sterling_and_pence,
                     usd_and_cents: tim_funds.unwrap().usd_and_cents - 100,
                 })
             })
-            .with_operation(bob, |bob_funds| {
+            .with_operation(bob.clone(), |bob_funds| {
                 Some(bob_funds.map_or(
                     Funds {
                         usd_and_cents: 100,
@@ -104,8 +112,47 @@ mod tests {
                     },
                 ))
             })
-            .build();
+            .into_transaction();
         assert_eq!(send_1_usd_from_bob_to_tim.execute(), TxResult::Completed);
         assert_ne!(send_1_usd_from_bob_to_tim.execute(), TxResult::Completed);
+
+        let send_x_usd_from_bob_to_tim = db
+            .transaction()
+            .with_param::<Transfer>()
+            .with_prerequisite(
+                "Has available funds",
+                [tim.clone()],
+                |[tim_funds], transfer| {
+                    tim_funds.is_some_and(|f| f.usd_and_cents >= transfer.usd_and_cents)
+                },
+            )
+            .with_operation(tim.clone(), |tim_funds, transfer| {
+                Some(Funds {
+                    sterling_and_pence: tim_funds.unwrap().sterling_and_pence,
+                    usd_and_cents: tim_funds.unwrap().usd_and_cents - transfer.usd_and_cents,
+                })
+            })
+            .with_operation(bob.clone(), |bob_funds, transfer| {
+                Some(bob_funds.map_or(
+                    Funds {
+                        usd_and_cents: transfer.usd_and_cents,
+                        sterling_and_pence: 0,
+                    },
+                    |f| Funds {
+                        usd_and_cents: f.usd_and_cents + transfer.usd_and_cents,
+                        sterling_and_pence: f.sterling_and_pence,
+                    },
+                ))
+            })
+            .into_transaction();
+
+        assert_eq!(
+            send_x_usd_from_bob_to_tim.execute(&Transfer { usd_and_cents: 40 }),
+            TxResult::Completed
+        );
+        assert_ne!(
+            send_x_usd_from_bob_to_tim.execute(&Transfer { usd_and_cents: 20 }),
+            TxResult::Completed
+        );
     }
 }

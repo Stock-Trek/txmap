@@ -52,7 +52,7 @@ impl<'txmap, K, V> IntoTransaction<'txmap, K, V> for TxBuildableImpl<'txmap, K, 
 where
     K: Hash + Eq,
 {
-    fn build(self) -> Transaction<'txmap, K, V> {
+    fn into_transaction(self) -> Transaction<'txmap, K, V> {
         let Self {
             owned_key,
             custodian,

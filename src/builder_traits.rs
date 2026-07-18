@@ -50,5 +50,5 @@ pub trait IntoTransaction<'txmap, K, V>
 where
     K: Hash + Eq,
 {
-    fn build(self) -> Transaction<'txmap, K, V>;
+    fn into_transaction(self) -> Transaction<'txmap, K, V>;
 }
