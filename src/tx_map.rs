@@ -23,16 +23,25 @@ where
 
 impl<K, V> TxMap<K, V>
 where
+    K: ToOwned<Owned = K> + Hash + Eq,
+{
+    pub fn with_ownable_key(shard_count: ShardCount) -> Self {
+        Self::new(shard_count, |k| k.to_owned())
+    }
+}
+
+impl<K, V> TxMap<K, V>
+where
     K: Hash + Eq,
 {
-    pub fn new(shard_count: ShardCount, owned_key: fn(&K) -> K) -> Self {
+    pub fn new(shard_count: ShardCount, to_owned_key: fn(&K) -> K) -> Self {
         let indexer = Indexer {
             shard_count: u8::from(shard_count) as u64,
             hasher_creator: || Box::new(DefaultHasher::new()),
         };
         Self {
             indexer,
-            owned_key,
+            owned_key: to_owned_key,
             custodian: Custodian::new(shard_count),
         }
     }
