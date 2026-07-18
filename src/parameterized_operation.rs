@@ -3,7 +3,7 @@ use std::hash::Hash;
 
 pub(crate) struct ParameterizedOperation<K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     pub guards_bitmask: u128,
     pub key_index: u8,
@@ -15,7 +15,7 @@ where
 
 impl<K, V, P> ParameterizedOperation<K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     pub fn new<F>(indexer: &Indexer, key: K, operator: F) -> Self
     where

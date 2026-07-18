@@ -9,7 +9,7 @@ use std::hash::Hash;
 
 pub struct ParameterizedTransaction<'txmap, K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     pub(crate) owned_key: fn(&K) -> K,
     pub(crate) custodian: &'txmap Custodian<K, V>,
@@ -20,13 +20,13 @@ where
 
 impl<'txmap, K, V, P> ParameterizedTransaction<'txmap, K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     pub fn execute(&self, params: &P) -> TxResult {
         let mut guards = self.custodian.guards(self.guards_bitmask);
         for (i, prerequisite) in self.prerequisites.iter().enumerate() {
             if !self.is_prerequisite_met(prerequisite, &guards, params) {
-                return TxResult::UnmetPrerequisite(i, prerequisite.name.clone());
+                return TxResult::ConditionNotMet(i, prerequisite.name.clone());
             }
         }
         for operation in &self.operations {

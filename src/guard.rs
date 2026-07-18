@@ -1,42 +1,42 @@
 use crate::indexer::{IndexedData, Indexer};
 use std::hash::Hash;
 
-pub(crate) struct Prerequisite<K, V>
+pub(crate) struct Guard<K, V>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     pub guards_bitmask: u128,
     pub name: String,
     pub indexed_keys: IndexedData<K>,
     #[allow(clippy::type_complexity)]
-    pub is_satisfied: Box<dyn Fn(&[Option<&V>]) -> bool>,
+    pub is_condition_met: Box<dyn Fn(&[Option<&V>]) -> bool>,
 }
 
-impl<K, V> Prerequisite<K, V>
+impl<K, V> Guard<K, V>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
-    pub fn new<const N: usize, F>(
+    pub fn new<const N: usize, C>(
         indexer: Indexer,
         name: String,
         keys: [K; N],
-        prerequisite: F,
+        condition: C,
     ) -> Self
     where
-        F: Fn([Option<&V>; N]) -> bool + 'static,
+        C: Fn([Option<&V>; N]) -> bool + 'static,
     {
         let indexed_keys = indexer.indexes(keys, |k| k);
-        let is_satisfied = Box::new(move |values: &[Option<&V>]| {
+        let is_condition_met = Box::new(move |values: &[Option<&V>]| {
             let array: [Option<&V>; N] = values
                 .try_into()
                 .expect("Incorrect prerequisite values length");
-            (prerequisite)(array)
+            (condition)(array)
         });
         Self {
             guards_bitmask: indexed_keys.bitmask,
             name,
             indexed_keys,
-            is_satisfied,
+            is_condition_met,
         }
     }
 }

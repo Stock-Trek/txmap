@@ -4,20 +4,20 @@ use std::hash::Hash;
 pub trait ParameterizedTxBuilder<'txmap, K, V, P>:
     WithParameterizedPrerequisite<'txmap, K, V, P> + WithParameterizedOperation<'txmap, K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
 }
 
 pub trait ParameterizedTxBuildable<'txmap, K, V, P>:
     WithParameterizedOperation<'txmap, K, V, P> + IntoParameterizedTransaction<'txmap, K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
 }
 
 pub trait WithParameterizedPrerequisite<'txmap, K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     fn with_prerequisite<const N: usize, F>(
         self,
@@ -31,7 +31,7 @@ where
 
 pub trait WithParameterizedOperation<'txmap, K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     fn with_operation<F>(
         self,
@@ -52,7 +52,7 @@ where
 
 pub trait IntoParameterizedTransaction<'txmap, K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     fn into_transaction(self) -> ParameterizedTransaction<'txmap, K, V, P>;
 }

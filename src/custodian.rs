@@ -6,7 +6,7 @@ use std::hash::Hash;
 
 pub(crate) struct Custodian<K, V>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     shard_count: u8,
     shards: Vec<Shard<K, V>>,
@@ -16,7 +16,7 @@ type Shard<K, V> = Mutex<HashMap<K, V>>;
 
 impl<K, V> Custodian<K, V>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     pub fn new(shard_count: ShardCount) -> Self {
         let shard_count = u8::from(shard_count);

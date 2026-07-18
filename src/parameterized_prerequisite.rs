@@ -3,7 +3,7 @@ use std::hash::Hash;
 
 pub(crate) struct ParameterizedPrerequisite<K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     pub guards_bitmask: u128,
     pub name: String,
@@ -14,7 +14,7 @@ where
 
 impl<K, V, P> ParameterizedPrerequisite<K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     pub fn new<const N: usize, F>(
         indexer: Indexer,

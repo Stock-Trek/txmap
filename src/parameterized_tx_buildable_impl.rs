@@ -12,7 +12,7 @@ use std::hash::Hash;
 
 pub struct ParameterizedTxBuildableImpl<'txmap, K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     pub(crate) indexer: Indexer,
     pub(crate) owned_key: fn(&K) -> K,
@@ -24,14 +24,14 @@ where
 impl<'txmap, K, V, P> ParameterizedTxBuildable<'txmap, K, V, P>
     for ParameterizedTxBuildableImpl<'txmap, K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
 }
 
 impl<'txmap, K, V, P> WithParameterizedOperation<'txmap, K, V, P>
     for ParameterizedTxBuildableImpl<'txmap, K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     fn with_operation<F>(
         mut self,
@@ -64,7 +64,7 @@ where
 impl<'txmap, K, V, P> IntoParameterizedTransaction<'txmap, K, V, P>
     for ParameterizedTxBuildableImpl<'txmap, K, V, P>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     fn into_transaction(self) -> ParameterizedTransaction<'txmap, K, V, P> {
         let Self {
