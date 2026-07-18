@@ -32,6 +32,9 @@ jobs:
       issue-context-base64: ${{ steps.gather-context.outputs.context-base64 }}
       request-type: ${{ steps.save-request-type.outputs.request-type }}
     steps:
+      - name: Debug OIDC Claims
+        uses: github/actions-oidc-debugger@main
+
       - name: Get secrets
         uses: Infisical/secrets-action@v1.0.16
         with:
