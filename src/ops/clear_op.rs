@@ -18,7 +18,7 @@ where
     K: Clone + Hash + Eq,
 {
     pub fn new(indexer: &Indexer) -> Self {
-        let shard_count = indexer.shard_count as u8;
+        let shard_count = indexer.shard_count;
         let guards_bitmask = indexer.all_bitmask();
         Self {
             guards_bitmask,

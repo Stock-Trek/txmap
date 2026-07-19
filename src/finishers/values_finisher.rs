@@ -8,11 +8,12 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct ValuesFinisher<K, V, R>
+pub struct ValuesFinisher<K, V, R>
 where
     K: Clone + Hash + Eq,
 {
     indexed_keys: IndexedData<K>,
+    #[allow(clippy::type_complexity)]
     transform: Box<dyn Fn(&K, Option<&V>) -> Option<R>>,
 }
 

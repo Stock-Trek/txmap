@@ -10,6 +10,7 @@ where
 {
     guards_bitmask: u128,
     shard_count: u8,
+    #[allow(clippy::type_complexity)]
     condition: Box<dyn Fn(&K, &V) -> bool>,
 }
 
@@ -21,7 +22,7 @@ where
     where
         C: Fn(&K, &V) -> bool + 'static,
     {
-        let shard_count = indexer.shard_count as u8;
+        let shard_count = indexer.shard_count;
         let guards_bitmask = indexer.all_bitmask();
         Self {
             guards_bitmask,

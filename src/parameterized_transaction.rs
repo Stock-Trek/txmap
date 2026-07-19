@@ -23,7 +23,7 @@ impl<'txmap, K, V, P> ParameterizedTransaction<'txmap, K, V, P>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn execute(&self, params: &P) -> TxResult {
+    pub fn execute(&self, params: &P) -> TxResult<()> {
         let mut guards = self.custodian.guards(self.guards_bitmask);
         for (i, prerequisite) in self.prerequisites.iter().enumerate() {
             if !self.is_prerequisite_met(prerequisite, &guards, params) {
@@ -39,7 +39,7 @@ where
                 None => shard.remove(&operation.key),
             };
         }
-        TxResult::Completed
+        TxResult::Completed(())
     }
 
     fn is_prerequisite_met(

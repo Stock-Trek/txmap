@@ -16,6 +16,7 @@ where
     pub key_index: u8,
     pub key: K,
     indexed_peek_keys: IndexedData<K>,
+    #[allow(clippy::type_complexity)]
     mutate: Box<dyn Fn(&K, &mut V, &[Option<&V>])>,
     value_generator: Box<dyn Fn(&K) -> V>,
 }
