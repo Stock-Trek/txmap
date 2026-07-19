@@ -1,7 +1,12 @@
 [package]
 name = "txmap"
 version = "0.1.0"
+authors = ["Nathan J Adams"]
 edition = "2024"
+description = "A concurrent transactional hash map with lock-free reads and fine-grained locking"
+license = "MIT"
+repository = "https://github.com/Stock-Trek/txmap"
+keywords = ["concurrent", "hashmap", "transaction", "lock-free"]
 
 [dependencies]
 hashbrown = "0.17.1"
