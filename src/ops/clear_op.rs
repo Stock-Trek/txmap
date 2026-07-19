@@ -16,21 +16,12 @@ impl<K, V, P> ClearOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn new_with_param(indexer: &Indexer, _param_placeholder: P) -> Self {
+    pub fn new(indexer: &Indexer) -> Self {
         let guards_bitmask = indexer.all_bitmask();
         Self {
             guards_bitmask,
             _phantom: PhantomData,
         }
-    }
-}
-
-impl<K, V> ClearOp<K, V, ()>
-where
-    K: Clone + Hash + Eq,
-{
-    pub fn new(indexer: &Indexer) -> Self {
-        Self::new_with_param(indexer, ())
     }
 }
 

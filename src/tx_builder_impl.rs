@@ -320,7 +320,7 @@ where
         };
         builder.remove(keys)
     }
-    fn remove_if<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn remove_where<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,
@@ -338,9 +338,9 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.remove_if(keys, condition)
+        builder.remove_where(keys, condition)
     }
-    fn retain<I>(self, keys: I) -> impl TxBuildable<'txmap, K, V>
+    fn retain_only<I>(self, keys: I) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
         K: 'static,
@@ -357,9 +357,9 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.retain(keys)
+        builder.retain_only(keys)
     }
-    fn retain_if<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn retain_where<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,
@@ -377,7 +377,7 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.retain_if(keys, condition)
+        builder.retain_where(keys, condition)
     }
 
     // global ops
@@ -399,7 +399,7 @@ where
         };
         builder.clear()
     }
-    fn remove_any_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn remove_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         C: Fn(&K, &V) -> bool + 'static,
         K: 'static,
@@ -416,9 +416,9 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.remove_any_if(condition)
+        builder.remove_if(condition)
     }
-    fn retain_any_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn retain<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         C: Fn(&K, &V) -> bool + 'static,
         K: 'static,
@@ -435,6 +435,6 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.retain_any_if(condition)
+        builder.retain(condition)
     }
 }

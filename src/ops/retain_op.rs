@@ -2,29 +2,29 @@ use crate::{indexer::Indexer, ops::op_trait::OpTrait};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
-use std::{hash::Hash, marker::PhantomData};
+use std::hash::Hash;
 
 pub(crate) struct RetainOp<K, V, P = ()>
 where
     K: Clone + Hash + Eq,
 {
     guards_bitmask: u128,
-    keys: Vec<K>,
-    _phantom: PhantomData<(V, P)>,
+    #[allow(clippy::type_complexity)]
+    condition: Box<dyn Fn(&K, &V, &P) -> bool>,
 }
 
 impl<K, V, P> RetainOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn new_with_param<I>(indexer: &Indexer, keys: I, _param_placeholder: P) -> Self
+    pub fn new_with_param<C>(indexer: &Indexer, condition: C) -> Self
     where
-        I: IntoIterator<Item = K>,
+        C: Fn(&K, &V, &P) -> bool + 'static,
     {
+        let guards_bitmask = indexer.all_bitmask();
         Self {
-            guards_bitmask: indexer.all_bitmask(),
-            keys: keys.into_iter().collect(),
-            _phantom: PhantomData,
+            guards_bitmask,
+            condition: Box::new(condition),
         }
     }
 }
@@ -33,11 +33,11 @@ impl<K, V> RetainOp<K, V, ()>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn new<I>(indexer: &Indexer, keys: I) -> Self
+    pub fn new<C>(indexer: &Indexer, condition: C) -> Self
     where
-        I: IntoIterator<Item = K>,
+        C: Fn(&K, &V) -> bool + 'static,
     {
-        Self::new_with_param(indexer, keys, ())
+        Self::new_with_param(indexer, move |k, v, _| condition(k, v))
     }
 }
 
@@ -48,9 +48,9 @@ where
     fn guards_bitmask(&self) -> u128 {
         self.guards_bitmask
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, _params: &P) {
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, params: &P) {
         for mutex_guard in mutex_guards.values_mut() {
-            mutex_guard.retain(|k, _| self.keys.contains(k));
+            mutex_guard.retain(|k, v| (self.condition)(k, v, params));
         }
     }
 }

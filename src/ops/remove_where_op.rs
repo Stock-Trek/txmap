@@ -1,20 +1,22 @@
-use crate::{indexer::Indexer, ops::op_trait::OpTrait};
+use crate::{
+    indexer::{IndexedData, Indexer},
+    ops::op_trait::OpTrait,
+};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct RetainIfOp<K, V, P = ()>
+pub(crate) struct RemoveWhereOp<K, V, P = ()>
 where
     K: Clone + Hash + Eq,
 {
-    guards_bitmask: u128,
-    keys: Vec<K>,
+    indexed_keys: IndexedData<K>,
     #[allow(clippy::type_complexity)]
     condition: Box<dyn Fn(&K, &V, &P) -> bool>,
 }
 
-impl<K, V, P> RetainIfOp<K, V, P>
+impl<K, V, P> RemoveWhereOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
@@ -23,15 +25,15 @@ where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V, &P) -> bool + 'static,
     {
+        let indexed_keys = indexer.indexes(keys, |k| k);
         Self {
-            guards_bitmask: indexer.all_bitmask(),
-            keys: keys.into_iter().collect(),
+            indexed_keys,
             condition: Box::new(condition),
         }
     }
 }
 
-impl<K, V> RetainIfOp<K, V, ()>
+impl<K, V> RemoveWhereOp<K, V, ()>
 where
     K: Clone + Hash + Eq,
 {
@@ -44,16 +46,21 @@ where
     }
 }
 
-impl<K, V, P> OpTrait<K, V, P> for RetainIfOp<K, V, P>
+impl<K, V, P> OpTrait<K, V, P> for RemoveWhereOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
     fn guards_bitmask(&self) -> u128 {
-        self.guards_bitmask
+        self.indexed_keys.bitmask
     }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, params: &P) {
-        for mutex_guard in mutex_guards.values_mut() {
-            mutex_guard.retain(|k, v| self.keys.contains(k) && (self.condition)(k, v, params));
+        for (key_index, key) in &self.indexed_keys.indexed {
+            if let Some(guard) = mutex_guards.get_mut(*key_index)
+                && let Some(value) = guard.get(key)
+                && (self.condition)(key, value, params)
+            {
+                guard.remove(key);
+            }
         }
     }
 }
