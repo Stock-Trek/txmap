@@ -4,11 +4,7 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct InsertWithOp<K, V, P = ()>
-where
-    K: Clone + Hash + Eq + 'static,
-    V: 'static,
-{
+pub(crate) struct InsertWithOp<K, V, P = ()> {
     guards_bitmask: u128,
     key_index: u8,
     key: K,
@@ -18,9 +14,9 @@ where
 
 impl<K, V, P> InsertWithOp<K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Hash,
 {
-    pub fn new_with_param<G>(indexer: &Indexer, key: K, value_generator: G) -> Self
+    pub fn new_with_params<G>(indexer: &Indexer, key: K, value_generator: G) -> Self
     where
         G: Fn(&K, &P) -> V + 'static,
     {
@@ -36,13 +32,13 @@ where
 
 impl<K, V> InsertWithOp<K, V, ()>
 where
-    K: Clone + Hash + Eq,
+    K: Hash,
 {
     pub fn new<G>(indexer: &Indexer, key: K, value_generator: G) -> Self
     where
         G: Fn(&K) -> V + 'static,
     {
-        Self::new_with_param(indexer, key, move |k, _| value_generator(k))
+        Self::new_with_params(indexer, key, move |k, _| value_generator(k))
     }
 }
 

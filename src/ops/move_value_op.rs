@@ -1,28 +1,23 @@
-use crate::{
-    indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR,
-};
+use crate::{indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::{hash::Hash, marker::PhantomData};
 
-pub(crate) struct MoveValueOp<K, V, P = ()>
-where
-    K: Clone + Hash + Eq,
-{
+pub(crate) struct MoveValueOp<K, V> {
     guards_bitmask: u128,
     from_index: u8,
     to_index: u8,
     from: K,
     to: K,
-    _phantom: PhantomData<(V, P)>,
+    _phantom: PhantomData<V>,
 }
 
-impl<K, V, P> MoveValueOp<K, V, P>
+impl<K, V> MoveValueOp<K, V>
 where
-    K: Clone + Hash + Eq,
+    K: Hash,
 {
-    pub fn new_with_param(indexer: &Indexer, from: K, to: K, _param_placeholder: P) -> Self {
+    pub fn new(indexer: &Indexer, from: K, to: K) -> Self {
         let from_index = indexer.index(&from);
         let to_index = indexer.index(&to);
         Self {
@@ -36,23 +31,14 @@ where
     }
 }
 
-impl<K, V> MoveValueOp<K, V, ()>
-where
-    K: Clone + Hash + Eq,
-{
-    pub fn new(indexer: &Indexer, from: K, to: K) -> Self {
-        Self::new_with_param(indexer, from, to, ())
-    }
-}
-
-impl<K, V, P> OpTrait<K, V, P> for MoveValueOp<K, V, P>
+impl<K, V, P> OpTrait<K, V, P> for MoveValueOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
     fn guards_bitmask(&self) -> u128 {
         self.guards_bitmask
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, _params: &P) {
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, _: &P) {
         let value = {
             let from_guard = mutex_guards
                 .get_mut(self.from_index)

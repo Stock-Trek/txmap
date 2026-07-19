@@ -6,10 +6,7 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub struct ValueFinisher<K, V, R>
-where
-    K: Clone + Hash + Eq,
-{
+pub struct ValueFinisher<K, V, R> {
     key_index: u8,
     key: K,
     #[allow(clippy::type_complexity)]
@@ -18,7 +15,7 @@ where
 
 impl<K, V, R> ValueFinisher<K, V, R>
 where
-    K: Clone + Hash + Eq,
+    K: Hash,
 {
     pub fn new<T>(indexer: Indexer, key: K, transform: T) -> Self
     where
@@ -34,7 +31,7 @@ where
 
 impl<K, V, R> FinisherTrait<K, V> for ValueFinisher<K, V, R>
 where
-    K: Clone + Hash + Eq,
+    K: Hash + Eq,
 {
     type Output = Option<R>;
 

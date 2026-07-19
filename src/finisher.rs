@@ -2,11 +2,10 @@ use crate::finishers::finisher_trait::FinisherTrait;
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
-use std::{hash::Hash, marker::PhantomData};
+use std::marker::PhantomData;
 
 pub(crate) struct Finisher<K, V, F>
 where
-    K: Clone + Hash + Eq,
     F: FinisherTrait<K, V>,
 {
     finisher: F,
@@ -16,7 +15,6 @@ where
 
 impl<K, V, F> Finisher<K, V, F>
 where
-    K: Clone + Hash + Eq,
     F: FinisherTrait<K, V>,
 {
     pub fn new(finisher: F) -> Self {

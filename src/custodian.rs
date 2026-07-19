@@ -2,22 +2,15 @@ use crate::shard_count::ShardCount;
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::{Mutex, MutexGuard};
-use std::hash::Hash;
 
-pub(crate) struct Custodian<K, V>
-where
-    K: Clone + Hash + Eq,
-{
+pub(crate) struct Custodian<K, V> {
     shard_count: u8,
     shards: Vec<Shard<K, V>>,
 }
 
 type Shard<K, V> = Mutex<HashMap<K, V>>;
 
-impl<K, V> Custodian<K, V>
-where
-    K: Clone + Hash + Eq,
-{
+impl<K, V> Custodian<K, V> {
     pub fn new(shard_count: ShardCount) -> Self {
         let shard_count = u8::from(shard_count);
         let mut shards = Vec::with_capacity(shard_count as usize);

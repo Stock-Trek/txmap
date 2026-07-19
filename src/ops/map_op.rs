@@ -1,15 +1,10 @@
-use crate::{
-    indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR,
-};
+use crate::{indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct MapOp<K, V, P = ()>
-where
-    K: Clone + Hash + Eq,
-{
+pub(crate) struct MapOp<K, V, P = ()> {
     guards_bitmask: u128,
     key_index: u8,
     key: K,
@@ -19,9 +14,9 @@ where
 
 impl<K, V, P> MapOp<K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Hash + Eq,
 {
-    pub fn new_with_param<T>(indexer: &Indexer, key: K, transform: T) -> Self
+    pub fn new_with_params<T>(indexer: &Indexer, key: K, transform: T) -> Self
     where
         T: Fn(&K, Option<&V>, &P) -> Option<V> + 'static,
     {
@@ -47,13 +42,13 @@ where
 
 impl<K, V> MapOp<K, V, ()>
 where
-    K: Clone + Hash + Eq,
+    K: Hash + Eq,
 {
     pub fn new<T>(indexer: &Indexer, key: K, transform: T) -> Self
     where
         T: Fn(&K, Option<&V>) -> Option<V> + 'static,
     {
-        Self::new_with_param(indexer, key, move |k, v, _| transform(k, v))
+        Self::new_with_params(indexer, key, move |k, v, _| transform(k, v))
     }
 }
 

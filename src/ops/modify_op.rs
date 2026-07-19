@@ -1,15 +1,10 @@
-use crate::{
-    indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR,
-};
+use crate::{indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct ModifyOp<K, V, P = ()>
-where
-    K: Clone + Hash + Eq,
-{
+pub(crate) struct ModifyOp<K, V, P = ()> {
     guards_bitmask: u128,
     key_index: u8,
     key: K,
@@ -19,9 +14,9 @@ where
 
 impl<K, V, P> ModifyOp<K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Hash,
 {
-    pub fn new_with_param<M>(indexer: &Indexer, key: K, mutate: M) -> Self
+    pub fn new_with_params<M>(indexer: &Indexer, key: K, mutate: M) -> Self
     where
         M: Fn(&K, &mut V, &P) + 'static,
     {
@@ -37,19 +32,19 @@ where
 
 impl<K, V> ModifyOp<K, V, ()>
 where
-    K: Clone + Hash + Eq,
+    K: Hash,
 {
     pub fn new<M>(indexer: &Indexer, key: K, mutate: M) -> Self
     where
         M: Fn(&K, &mut V) + 'static,
     {
-        Self::new_with_param(indexer, key, move |k, v, _| mutate(k, v))
+        Self::new_with_params(indexer, key, move |k, v, _| mutate(k, v))
     }
 }
 
 impl<K, V, P> OpTrait<K, V, P> for ModifyOp<K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Hash + Eq,
 {
     fn guards_bitmask(&self) -> u128 {
         self.guards_bitmask

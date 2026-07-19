@@ -7,10 +7,7 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct Guard<K, V>
-where
-    K: Clone + Hash + Eq,
-{
+pub(crate) struct Guard<K, V> {
     pub guards_bitmask: u128,
     pub name: String,
     pub indexed_keys: IndexedData<K>,
@@ -20,7 +17,7 @@ where
 
 impl<K, V> Guard<K, V>
 where
-    K: Clone + Hash + Eq,
+    K: Hash + Eq,
 {
     pub fn new<const N: usize, C>(
         indexer: Indexer,

@@ -8,13 +8,10 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct ModifyPeekOrInsertWithOp<K, V, P = ()>
-where
-    K: Clone + Hash + Eq,
-{
+pub(crate) struct ModifyPeekOrInsertWithOp<K, V, P = ()> {
     guards_bitmask: u128,
-    pub key_index: u8,
-    pub key: K,
+    key_index: u8,
+    key: K,
     indexed_peek_keys: IndexedData<K>,
     #[allow(clippy::type_complexity)]
     mutate: Box<dyn Fn(&K, &mut V, &[Option<&V>], &P)>,
@@ -26,7 +23,7 @@ impl<K, V, P> ModifyPeekOrInsertWithOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn new_with_param<const N: usize, M, G>(
+    pub fn new_with_params<const N: usize, M, G>(
         indexer: &Indexer,
         key: K,
         peek_keys: [K; N],
@@ -88,7 +85,7 @@ where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
         G: Fn(&K) -> V + 'static,
     {
-        Self::new_with_param(
+        Self::new_with_params(
             indexer,
             key,
             peek_keys,

@@ -1,27 +1,32 @@
 use crate::{
-    builder_traits::{TxBuildable, TxBuilder, TxGuardBuilder, TxOpBuilder},
+    builder_traits::{
+        TxBuildable, TxBuilder, TxGuardBuilder, TxOpBuilder, TxParamBuildable, TxParamBuilder,
+    },
     custodian::Custodian,
     guard::Guard,
     indexer::Indexer,
     tx_buildable_impl::TxBuildableImpl,
+    tx_param_buildable_impl::TxParamBuildableImpl,
 };
 use std::hash::Hash;
 
-pub struct TxBuilderImpl<'txmap, K, V>
-where
-    K: Clone + Hash + Eq,
-{
+pub struct TxBuilderImpl<'txmap, K, V> {
     pub(crate) indexer: Indexer,
     pub(crate) custodian: &'txmap Custodian<K, V>,
     pub(crate) guards: Vec<Guard<K, V>>,
 }
 
-impl<'txmap, K, V> TxBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V> where K: Clone + Hash + Eq
-{}
+impl<'txmap, K, V> TxBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V>
+where
+    K: Hash + Eq + 'static,
+    V: 'static,
+{
+}
 
 impl<'txmap, K, V> TxGuardBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V>
 where
-    K: Clone + Hash + Eq,
+    K: Hash + Eq + 'static,
+    V: 'static,
 {
     fn require<const N: usize, C>(
         mut self,
@@ -38,16 +43,39 @@ where
     }
 }
 
+impl<'txmap, K, V> TxParamBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V>
+where
+    K: Hash + Eq + 'static,
+    V: 'static,
+{
+    fn with_param<P>(self) -> impl TxParamBuildable<'txmap, K, V, P>
+    where
+        P: 'static,
+    {
+        let Self {
+            indexer,
+            custodian,
+            guards,
+        } = self;
+        TxParamBuildableImpl {
+            custodian,
+            guards,
+            indexer,
+            ops: Vec::new(),
+        }
+    }
+}
+
 impl<'txmap, K, V> TxOpBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V>
 where
-    K: Clone + Hash + Eq,
+    K: Hash + Eq + 'static,
+    V: 'static,
 {
     // single key ops
     fn insert_with<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
     where
         G: Fn(&K) -> V + 'static,
-        K: 'static,
-        V: 'static,
+        K: Clone,
     {
         let Self {
             indexer,
@@ -64,8 +92,8 @@ where
     }
     fn insert_default(self, key: K) -> impl TxBuildable<'txmap, K, V>
     where
-        K: 'static,
-        V: Default + 'static,
+        K: Clone,
+        V: Default,
     {
         let Self {
             indexer,
@@ -83,8 +111,6 @@ where
     fn modify<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
     where
         M: Fn(&K, &mut V) + 'static,
-        K: 'static,
-        V: 'static,
     {
         let Self {
             indexer,
@@ -107,8 +133,7 @@ where
     ) -> impl TxBuildable<'txmap, K, V>
     where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
-        K: 'static,
-        V: 'static,
+        K: Clone,
     {
         let Self {
             indexer,
@@ -132,8 +157,7 @@ where
     where
         M: Fn(&K, &mut V) + 'static,
         G: Fn(&K) -> V + 'static,
-        K: 'static,
-        V: 'static,
+        K: Clone,
     {
         let Self {
             indexer,
@@ -158,8 +182,7 @@ where
     where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
         G: Fn(&K) -> V + 'static,
-        K: 'static,
-        V: 'static,
+        K: Clone,
     {
         let Self {
             indexer,
@@ -177,9 +200,8 @@ where
     fn modify_or_default<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
     where
         M: Fn(&K, &mut V) + 'static,
+        K: Clone,
         V: Default,
-        K: 'static,
-        V: 'static,
     {
         let Self {
             indexer,
@@ -202,8 +224,8 @@ where
     ) -> impl TxBuildable<'txmap, K, V>
     where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
-        K: 'static,
-        V: Default + 'static,
+        K: Clone,
+        V: Default,
     {
         let Self {
             indexer,
@@ -221,8 +243,7 @@ where
     fn map<T>(self, key: K, transform: T) -> impl TxBuildable<'txmap, K, V>
     where
         T: Fn(&K, Option<&V>) -> Option<V> + 'static,
-        K: 'static,
-        V: 'static,
+        K: Clone,
     {
         let Self {
             indexer,
@@ -245,8 +266,7 @@ where
     ) -> impl TxBuildable<'txmap, K, V>
     where
         T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
-        K: 'static,
-        V: 'static,
+        K: Clone,
     {
         let Self {
             indexer,
@@ -265,8 +285,7 @@ where
     // multi key ops
     fn swap_value(self, a: K, b: K) -> impl TxBuildable<'txmap, K, V>
     where
-        K: 'static,
-        V: 'static,
+        K: Clone,
     {
         let Self {
             indexer,
@@ -283,8 +302,7 @@ where
     }
     fn move_value(self, from: K, to: K) -> impl TxBuildable<'txmap, K, V>
     where
-        K: 'static,
-        V: 'static,
+        K: Clone,
     {
         let Self {
             indexer,
@@ -304,8 +322,6 @@ where
     fn remove<I>(self, keys: I) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
-        K: 'static,
-        V: 'static,
     {
         let Self {
             indexer,
@@ -324,8 +340,6 @@ where
     where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,
-        K: 'static,
-        V: 'static,
     {
         let Self {
             indexer,
@@ -343,8 +357,6 @@ where
     fn retain_only<I>(self, keys: I) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
-        K: 'static,
-        V: 'static,
     {
         let Self {
             indexer,
@@ -363,8 +375,6 @@ where
     where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,
-        K: 'static,
-        V: 'static,
     {
         let Self {
             indexer,
@@ -381,11 +391,7 @@ where
     }
 
     // global ops
-    fn clear(self) -> impl TxBuildable<'txmap, K, V>
-    where
-        K: 'static,
-        V: 'static,
-    {
+    fn clear(self) -> impl TxBuildable<'txmap, K, V> {
         let Self {
             indexer,
             custodian,
@@ -402,8 +408,6 @@ where
     fn remove_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         C: Fn(&K, &V) -> bool + 'static,
-        K: 'static,
-        V: 'static,
     {
         let Self {
             indexer,
@@ -421,8 +425,6 @@ where
     fn retain<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         C: Fn(&K, &V) -> bool + 'static,
-        K: 'static,
-        V: 'static,
     {
         let Self {
             indexer,

@@ -2,20 +2,14 @@ use crate::{indexer::Indexer, ops::op_trait::OpTrait};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
-use std::{hash::Hash, marker::PhantomData};
+use std::marker::PhantomData;
 
-pub(crate) struct ClearOp<K, V, P = ()>
-where
-    K: Clone + Hash + Eq,
-{
+pub(crate) struct ClearOp<K, V> {
     guards_bitmask: u128,
-    _phantom: PhantomData<(K, V, P)>,
+    _phantom: PhantomData<(K, V)>,
 }
 
-impl<K, V, P> ClearOp<K, V, P>
-where
-    K: Clone + Hash + Eq,
-{
+impl<K, V> ClearOp<K, V> {
     pub fn new(indexer: &Indexer) -> Self {
         let guards_bitmask = indexer.all_bitmask();
         Self {
@@ -25,10 +19,7 @@ where
     }
 }
 
-impl<K, V, P> OpTrait<K, V, P> for ClearOp<K, V, P>
-where
-    K: Clone + Hash + Eq,
-{
+impl<K, V, P> OpTrait<K, V, P> for ClearOp<K, V> {
     fn guards_bitmask(&self) -> u128 {
         self.guards_bitmask
     }

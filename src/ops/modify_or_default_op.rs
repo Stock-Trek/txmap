@@ -1,28 +1,22 @@
-use crate::{
-    indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR,
-};
+use crate::{indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct ModifyOrDefaultOp<K, V, P = ()>
-where
-    K: Clone + Hash + Eq,
-{
+pub(crate) struct ModifyOrDefaultOp<K, V, P = ()> {
     guards_bitmask: u128,
-    pub key_index: u8,
-    pub key: K,
+    key_index: u8,
+    key: K,
     #[allow(clippy::type_complexity)]
     mutate: Box<dyn Fn(&K, &mut V, &P)>,
 }
 
 impl<K, V, P> ModifyOrDefaultOp<K, V, P>
 where
-    K: Clone + Hash + Eq,
-    V: Default,
+    K: Hash,
 {
-    pub fn new_with_param<M>(indexer: &Indexer, key: K, mutate: M) -> Self
+    pub fn new_with_params<M>(indexer: &Indexer, key: K, mutate: M) -> Self
     where
         M: Fn(&K, &mut V, &P) + 'static,
     {
@@ -38,14 +32,13 @@ where
 
 impl<K, V> ModifyOrDefaultOp<K, V, ()>
 where
-    K: Clone + Hash + Eq,
-    V: Default,
+    K: Hash,
 {
     pub fn new<M>(indexer: &Indexer, key: K, mutate: M) -> Self
     where
         M: Fn(&K, &mut V) + 'static,
     {
-        Self::new_with_param(indexer, key, move |k, v, _| mutate(k, v))
+        Self::new_with_params(indexer, key, move |k, v, _| mutate(k, v))
     }
 }
 

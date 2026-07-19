@@ -2,22 +2,16 @@ use crate::{indexer::Indexer, ops::op_trait::OpTrait};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
-use std::{hash::Hash, marker::PhantomData};
+use std::marker::PhantomData;
 
-pub(crate) struct RetainOnlyOp<K, V, P = ()>
-where
-    K: Clone + Hash + Eq,
-{
+pub(crate) struct RetainOnlyOp<K, V> {
     guards_bitmask: u128,
     keys: Vec<K>,
-    _phantom: PhantomData<(V, P)>,
+    _phantom: PhantomData<V>,
 }
 
-impl<K, V, P> RetainOnlyOp<K, V, P>
-where
-    K: Clone + Hash + Eq,
-{
-    pub fn new_with_param<I>(indexer: &Indexer, keys: I) -> Self
+impl<K, V> RetainOnlyOp<K, V> {
+    pub fn new<I>(indexer: &Indexer, keys: I) -> Self
     where
         I: IntoIterator<Item = K>,
     {
@@ -29,26 +23,14 @@ where
     }
 }
 
-impl<K, V> RetainOnlyOp<K, V, ()>
+impl<K, V, P> OpTrait<K, V, P> for RetainOnlyOp<K, V>
 where
-    K: Clone + Hash + Eq,
-{
-    pub fn new<I>(indexer: &Indexer, keys: I) -> Self
-    where
-        I: IntoIterator<Item = K>,
-    {
-        Self::new_with_param(indexer, keys)
-    }
-}
-
-impl<K, V, P> OpTrait<K, V, P> for RetainOnlyOp<K, V, P>
-where
-    K: Clone + Hash + Eq,
+    K: Eq,
 {
     fn guards_bitmask(&self) -> u128 {
         self.guards_bitmask
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, _params: &P) {
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, _: &P) {
         for mutex_guard in mutex_guards.values_mut() {
             mutex_guard.retain(|k, _| self.keys.contains(k));
         }

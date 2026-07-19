@@ -8,10 +8,7 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct ModifyPeekOp<K, V, P = ()>
-where
-    K: Clone + Hash + Eq,
-{
+pub(crate) struct ModifyPeekOp<K, V, P = ()> {
     guards_bitmask: u128,
     key_index: u8,
     key: K,
@@ -24,7 +21,7 @@ impl<K, V, P> ModifyPeekOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn new_with_param<const N: usize, M>(
+    pub fn new_with_params<const N: usize, M>(
         indexer: &Indexer,
         key: K,
         peek_keys: [K; N],
@@ -76,7 +73,7 @@ where
     where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
     {
-        Self::new_with_param(indexer, key, peek_keys, move |k, v, pks, _| {
+        Self::new_with_params(indexer, key, peek_keys, move |k, v, pks, _| {
             mutate(k, v, pks)
         })
     }
