@@ -21,7 +21,6 @@ jobs:
       issue-branch-base: ${{ steps.gather-branches.outputs.issue-branch-base }}
       issue-branch: ${{ steps.gather-branches.outputs.issue-branch }}
       address-issue-base64: ${{ steps.prompts.outputs.address-issue-base64 }}
-      are-code-changes-required-base64: ${{ steps.prompts.outputs.are-code-changes-required-base64 }}
       classify-request-base64: ${{ steps.prompts.outputs.classify-request-base64 }}
       classify-response-base64: ${{ steps.prompts.outputs.classify-response-base64 }}
       extra-information-required-base64: ${{ steps.prompts.outputs.extra-information-required-base64 }}
@@ -74,7 +73,6 @@ jobs:
         id: prompts
         run: |
           echo "address-issue-base64=$(cat .github/prompts/address-issue.txt | base64 -w 0)" >> $GITHUB_OUTPUT
-          echo "are-code-changes-required-base64=$(cat .github/prompts/are-code-changes-required.txt | base64 -w 0)" >> $GITHUB_OUTPUT
           echo "classify-request-base64=$(cat .github/prompts/classify-request.txt | base64 -w 0)" >> $GITHUB_OUTPUT
           echo "classify-response-base64=$(cat .github/prompts/classify-response.txt | base64 -w 0)" >> $GITHUB_OUTPUT
           echo "extra-information-required-base64=$(cat .github/prompts/extra-information-required.txt | base64 -w 0)" >> $GITHUB_OUTPUT
@@ -293,22 +291,6 @@ jobs:
           echo "RESPONSE_TYPE: ${RESPONSE_TYPE}"
           echo "response-type=${RESPONSE_TYPE}" >> $GITHUB_OUTPUT
 
-      - name: Classify code changes required
-        id: classify-are-code-changes-required
-        if: steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY'
-        uses: ./.github/actions/question-pi
-        with:
-          context-base64: ${{ needs.triage.outputs.issue-context-base64 }}
-          prompt-base64: ${{ needs.triage.outputs.are-code-changes-required-base64 }}
-          schema-base64: ${{ needs.triage.outputs.boolean-base64 }}
-      - name: Save code changes required
-        id: save-are-code-changes-required
-        if: steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY'
-        run: |
-          ARE_CODE_CHANGES_REQUIRED=$(echo ${{ steps.classify-are-code-changes-required.outputs.response-base64 }} | base64 -d)
-          echo "ARE_CODE_CHANGES_REQUIRED: ${ARE_CODE_CHANGES_REQUIRED}"
-          echo "are-code-changes-required=${ARE_CODE_CHANGES_REQUIRED}" >> $GITHUB_OUTPUT
-
       - name: Classify extra information required
         id: classify-extra-information-required
         if: steps.save-response-type.outputs.response-type == 'REQUIRES_MORE_INFORMATION'
@@ -398,7 +380,7 @@ jobs:
           reaction: '+1'
           token: ${{ steps.app-token.outputs.token }}
       - name: Ensure issue branch
-        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.save-are-code-changes-required.outputs.are-code-changes-required == 'true')
+        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY')
         uses: ./.github/actions/checkout-branch
         with:
           branch: ${{ needs.triage.outputs.issue-branch }}
@@ -431,8 +413,17 @@ jobs:
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "${SUMMARY}" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+      - name: Check for code changes
+        id: check-for-code-changes
+        if: steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY'
+        run: |
+          if git diff --quiet && git diff --cached --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+          fi
       - name: Commit and push code changes
-        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.save-are-code-changes-required.outputs.are-code-changes-required == 'true')
+        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.check-for-code-changes.outputs.has-changes == 'true')
         run: |
           git config --global user.email "agent@stock-trek.com"
           git config --global user.name "Stock-Trek Agent"
@@ -440,7 +431,7 @@ jobs:
           git commit --allow-empty -m "Commit changes made by pi"
           git push
       - name: Reply if no code changes required
-        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.save-are-code-changes-required.outputs.are-code-changes-required == 'false')
+        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.check-for-code-changes.outputs.has-changes == 'false')
         uses: actions/github-script@v9
         with:
           script: |
@@ -453,7 +444,7 @@ jobs:
             });
       - name: Raise PR if code changes required
         id: raise-pr
-        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.save-are-code-changes-required.outputs.are-code-changes-required == 'true')
+        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.check-for-code-changes.outputs.has-changes == 'true')
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
@@ -466,10 +457,10 @@ jobs:
             --base "${{ needs.triage.outputs.issue-branch-base }}" \
             --head "${{ needs.triage.outputs.issue-branch }}" \
             --title "$(cat /tmp/pr_title.txt)" \
-            --body-file /tmp/pr_body.txt) || true
+            --body-file /tmp/pr_body.txt)
           echo "pull-request-url=$PR_URL" >> "$GITHUB_OUTPUT"
       - name: Reply with diff and PR link
-        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.save-are-code-changes-required.outputs.are-code-changes-required == 'true')
+        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.check-for-code-changes.outputs.has-changes == 'true')
         uses: actions/github-script@v9
         with:
           script: |
