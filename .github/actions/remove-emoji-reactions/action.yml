@@ -15,7 +15,7 @@ runs:
       if: inputs.comment-id != ''
       run: |
         LIST_URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/comments/${{ inputs.comment-id }}/reactions"
-        REACTION_DATA=$(curl -s \
+        REACTION_DATA=$(curl -L -s \
           -H "Accept: application/vnd.github.v3+json" \
           -H "Authorization: Bearer ${{ inputs.token }}" \
           -H "X-GitHub-Api-Version: 2026-03-10" \
@@ -32,7 +32,7 @@ runs:
       if: inputs.issue-number != ''
       run: |
         LIST_URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${{ inputs.issue-number }}/reactions"
-        REACTION_DATA=$(curl -s \
+        REACTION_DATA=$(curl -L -s \
           -H "Accept: application/vnd.github.v3+json" \
           -H "Authorization: Bearer ${{ inputs.token }}" \
           -H "X-GitHub-Api-Version: 2026-03-10" \

@@ -17,7 +17,7 @@ runs:
     - shell: bash
       if: inputs.comment-id != ''
       run: |
-        curl -L \
+        curl -L -s \
           -X POST \
           -H "Accept: application/vnd.github.v3+json" \
           -H "Authorization: Bearer ${{ inputs.token }}" \
@@ -27,7 +27,7 @@ runs:
     - shell: bash
       if: inputs.issue-number != ''
       run: |
-        curl -L \
+        curl -L -s \
           -X POST \
           -H "Accept: application/vnd.github.v3+json" \
           -H "Authorization: Bearer ${{ inputs.token }}" \
