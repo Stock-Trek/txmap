@@ -60,6 +60,7 @@ impl<'txmap, K, V> TxOpBuilder<'txmap, K, V> for TxStemBuilder<'txmap, K, V>
 where
     K: Clone + Hash + Eq,
 {
+    // single key ops
     fn insert_with<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
     where
         G: Fn(&K) -> V + 'static,
