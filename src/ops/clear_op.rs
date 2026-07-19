@@ -9,7 +9,6 @@ where
     K: Clone + Hash + Eq,
 {
     guards_bitmask: u128,
-    shard_count: u8,
     _phantom: PhantomData<(K, V)>,
 }
 
@@ -18,11 +17,9 @@ where
     K: Clone + Hash + Eq,
 {
     pub fn new(indexer: &Indexer) -> Self {
-        let shard_count = indexer.shard_count;
         let guards_bitmask = indexer.all_bitmask();
         Self {
             guards_bitmask,
-            shard_count,
             _phantom: PhantomData,
         }
     }
@@ -36,10 +33,8 @@ where
         self.guards_bitmask
     }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
-        for i in 0..self.shard_count {
-            if let Some(guard) = mutex_guards.get_mut(i) {
-                guard.clear();
-            }
+        for mutex_guard in mutex_guards.values_mut() {
+            mutex_guard.clear();
         }
     }
 }

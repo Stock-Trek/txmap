@@ -1,4 +1,7 @@
-use crate::{indexer::Indexer, ops::op_trait::OpTrait};
+use crate::{
+    indexer::{IndexedData, Indexer},
+    ops::op_trait::OpTrait,
+};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
@@ -8,8 +11,7 @@ pub(crate) struct RemoveOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    guards_bitmask: u128,
-    keys: Vec<(u8, K)>,
+    indexed_keys: IndexedData<K>,
     _phantom: PhantomData<V>,
 }
 
@@ -21,16 +23,9 @@ where
     where
         I: IntoIterator<Item = K>,
     {
-        let mut guards_bitmask: u128 = 0;
-        let mut indexed_keys = Vec::new();
-        for key in keys {
-            let key_index = indexer.index(&key);
-            guards_bitmask |= 1 << key_index;
-            indexed_keys.push((key_index, key));
-        }
+        let indexed_keys = indexer.indexes(keys, |k| k);
         Self {
-            guards_bitmask,
-            keys: indexed_keys,
+            indexed_keys,
             _phantom: PhantomData,
         }
     }
@@ -41,10 +36,10 @@ where
     K: Clone + Hash + Eq,
 {
     fn guards_bitmask(&self) -> u128 {
-        self.guards_bitmask
+        self.indexed_keys.bitmask
     }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
-        for (key_index, key) in &self.keys {
+        for (key_index, key) in &self.indexed_keys.indexed {
             if let Some(guard) = mutex_guards.get_mut(*key_index) {
                 guard.remove(key);
             }

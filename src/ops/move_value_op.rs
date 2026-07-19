@@ -48,11 +48,10 @@ where
                 .expect(MISSING_MUTEX_GUARD_ERROR);
             from_guard.remove(&self.from)
         };
-
-        let to_guard = mutex_guards
-            .get_mut(self.to_index)
-            .expect(MISSING_MUTEX_GUARD_ERROR);
         if let Some(v) = value {
+            let to_guard = mutex_guards
+                .get_mut(self.to_index)
+                .expect(MISSING_MUTEX_GUARD_ERROR);
             to_guard.insert(self.to.clone(), v);
         }
     }

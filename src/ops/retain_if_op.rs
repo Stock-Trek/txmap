@@ -9,7 +9,7 @@ where
     K: Clone + Hash + Eq,
 {
     guards_bitmask: u128,
-    keys: Vec<(u8, K)>,
+    keys: Vec<K>,
     #[allow(clippy::type_complexity)]
     condition: Box<dyn Fn(&K, &V) -> bool>,
 }
@@ -23,16 +23,9 @@ where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,
     {
-        let mut guards_bitmask: u128 = 0;
-        let mut indexed_keys = Vec::new();
-        for key in keys {
-            let key_index = indexer.index(&key);
-            guards_bitmask |= 1 << key_index;
-            indexed_keys.push((key_index, key));
-        }
         Self {
-            guards_bitmask,
-            keys: indexed_keys,
+            guards_bitmask: indexer.all_bitmask(),
+            keys: keys.into_iter().collect(),
             condition: Box::new(condition),
         }
     }
@@ -46,13 +39,8 @@ where
         self.guards_bitmask
     }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
-        for (key_index, key) in &self.keys {
-            if let Some(guard) = mutex_guards.get_mut(*key_index)
-                && let Some(value) = guard.get(key)
-                && !(self.condition)(key, value)
-            {
-                guard.remove(key);
-            }
+        for mutex_guard in mutex_guards.values_mut() {
+            mutex_guard.retain(|k, v| self.keys.contains(k) && (self.condition)(k, v));
         }
     }
 }

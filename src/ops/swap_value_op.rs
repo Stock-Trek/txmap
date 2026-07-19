@@ -53,7 +53,6 @@ where
             let b_value = b_guard.remove(&self.b);
             (a_value, b_value)
         };
-
         if self.a_index == self.b_index {
             let guard = mutex_guards
                 .get_mut(self.a_index)
@@ -65,7 +64,6 @@ where
                 guard.insert(self.b.clone(), v);
             }
         } else {
-            // Insert a's old value at b's position and vice versa
             {
                 let a_guard = mutex_guards
                     .get_mut(self.a_index)
