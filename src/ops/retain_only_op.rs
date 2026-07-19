@@ -17,7 +17,7 @@ impl<K, V, P> RetainOnlyOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn new_with_param<I>(indexer: &Indexer, keys: I, _param_placeholder: P) -> Self
+    pub fn new_with_param<I>(indexer: &Indexer, keys: I) -> Self
     where
         I: IntoIterator<Item = K>,
     {
