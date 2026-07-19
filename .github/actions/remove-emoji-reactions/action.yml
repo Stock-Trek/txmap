@@ -27,6 +27,7 @@ runs:
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/reactions/${id}"
           echo "Deleted reaction ${id}"
+        echo "Deleting reaction ids ${REACTION_IDS}"
         done <<< "${REACTION_IDS}"
     - shell: bash
       if: inputs.issue-number != ''
