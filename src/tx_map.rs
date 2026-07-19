@@ -201,11 +201,11 @@ mod tests {
             })
             .into_transaction();
         assert_eq!(
-            send_x_usd_from_bob_to_tim.execute(&Transfer { usd_and_cents: 40 }),
+            send_x_usd_from_bob_to_tim.execute_params(&Transfer { usd_and_cents: 40 }),
             TxResult::Completed(())
         );
         assert_ne!(
-            send_x_usd_from_bob_to_tim.execute(&Transfer { usd_and_cents: 20 }),
+            send_x_usd_from_bob_to_tim.execute_params(&Transfer { usd_and_cents: 20 }),
             TxResult::Completed(())
         );
 

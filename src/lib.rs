@@ -6,9 +6,7 @@ pub mod guard;
 pub mod indexer;
 pub mod ops;
 pub mod parameterized_builder_traits;
-pub mod parameterized_operation;
 pub mod parameterized_prerequisite;
-pub mod parameterized_transaction;
 pub mod parameterized_tx_buildable_impl;
 pub mod parameterized_tx_builder_impl;
 pub mod result;
@@ -23,7 +21,6 @@ pub mod tx_stem_builder;
 pub mod prelude {
     pub use crate::{
         builder_traits::{IntoTransaction, TxGuardBuilder, TxOpBuilder},
-        parameterized_transaction::ParameterizedTransaction,
         result::TxResult,
         shard_count::ShardCount,
         transaction::Transaction,

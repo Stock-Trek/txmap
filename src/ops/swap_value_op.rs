@@ -1,10 +1,12 @@
-use crate::{indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR};
+use crate::{
+    indexer::Indexer, ops::op_trait::ParameterizedOpTrait, result::MISSING_MUTEX_GUARD_ERROR,
+};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::{hash::Hash, marker::PhantomData};
 
-pub(crate) struct SwapValueOp<K, V>
+pub(crate) struct SwapValueOp<K, V, P = ()>
 where
     K: Clone + Hash + Eq,
 {
@@ -13,14 +15,14 @@ where
     b_index: u8,
     a: K,
     b: K,
-    _phantom: PhantomData<V>,
+    _phantom: PhantomData<(V, P)>,
 }
 
-impl<K, V> SwapValueOp<K, V>
+impl<K, V, P> SwapValueOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn new(indexer: &Indexer, a: K, b: K) -> Self {
+    pub fn new_with_param(indexer: &Indexer, a: K, b: K, _param_placeholder: P) -> Self {
         let a_index = indexer.index(&a);
         let b_index = indexer.index(&b);
         Self {
@@ -34,14 +36,24 @@ where
     }
 }
 
-impl<K, V> OpTrait<K, V> for SwapValueOp<K, V>
+impl<K, V> SwapValueOp<K, V, ()>
+where
+    K: Clone + Hash + Eq,
+{
+    pub fn new(indexer: &Indexer, a: K, b: K) -> Self {
+        Self::new_with_param(indexer, a, b, ())
+    }
+}
+
+impl<K, V, P> ParameterizedOpTrait<K, V, P> for SwapValueOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
     fn guards_bitmask(&self) -> u128 {
         self.guards_bitmask
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, _params: &P) {
+        // Same as non-parameterized version, P is unused
         let (a_value, b_value) = {
             let a_guard = mutex_guards
                 .get_mut(self.a_index)

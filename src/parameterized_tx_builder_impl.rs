@@ -1,6 +1,7 @@
 use crate::{
     custodian::Custodian,
     indexer::Indexer,
+    ops::{map_op::MapOp, map_peek_op::MapPeekOp, op_trait::ParameterizedOpTrait},
     parameterized_builder_traits::{
         ParameterizedTxBuildable, ParameterizedTxBuilder, WithParameterizedOperation,
         WithParameterizedPrerequisite,
@@ -12,7 +13,9 @@ use std::hash::Hash;
 
 pub struct ParameterizedTxBuilderImpl<'txmap, K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Clone + Hash + Eq + 'static,
+    V: 'static,
+    P: 'static,
 {
     pub(crate) indexer: Indexer,
     pub(crate) custodian: &'txmap Custodian<K, V>,
@@ -22,14 +25,18 @@ where
 impl<'txmap, K, V, P> ParameterizedTxBuilder<'txmap, K, V, P>
     for ParameterizedTxBuilderImpl<'txmap, K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Clone + Hash + Eq + 'static,
+    V: 'static,
+    P: 'static,
 {
 }
 
 impl<'txmap, K, V, P> WithParameterizedPrerequisite<'txmap, K, V, P>
     for ParameterizedTxBuilderImpl<'txmap, K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Clone + Hash + Eq + 'static,
+    V: 'static,
+    P: 'static,
 {
     fn with_prerequisite<const N: usize, F>(
         mut self,
@@ -50,7 +57,9 @@ where
 impl<'txmap, K, V, P> WithParameterizedOperation<'txmap, K, V, P>
     for ParameterizedTxBuilderImpl<'txmap, K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Clone + Hash + Eq + 'static,
+    V: 'static,
+    P: 'static,
 {
     fn with_operation<F>(
         self,
@@ -65,13 +74,13 @@ where
             custodian,
             prerequisites,
         } = self;
-        let builder = ParameterizedTxBuildableImpl {
+        let op = MapOp::new_with_param(&indexer, key, move |_, v, params| operator(v, params));
+        ParameterizedTxBuildableImpl {
             indexer,
             custodian,
             prerequisites,
-            operations: Vec::new(),
-        };
-        builder.with_operation(key, operator)
+            ops: vec![Box::new(op) as Box<dyn ParameterizedOpTrait<K, V, P>>],
+        }
     }
     fn with_operation_and_context<const N: usize, F>(
         self,
@@ -87,12 +96,14 @@ where
             custodian,
             prerequisites,
         } = self;
-        let builder = ParameterizedTxBuildableImpl {
+        let op = MapPeekOp::new_with_param(&indexer, key, peek_keys, move |_, v, pks, params| {
+            operator(v, pks, params)
+        });
+        ParameterizedTxBuildableImpl {
             indexer,
             custodian,
             prerequisites,
-            operations: Vec::new(),
-        };
-        builder.with_operation_and_context(key, operator, peek_keys)
+            ops: vec![Box::new(op) as Box<dyn ParameterizedOpTrait<K, V, P>>],
+        }
     }
 }

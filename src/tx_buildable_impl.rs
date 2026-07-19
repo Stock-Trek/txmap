@@ -13,7 +13,7 @@ use crate::{
         modify_or_default_op::ModifyOrDefaultOp, modify_or_insert_with_op::ModifyOrInsertWithOp,
         modify_peek_op::ModifyPeekOp, modify_peek_or_default_op::ModifyPeekOrDefaultOp,
         modify_peek_or_insert_with_op::ModifyPeekOrInsertWithOp, move_value_op::MoveValueOp,
-        op_trait::OpTrait, remove_any_if_op::RemoveAnyIfOp, remove_if_op::RemoveIfOp,
+        op_trait::ParameterizedOpTrait, remove_any_if_op::RemoveAnyIfOp, remove_if_op::RemoveIfOp,
         remove_op::RemoveOp, retain_any_if_op::RetainAnyIfOp, retain_if_op::RetainIfOp,
         retain_op::RetainOp, swap_value_op::SwapValueOp,
     },
@@ -29,7 +29,7 @@ where
     pub(crate) indexer: Indexer,
     pub(crate) custodian: &'txmap Custodian<K, V>,
     pub(crate) guards: Vec<Guard<K, V>>,
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V>>>,
+    pub(crate) ops: Vec<Box<dyn ParameterizedOpTrait<K, V, ()>>>,
 }
 
 impl<'txmap, K, V> TxBuildable<'txmap, K, V> for TxBuildableImpl<'txmap, K, V> where
@@ -325,7 +325,7 @@ impl<'txmap, K, V> IntoTransaction<'txmap, K, V, NoneFinisher> for TxBuildableIm
 where
     K: Clone + Hash + Eq,
 {
-    fn into_transaction(self) -> Transaction<'txmap, K, V, NoneFinisher> {
+    fn into_transaction(self) -> Transaction<'txmap, K, V, (), NoneFinisher> {
         let Self {
             custodian,
             guards,
@@ -343,6 +343,7 @@ where
             custodian,
             guards_bitmask,
             guards,
+            param_prerequisites: Vec::new(),
             ops,
             finisher: Finisher::new(NoneFinisher),
         }

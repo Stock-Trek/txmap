@@ -1,10 +1,12 @@
-use crate::{indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR};
+use crate::{
+    indexer::Indexer, ops::op_trait::ParameterizedOpTrait, result::MISSING_MUTEX_GUARD_ERROR,
+};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct ModifyOp<K, V>
+pub(crate) struct ModifyOp<K, V, P = ()>
 where
     K: Clone + Hash + Eq,
 {
@@ -12,16 +14,16 @@ where
     key_index: u8,
     key: K,
     #[allow(clippy::type_complexity)]
-    mutate: Box<dyn Fn(&K, &mut V)>,
+    mutate: Box<dyn Fn(&K, &mut V, &P)>,
 }
 
-impl<K, V> ModifyOp<K, V>
+impl<K, V, P> ModifyOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn new<M>(indexer: &Indexer, key: K, mutate: M) -> Self
+    pub fn new_with_param<M>(indexer: &Indexer, key: K, mutate: M) -> Self
     where
-        M: Fn(&K, &mut V) + 'static,
+        M: Fn(&K, &mut V, &P) + 'static,
     {
         let key_index = indexer.index(&key);
         Self {
@@ -33,19 +35,31 @@ where
     }
 }
 
-impl<K, V> OpTrait<K, V> for ModifyOp<K, V>
+impl<K, V> ModifyOp<K, V, ()>
+where
+    K: Clone + Hash + Eq,
+{
+    pub fn new<M>(indexer: &Indexer, key: K, mutate: M) -> Self
+    where
+        M: Fn(&K, &mut V) + 'static,
+    {
+        Self::new_with_param(indexer, key, move |k, v, _| mutate(k, v))
+    }
+}
+
+impl<K, V, P> ParameterizedOpTrait<K, V, P> for ModifyOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
     fn guards_bitmask(&self) -> u128 {
         self.guards_bitmask
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, params: &P) {
         let mutex_guard = mutex_guards
             .get_mut(self.key_index)
             .expect(MISSING_MUTEX_GUARD_ERROR);
         if let Some(key_mut_value) = mutex_guard.get_key_value_mut(&self.key) {
-            (self.mutate)(key_mut_value.0, key_mut_value.1)
+            (self.mutate)(key_mut_value.0, key_mut_value.1, params)
         }
     }
 }

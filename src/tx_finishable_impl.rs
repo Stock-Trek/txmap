@@ -1,6 +1,6 @@
 use crate::{
     builder_traits::IntoTransaction, custodian::Custodian, finisher::Finisher,
-    finishers::finisher_trait::FinisherTrait, guard::Guard, ops::op_trait::OpTrait,
+    finishers::finisher_trait::FinisherTrait, guard::Guard, ops::op_trait::ParameterizedOpTrait,
     transaction::Transaction,
 };
 use std::hash::Hash;
@@ -12,7 +12,7 @@ where
 {
     pub(crate) custodian: &'txmap Custodian<K, V>,
     pub(crate) guards: Vec<Guard<K, V>>,
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V>>>,
+    pub(crate) ops: Vec<Box<dyn ParameterizedOpTrait<K, V, ()>>>,
     pub(crate) finisher: Finisher<K, V, F>,
 }
 
@@ -21,7 +21,7 @@ where
     K: Clone + Hash + Eq,
     F: FinisherTrait<K, V>,
 {
-    fn into_transaction(self) -> Transaction<'txmap, K, V, F> {
+    fn into_transaction(self) -> Transaction<'txmap, K, V, (), F> {
         let Self {
             custodian,
             guards,
@@ -36,10 +36,11 @@ where
         for op in &ops {
             guards_bitmask |= op.guards_bitmask();
         }
-        Transaction::<K, V, F> {
+        Transaction::<K, V, (), F> {
             custodian,
             guards_bitmask,
             guards,
+            param_prerequisites: Vec::new(),
             ops,
             finisher,
         }

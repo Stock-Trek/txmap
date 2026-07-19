@@ -1,36 +1,42 @@
 use crate::{
     custodian::Custodian,
     indexer::Indexer,
+    ops::{map_op::MapOp, map_peek_op::MapPeekOp, op_trait::ParameterizedOpTrait},
     parameterized_builder_traits::{
         IntoParameterizedTransaction, ParameterizedTxBuildable, WithParameterizedOperation,
     },
-    parameterized_operation::ParameterizedOperation,
     parameterized_prerequisite::ParameterizedPrerequisite,
-    parameterized_transaction::ParameterizedTransaction,
+    transaction::Transaction,
 };
 use std::hash::Hash;
 
 pub struct ParameterizedTxBuildableImpl<'txmap, K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Clone + Hash + Eq + 'static,
+    V: 'static,
+    P: 'static,
 {
     pub(crate) indexer: Indexer,
     pub(crate) custodian: &'txmap Custodian<K, V>,
     pub(crate) prerequisites: Vec<ParameterizedPrerequisite<K, V, P>>,
-    pub(crate) operations: Vec<ParameterizedOperation<K, V, P>>,
+    pub(crate) ops: Vec<Box<dyn ParameterizedOpTrait<K, V, P>>>,
 }
 
 impl<'txmap, K, V, P> ParameterizedTxBuildable<'txmap, K, V, P>
     for ParameterizedTxBuildableImpl<'txmap, K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Clone + Hash + Eq + 'static,
+    V: 'static,
+    P: 'static,
 {
 }
 
 impl<'txmap, K, V, P> WithParameterizedOperation<'txmap, K, V, P>
     for ParameterizedTxBuildableImpl<'txmap, K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Clone + Hash + Eq + 'static,
+    V: 'static,
+    P: 'static,
 {
     fn with_operation<F>(
         mut self,
@@ -40,8 +46,8 @@ where
     where
         F: Fn(Option<&V>, &P) -> Option<V> + 'static,
     {
-        let operation = ParameterizedOperation::new(&self.indexer, key, operator);
-        self.operations.push(operation);
+        let op = MapOp::new_with_param(&self.indexer, key, move |_, v, params| operator(v, params));
+        self.ops.push(Box::new(op));
         self
     }
     fn with_operation_and_context<const N: usize, F>(
@@ -53,9 +59,11 @@ where
     where
         F: Fn(Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
     {
-        let operation =
-            ParameterizedOperation::new_with_context(&self.indexer, key, operator, peek_keys);
-        self.operations.push(operation);
+        let op =
+            MapPeekOp::new_with_param(&self.indexer, key, peek_keys, move |_, v, pks, params| {
+                operator(v, pks, params)
+            });
+        self.ops.push(Box::new(op));
         self
     }
 }
@@ -63,27 +71,31 @@ where
 impl<'txmap, K, V, P> IntoParameterizedTransaction<'txmap, K, V, P>
     for ParameterizedTxBuildableImpl<'txmap, K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Clone + Hash + Eq + 'static,
+    V: 'static,
+    P: 'static,
 {
-    fn into_transaction(self) -> ParameterizedTransaction<'txmap, K, V, P> {
+    fn into_transaction(self) -> Transaction<'txmap, K, V, P> {
         let Self {
             custodian,
             prerequisites,
-            operations,
+            ops,
             ..
         } = self;
         let mut guards_bitmask: u128 = 0;
         for prerequisite in &prerequisites {
             guards_bitmask |= prerequisite.guards_bitmask;
         }
-        for operation in &operations {
-            guards_bitmask |= operation.guards_bitmask;
+        for op in &ops {
+            guards_bitmask |= op.guards_bitmask();
         }
-        ParameterizedTransaction {
+        Transaction {
             custodian,
             guards_bitmask,
-            prerequisites,
-            operations,
+            guards: Vec::new(),
+            param_prerequisites: prerequisites,
+            ops,
+            finisher: crate::finisher::Finisher::new(crate::finishers::none_finisher::NoneFinisher),
         }
     }
 }

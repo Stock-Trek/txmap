@@ -1,4 +1,4 @@
-use crate::parameterized_transaction::ParameterizedTransaction;
+use crate::transaction::Transaction;
 use std::hash::Hash;
 
 pub trait ParameterizedTxBuilder<'txmap, K, V, P>:
@@ -54,5 +54,5 @@ pub trait IntoParameterizedTransaction<'txmap, K, V, P>
 where
     K: Clone + Hash + Eq,
 {
-    fn into_transaction(self) -> ParameterizedTransaction<'txmap, K, V, P>;
+    fn into_transaction(self) -> Transaction<'txmap, K, V, P>;
 }

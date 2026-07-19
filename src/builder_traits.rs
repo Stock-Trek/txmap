@@ -201,5 +201,5 @@ where
     K: Clone + Hash + Eq,
     F: FinisherTrait<K, V>,
 {
-    fn into_transaction(self) -> Transaction<'txmap, K, V, F>;
+    fn into_transaction(self) -> Transaction<'txmap, K, V, (), F>;
 }
