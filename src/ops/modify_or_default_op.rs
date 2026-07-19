@@ -11,6 +11,7 @@ where
     guards_bitmask: u128,
     pub key_index: u8,
     pub key: K,
+    #[allow(clippy::type_complexity)]
     mutate: Box<dyn Fn(&K, &mut V)>,
 }
 

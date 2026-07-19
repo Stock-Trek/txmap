@@ -42,17 +42,17 @@ where
         self.guards_bitmask
     }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
-        let a_guard = mutex_guards
-            .get_mut(self.a_index)
-            .expect(MISSING_MUTEX_GUARD_ERROR);
-        let a_value = a_guard.remove(&self.a);
-        drop(a_guard);
-
-        let b_guard = mutex_guards
-            .get_mut(self.b_index)
-            .expect(MISSING_MUTEX_GUARD_ERROR);
-        let b_value = b_guard.remove(&self.b);
-        drop(b_guard);
+        let (a_value, b_value) = {
+            let a_guard = mutex_guards
+                .get_mut(self.a_index)
+                .expect(MISSING_MUTEX_GUARD_ERROR);
+            let a_value = a_guard.remove(&self.a);
+            let b_guard = mutex_guards
+                .get_mut(self.b_index)
+                .expect(MISSING_MUTEX_GUARD_ERROR);
+            let b_value = b_guard.remove(&self.b);
+            (a_value, b_value)
+        };
 
         if self.a_index == self.b_index {
             let guard = mutex_guards
@@ -66,19 +66,21 @@ where
             }
         } else {
             // Insert a's old value at b's position and vice versa
-            let a_guard = mutex_guards
-                .get_mut(self.a_index)
-                .expect(MISSING_MUTEX_GUARD_ERROR);
-            if let Some(v) = b_value {
-                a_guard.insert(self.a.clone(), v);
+            {
+                let a_guard = mutex_guards
+                    .get_mut(self.a_index)
+                    .expect(MISSING_MUTEX_GUARD_ERROR);
+                if let Some(v) = b_value {
+                    a_guard.insert(self.a.clone(), v);
+                }
             }
-            drop(a_guard);
-
-            let b_guard = mutex_guards
-                .get_mut(self.b_index)
-                .expect(MISSING_MUTEX_GUARD_ERROR);
-            if let Some(v) = a_value {
-                b_guard.insert(self.b.clone(), v);
+            {
+                let b_guard = mutex_guards
+                    .get_mut(self.b_index)
+                    .expect(MISSING_MUTEX_GUARD_ERROR);
+                if let Some(v) = a_value {
+                    b_guard.insert(self.b.clone(), v);
+                }
             }
         }
     }

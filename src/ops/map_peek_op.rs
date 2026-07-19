@@ -70,7 +70,7 @@ where
         self.guards_bitmask
     }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
-        let new_value = self.mapped_value(&mutex_guards);
+        let new_value = self.mapped_value(mutex_guards);
         let guard = mutex_guards.get_mut(self.key_index);
         let shard = guard.expect(MISSING_MUTEX_GUARD_ERROR);
         match new_value {

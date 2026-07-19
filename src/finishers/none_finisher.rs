@@ -4,7 +4,7 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct NoneFinisher;
+pub struct NoneFinisher;
 
 impl<K, V> FinisherTrait<K, V> for NoneFinisher
 where
@@ -12,7 +12,5 @@ where
 {
     type Output = ();
 
-    fn to_result(&self, _: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) -> Self::Output {
-        ()
-    }
+    fn to_result(&self, _: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) -> Self::Output {}
 }

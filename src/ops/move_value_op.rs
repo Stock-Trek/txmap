@@ -42,11 +42,12 @@ where
         self.guards_bitmask
     }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
-        let from_guard = mutex_guards
-            .get_mut(self.from_index)
-            .expect(MISSING_MUTEX_GUARD_ERROR);
-        let value = from_guard.remove(&self.from);
-        drop(from_guard);
+        let value = {
+            let from_guard = mutex_guards
+                .get_mut(self.from_index)
+                .expect(MISSING_MUTEX_GUARD_ERROR);
+            from_guard.remove(&self.from)
+        };
 
         let to_guard = mutex_guards
             .get_mut(self.to_index)

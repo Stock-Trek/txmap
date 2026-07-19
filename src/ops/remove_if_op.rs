@@ -10,6 +10,7 @@ where
 {
     guards_bitmask: u128,
     keys: Vec<(u8, K)>,
+    #[allow(clippy::type_complexity)]
     condition: Box<dyn Fn(&K, &V) -> bool>,
 }
 
@@ -46,12 +47,11 @@ where
     }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
         for (key_index, key) in &self.keys {
-            if let Some(guard) = mutex_guards.get_mut(*key_index) {
-                if let Some(value) = guard.get(key) {
-                    if (self.condition)(key, value) {
-                        guard.remove(key);
-                    }
-                }
+            if let Some(guard) = mutex_guards.get_mut(*key_index)
+                && let Some(value) = guard.get(key)
+                && (self.condition)(key, value)
+            {
+                guard.remove(key);
             }
         }
     }

@@ -2,12 +2,12 @@ use crate::shard_count::all_guards_bitmask;
 use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct Indexer {
+pub struct Indexer {
     pub shard_count: u8,
     pub hasher_creator: fn() -> Box<dyn Hasher>,
 }
 
-pub(crate) struct IndexedData<T> {
+pub struct IndexedData<T> {
     pub bitmask: u128,
     pub indexed: Vec<(u8, T)>,
 }

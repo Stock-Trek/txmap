@@ -40,6 +40,9 @@ where
         }
         total_length
     }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     pub fn insert(&self, key: K, value: V) -> Option<V> {
         let shard_index = self.indexer.index(&key);
         let mut mutex_guards = self.custodian.guards(1 << shard_index);
@@ -65,7 +68,7 @@ where
         let mutex_guard = mutex_guards
             .get_mut(shard_index)
             .expect(MISSING_MUTEX_GUARD_ERROR);
-        mutex_guard.get(key).map(|v| transform(v))
+        mutex_guard.get(key).map(transform)
     }
     pub fn fold<T, R, C, A>(&self, initial: R, convert: C, accumulate: A) -> R
     where
@@ -127,7 +130,7 @@ mod tests {
             last_name: "Pamson".into(),
         };
         db.transaction()
-            .map(tim.clone(), |t, f| {
+            .map(tim.clone(), |_t, _f| {
                 Some(Funds {
                     usd_and_cents: 150,
                     sterling_and_pence: 0,
@@ -140,13 +143,13 @@ mod tests {
             .require("Has available funds", [tim.clone()], |[tim_funds]| {
                 tim_funds.is_some_and(|f| f.usd_and_cents > 100)
             })
-            .map(tim.clone(), |t, tim_funds| {
+            .map(tim.clone(), |_t, tim_funds| {
                 Some(Funds {
                     sterling_and_pence: tim_funds.unwrap().sterling_and_pence,
                     usd_and_cents: tim_funds.unwrap().usd_and_cents - 100,
                 })
             })
-            .map(bob.clone(), |b, bob_funds| {
+            .map(bob.clone(), |_b, bob_funds| {
                 Some(bob_funds.map_or(
                     Funds {
                         usd_and_cents: 100,
@@ -199,16 +202,16 @@ mod tests {
             .into_transaction();
         assert_eq!(
             send_x_usd_from_bob_to_tim.execute(&Transfer { usd_and_cents: 40 }),
-            TxResult::Completed
+            TxResult::Completed(())
         );
         assert_ne!(
             send_x_usd_from_bob_to_tim.execute(&Transfer { usd_and_cents: 20 }),
-            TxResult::Completed
+            TxResult::Completed(())
         );
 
         let add_100_usd_to_bob_if_exists = db
             .transaction()
-            .modify(bob.clone(), |b, bob_funds| {
+            .modify(bob.clone(), |_b, bob_funds| {
                 bob_funds.usd_and_cents += 100;
             })
             .into_transaction();
@@ -225,10 +228,10 @@ mod tests {
             .transaction()
             .modify_or_insert_with(
                 pam.clone(),
-                |p, pam_funds| {
+                |_p, pam_funds| {
                     pam_funds.usd_and_cents += 123;
                 },
-                |p| Funds {
+                |_p| Funds {
                     sterling_and_pence: 0,
                     usd_and_cents: 123,
                 },
