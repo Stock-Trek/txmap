@@ -37,7 +37,7 @@ where
     where
         I: IntoIterator<Item = K>,
     {
-        Self::new_with_param(indexer, keys, ())
+        Self::new_with_param(indexer, keys)
     }
 }
 
