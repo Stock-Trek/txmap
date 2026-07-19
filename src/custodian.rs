@@ -29,6 +29,14 @@ where
             shards,
         }
     }
+    pub fn all_guards(&self) -> IntMap<u8, MutexGuard<'_, HashMap<K, V>>> {
+        let all_guards_bitmask = if self.shard_count == 128 {
+            !0u128
+        } else {
+            (1 << self.shard_count) - 1
+        };
+        self.guards(all_guards_bitmask)
+    }
     pub fn guards(&self, bitmask: u128) -> IntMap<u8, MutexGuard<'_, HashMap<K, V>>> {
         let mut guards = IntMap::new();
         for i in 0..self.shard_count {

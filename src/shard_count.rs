@@ -18,3 +18,11 @@ impl From<ShardCount> for u8 {
         }
     }
 }
+
+pub fn all_guards_bitmask(shard_count: u8) -> u128 {
+    if shard_count == 128 {
+        !0u128
+    } else {
+        (1 << shard_count) - 1
+    }
+}

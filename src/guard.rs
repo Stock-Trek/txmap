@@ -1,7 +1,10 @@
 use crate::{
     indexer::{IndexedData, Indexer},
-    result::INCORRECT_GUARD_VALUES_LENGTH,
+    result::{INCORRECT_GUARD_VALUES_LENGTH, MISSING_MUTEX_GUARD_ERROR},
 };
+use hashbrown::HashMap;
+use intmap::IntMap;
+use parking_lot::MutexGuard;
 use std::hash::Hash;
 
 pub(crate) struct Guard<K, V>
@@ -39,5 +42,21 @@ where
             indexed_keys,
             is_condition_met,
         }
+    }
+    pub fn is_condition_met(
+        &self,
+        mutex_guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
+    ) -> bool {
+        let mut values = Vec::with_capacity(self.indexed_keys.indexed.len());
+        for (shard_index, key) in &self.indexed_keys.indexed {
+            let mutex_guard = mutex_guards.get(*shard_index);
+            let shard = mutex_guard.expect(MISSING_MUTEX_GUARD_ERROR);
+            let value = shard.get(key);
+            values.push(value);
+            if !(self.is_condition_met)(&values) {
+                return false;
+            }
+        }
+        true
     }
 }

@@ -22,11 +22,7 @@ where
         C: Fn(&K, &V) -> bool + 'static,
     {
         let shard_count = indexer.shard_count as u8;
-        let guards_bitmask = if shard_count == 128 {
-            !0u128
-        } else {
-            (1 << shard_count) - 1
-        };
+        let guards_bitmask = indexer.all_bitmask();
         Self {
             guards_bitmask,
             shard_count,

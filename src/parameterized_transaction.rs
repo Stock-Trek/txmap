@@ -13,7 +13,6 @@ pub struct ParameterizedTransaction<'txmap, K, V, P>
 where
     K: Clone + Hash + Eq,
 {
-    pub(crate) owned_key: fn(&K) -> K,
     pub(crate) custodian: &'txmap Custodian<K, V>,
     pub(crate) guards_bitmask: u128,
     pub(crate) prerequisites: Vec<ParameterizedPrerequisite<K, V, P>>,
@@ -36,7 +35,7 @@ where
             let guard = guards.get_mut(operation.key_index);
             let shard = guard.expect(MISSING_MUTEX_GUARD_ERROR);
             match new_value {
-                Some(v) => shard.insert((self.owned_key)(&operation.key), v),
+                Some(v) => shard.insert(operation.key.clone(), v),
                 None => shard.remove(&operation.key),
             };
         }

@@ -15,7 +15,6 @@ where
     K: Clone + Hash + Eq,
 {
     pub(crate) indexer: Indexer,
-    pub(crate) owned_key: fn(&K) -> K,
     pub(crate) custodian: &'txmap Custodian<K, V>,
     pub(crate) prerequisites: Vec<ParameterizedPrerequisite<K, V, P>>,
 }
@@ -63,14 +62,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             prerequisites,
         } = self;
         let builder = ParameterizedTxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             prerequisites,
             operations: Vec::new(),
         };
@@ -87,14 +84,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             prerequisites,
         } = self;
         let builder = ParameterizedTxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             prerequisites,
             operations: Vec::new(),
         };

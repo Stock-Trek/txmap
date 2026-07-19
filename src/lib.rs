@@ -1,5 +1,7 @@
 pub mod builder_traits;
 pub mod custodian;
+pub mod finisher;
+pub mod finishers;
 pub mod guard;
 pub mod indexer;
 pub mod op;
@@ -15,6 +17,7 @@ pub mod shard_count;
 pub mod transaction;
 pub mod tx_buildable_impl;
 pub mod tx_builder_impl;
+pub mod tx_finishable_impl;
 pub mod tx_map;
 pub mod tx_stem_builder;
 

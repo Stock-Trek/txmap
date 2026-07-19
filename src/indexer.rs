@@ -1,8 +1,9 @@
+use crate::shard_count::all_guards_bitmask;
 use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Indexer {
-    pub shard_count: u64,
+    pub shard_count: u8,
     pub hasher_creator: fn() -> Box<dyn Hasher>,
 }
 
@@ -12,6 +13,9 @@ pub(crate) struct IndexedData<T> {
 }
 
 impl Indexer {
+    pub fn all_bitmask(&self) -> u128 {
+        all_guards_bitmask(self.shard_count)
+    }
     pub fn indexes<'k, KI, E, K>(&self, keys: KI, element_to_key: fn(&E) -> &K) -> IndexedData<E>
     where
         KI: IntoIterator<Item = E>,
@@ -34,6 +38,6 @@ impl Indexer {
     {
         let mut hasher = (self.hasher_creator)();
         key.hash(&mut hasher);
-        (hasher.finish() % self.shard_count) as u8
+        (hasher.finish() % self.shard_count as u64) as u8
     }
 }

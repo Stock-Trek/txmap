@@ -1,4 +1,10 @@
-use crate::transaction::Transaction;
+use crate::{
+    finishers::{
+        finisher_trait::FinisherTrait, none_finisher::NoneFinisher, value_finisher::ValueFinisher,
+        values_finisher::ValuesFinisher,
+    },
+    transaction::Transaction,
+};
 use std::hash::Hash;
 
 pub trait TxBuilder<'txmap, K, V>:
@@ -9,7 +15,9 @@ where
 }
 
 pub trait TxBuildable<'txmap, K, V>:
-    TxOpBuilder<'txmap, K, V> + TxResultBuilder<'txmap, K, V> + IntoTransaction<'txmap, K, V, ()>
+    TxOpBuilder<'txmap, K, V>
+    + TxResultBuilder<'txmap, K, V>
+    + IntoTransaction<'txmap, K, V, NoneFinisher>
 where
     K: Clone + Hash + Eq,
 {
@@ -129,22 +137,27 @@ pub trait TxResultBuilder<'txmap, K, V>
 where
     K: Clone + Hash + Eq,
 {
-    fn get<T, R>(self, key: K, transform: T) -> impl IntoTransaction<'txmap, K, V, Option<R>>
+    fn get<T, R>(
+        self,
+        key: K,
+        transform: T,
+    ) -> impl IntoTransaction<'txmap, K, V, ValueFinisher<K, V, R>>
     where
         T: Fn(&K, &V) -> R + 'static;
     fn get_all<I, T, R>(
         self,
         keys: I,
         transform: T,
-    ) -> impl IntoTransaction<'txmap, K, V, Vec<Option<R>>>
+    ) -> impl IntoTransaction<'txmap, K, V, ValuesFinisher<K, V, R>>
     where
         I: IntoIterator<Item = K>,
         T: Fn(&K, &V) -> R + 'static;
 }
 
-pub trait IntoTransaction<'txmap, K, V, R>
+pub trait IntoTransaction<'txmap, K, V, F>
 where
     K: Clone + Hash + Eq,
+    F: FinisherTrait<K, V>,
 {
-    fn into_transaction(self) -> Transaction<'txmap, K, V, R>;
+    fn into_transaction(self) -> Transaction<'txmap, K, V, F>;
 }

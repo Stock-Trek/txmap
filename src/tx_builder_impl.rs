@@ -12,7 +12,6 @@ where
     K: Clone + Hash + Eq,
 {
     pub(crate) indexer: Indexer,
-    pub(crate) owned_key: fn(&K) -> K,
     pub(crate) custodian: &'txmap Custodian<K, V>,
     pub(crate) guards: Vec<Guard<K, V>>,
 }
@@ -50,14 +49,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -69,14 +66,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -88,14 +83,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -112,14 +105,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -137,14 +128,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -163,14 +152,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -183,14 +170,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -208,14 +193,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -227,14 +210,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -251,14 +232,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -269,14 +248,12 @@ where
     fn swap_value(self, a: K, b: K) -> impl TxBuildable<'txmap, K, V> {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -285,14 +262,12 @@ where
     fn move_value(self, from: K, to: K) -> impl TxBuildable<'txmap, K, V> {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -306,14 +281,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -326,14 +299,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -345,14 +316,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -365,14 +334,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -383,14 +350,12 @@ where
     fn clear(self) -> impl TxBuildable<'txmap, K, V> {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -402,14 +367,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };
@@ -421,14 +384,12 @@ where
     {
         let Self {
             indexer,
-            owned_key,
             custodian,
             guards,
         } = self;
         let builder = TxBuildableImpl {
             indexer,
             custodian,
-            owned_key,
             guards,
             ops: Vec::new(),
         };

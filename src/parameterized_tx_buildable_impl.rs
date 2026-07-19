@@ -15,7 +15,6 @@ where
     K: Clone + Hash + Eq,
 {
     pub(crate) indexer: Indexer,
-    pub(crate) owned_key: fn(&K) -> K,
     pub(crate) custodian: &'txmap Custodian<K, V>,
     pub(crate) prerequisites: Vec<ParameterizedPrerequisite<K, V, P>>,
     pub(crate) operations: Vec<ParameterizedOperation<K, V, P>>,
@@ -68,7 +67,6 @@ where
 {
     fn into_transaction(self) -> ParameterizedTransaction<'txmap, K, V, P> {
         let Self {
-            owned_key,
             custodian,
             prerequisites,
             operations,
@@ -82,7 +80,6 @@ where
             guards_bitmask |= operation.guards_bitmask;
         }
         ParameterizedTransaction {
-            owned_key,
             custodian,
             guards_bitmask,
             prerequisites,

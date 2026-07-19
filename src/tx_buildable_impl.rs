@@ -1,6 +1,10 @@
 use crate::{
     builder_traits::{IntoTransaction, TxBuildable, TxOpBuilder, TxResultBuilder},
     custodian::Custodian,
+    finisher::Finisher,
+    finishers::{
+        none_finisher::NoneFinisher, value_finisher::ValueFinisher, values_finisher::ValuesFinisher,
+    },
     guard::Guard,
     indexer::Indexer,
     op::Op,
@@ -15,6 +19,7 @@ use crate::{
         swap_value_op::SwapValueOp,
     },
     transaction::Transaction,
+    tx_finishable_impl::TxFinishableImpl,
 };
 use std::hash::Hash;
 
@@ -23,7 +28,6 @@ where
     K: Clone + Hash + Eq,
 {
     pub(crate) indexer: Indexer,
-    pub(crate) owned_key: fn(&K) -> K,
     pub(crate) custodian: &'txmap Custodian<K, V>,
     pub(crate) guards: Vec<Guard<K, V>>,
     pub(crate) ops: Vec<Op<K, V>>,
@@ -227,77 +231,62 @@ impl<'txmap, K, V> TxResultBuilder<'txmap, K, V> for TxBuildableImpl<'txmap, K, 
 where
     K: Clone + Hash + Eq,
 {
-    fn get<T, R>(self, _key: K, _transform: T) -> impl IntoTransaction<'txmap, K, V, Option<R>>
+    fn get<T, R>(
+        self,
+        key: K,
+        transform: T,
+    ) -> impl IntoTransaction<'txmap, K, V, ValueFinisher<K, V, R>>
     where
-        T: Fn(&K, &V) -> R,
+        T: Fn(&K, &V) -> R + 'static,
     {
-        // Create a MapOp that preserves the key, then convert to transaction
-        // For the result, we store a dummy getter since the actual value
-        // extraction happens outside the transaction execution
         let Self {
-            owned_key,
+            indexer,
             custodian,
             guards,
             ops,
             ..
         } = self;
-        let mut guards_bitmask: u128 = 0;
-        for guard in &guards {
-            guards_bitmask |= guard.guards_bitmask;
-        }
-        for op in &ops {
-            guards_bitmask |= op.guards_bitmask();
-        }
-        Transaction {
-            owned_key,
+        let value_finisher = ValueFinisher::new(indexer, key, transform);
+        let finisher = Finisher::new(value_finisher);
+        TxFinishableImpl {
             custodian,
-            guards_bitmask,
+            finisher,
             guards,
             ops,
-            get: Box::new(|_: &V| -> Option<R> { None }),
         }
     }
     fn get_all<I, T, R>(
         self,
-        _keys: I,
-        _transform: T,
-    ) -> impl IntoTransaction<'txmap, K, V, Vec<Option<R>>>
+        keys: I,
+        transform: T,
+    ) -> impl IntoTransaction<'txmap, K, V, ValuesFinisher<K, V, R>>
     where
         I: IntoIterator<Item = K>,
-        T: Fn(&K, &V) -> R,
+        T: Fn(&K, &V) -> R + 'static,
     {
         let Self {
-            owned_key,
             custodian,
             guards,
             ops,
             ..
         } = self;
-        let mut guards_bitmask: u128 = 0;
-        for guard in &guards {
-            guards_bitmask |= guard.guards_bitmask;
-        }
-        for op in &ops {
-            guards_bitmask |= op.guards_bitmask();
-        }
-        Transaction {
-            owned_key,
+        let values_finisher = ValuesFinisher::new(self.indexer, keys, transform);
+        let finisher = Finisher::new(values_finisher);
+        TxFinishableImpl {
             custodian,
-            guards_bitmask,
             guards,
             ops,
-            get: Box::new(|_: &V| -> Vec<Option<R>> { Vec::new() }),
+            finisher,
         }
     }
 }
 
-impl<'txmap, K, V, R> IntoTransaction<'txmap, K, V, R> for TxBuildableImpl<'txmap, K, V>
+impl<'txmap, K, V> IntoTransaction<'txmap, K, V, NoneFinisher> for TxBuildableImpl<'txmap, K, V>
 where
     K: Clone + Hash + Eq,
 {
-    fn into_transaction(self) -> Transaction<'txmap, K, V, R> {
+    fn into_transaction(self) -> Transaction<'txmap, K, V, NoneFinisher> {
         let Self {
-            owned_key,
             custodian,
             guards,
             ops,
@@ -311,12 +300,11 @@ where
             guards_bitmask |= op.guards_bitmask();
         }
         Transaction {
-            owned_key,
             custodian,
             guards_bitmask,
             guards,
             ops,
-            get: Box::new(|_: &V| -> R { panic!("No getter set") }),
+            finisher: Finisher::new(NoneFinisher),
         }
     }
 }

@@ -4,10 +4,13 @@ use crate::ops::{
     modify_or_default_op::ModifyOrDefaultOp, modify_or_insert_with_op::ModifyOrInsertWithOp,
     modify_peek_op::ModifyPeekOp, modify_peek_or_default_op::ModifyPeekOrDefaultOp,
     modify_peek_or_insert_with_op::ModifyPeekOrInsertWithOp, move_value_op::MoveValueOp,
-    mut_op::MutOp, remove_any_if_op::RemoveAnyIfOp, remove_if_op::RemoveIfOp, remove_op::RemoveOp,
-    retain_any_if_op::RetainAnyIfOp, retain_if_op::RetainIfOp, retain_op::RetainOp,
-    swap_value_op::SwapValueOp,
+    mut_op::MutOp, op_trait::OpTrait, remove_any_if_op::RemoveAnyIfOp, remove_if_op::RemoveIfOp,
+    remove_op::RemoveOp, retain_any_if_op::RetainAnyIfOp, retain_if_op::RetainIfOp,
+    retain_op::RetainOp, swap_value_op::SwapValueOp,
 };
+use hashbrown::HashMap;
+use intmap::IntMap;
+use parking_lot::MutexGuard;
 use std::hash::Hash;
 
 pub(crate) enum Op<K, V>
@@ -62,6 +65,33 @@ where
             Self::Clear(op) => op.guards_bitmask,
             Self::RemoveAnyIf(op) => op.guards_bitmask,
             Self::RetainAnyIf(op) => op.guards_bitmask,
+        }
+    }
+    pub fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>)
+    where
+        K: Clone + Hash + Eq,
+    {
+        match self {
+            Self::InsertWith(op) => op.apply(mutex_guards),
+            Self::InsertDefault(op) => op.apply(mutex_guards),
+            Self::Modify(op) => op.apply(mutex_guards),
+            Self::ModifyPeek(op) => op.apply(mutex_guards),
+            Self::ModifyOrInsertWith(op) => op.apply(mutex_guards),
+            Self::ModifyPeekOrInsertWith(op) => op.apply(mutex_guards),
+            Self::ModifyOrDefault(op) => op.apply(mutex_guards),
+            Self::ModifyPeekOrDefault(op) => op.apply(mutex_guards),
+            Self::Map(op) => op.apply(mutex_guards),
+            Self::MapPeek(op) => op.apply(mutex_guards),
+            Self::Mut(op) => op.apply(mutex_guards),
+            Self::SwapValue(op) => op.apply(mutex_guards),
+            Self::MoveValue(op) => op.apply(mutex_guards),
+            Self::Remove(op) => op.apply(mutex_guards),
+            Self::RemoveIf(op) => op.apply(mutex_guards),
+            Self::Retain(op) => op.apply(mutex_guards),
+            Self::RetainIf(op) => op.apply(mutex_guards),
+            Self::Clear(op) => op.apply(mutex_guards),
+            Self::RemoveAnyIf(op) => op.apply(mutex_guards),
+            Self::RetainAnyIf(op) => op.apply(mutex_guards),
         }
     }
 }
