@@ -92,12 +92,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        parameterized_builder_traits::{
-            IntoParameterizedTransaction, WithParameterizedOperation, WithParameterizedPrerequisite,
-        },
-        prelude::*,
-    };
+    use crate::{builder_traits::TxParamBuilder, prelude::*};
 
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     struct User {
@@ -173,14 +168,10 @@ mod tests {
 
         let send_x_usd_from_bob_to_tim = db
             .transaction()
+            .require("Has available funds", [tim.clone()], |[tim_funds]| {
+                tim_funds.is_some_and(|f| f.usd_and_cents >= transfer.usd_and_cents)
+            })
             .with_param::<Transfer>()
-            .with_prerequisite(
-                "Has available funds",
-                [tim.clone()],
-                |[tim_funds], transfer| {
-                    tim_funds.is_some_and(|f| f.usd_and_cents >= transfer.usd_and_cents)
-                },
-            )
             .with_operation(tim.clone(), |tim_funds, transfer| {
                 Some(Funds {
                     sterling_and_pence: tim_funds.unwrap().sterling_and_pence,
@@ -201,11 +192,11 @@ mod tests {
             })
             .into_transaction();
         assert_eq!(
-            send_x_usd_from_bob_to_tim.execute(&Transfer { usd_and_cents: 40 }),
+            send_x_usd_from_bob_to_tim.execute_params(&Transfer { usd_and_cents: 40 }),
             TxResult::Completed(())
         );
         assert_ne!(
-            send_x_usd_from_bob_to_tim.execute(&Transfer { usd_and_cents: 20 }),
+            send_x_usd_from_bob_to_tim.execute_params(&Transfer { usd_and_cents: 20 }),
             TxResult::Completed(())
         );
 

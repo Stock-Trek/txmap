@@ -4,10 +4,7 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::{hash::Hash, marker::PhantomData};
 
-pub(crate) struct SwapValueOp<K, V>
-where
-    K: Clone + Hash + Eq,
-{
+pub(crate) struct SwapValueOp<K, V> {
     guards_bitmask: u128,
     a_index: u8,
     b_index: u8,
@@ -18,7 +15,7 @@ where
 
 impl<K, V> SwapValueOp<K, V>
 where
-    K: Clone + Hash + Eq,
+    K: Hash,
 {
     pub fn new(indexer: &Indexer, a: K, b: K) -> Self {
         let a_index = indexer.index(&a);
@@ -34,14 +31,14 @@ where
     }
 }
 
-impl<K, V> OpTrait<K, V> for SwapValueOp<K, V>
+impl<K, V, P> OpTrait<K, V, P> for SwapValueOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
     fn guards_bitmask(&self) -> u128 {
         self.guards_bitmask
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, _: &P) {
         let (a_value, b_value) = {
             let a_guard = mutex_guards
                 .get_mut(self.a_index)

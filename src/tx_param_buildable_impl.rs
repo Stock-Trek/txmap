@@ -1,5 +1,7 @@
 use crate::{
-    builder_traits::{IntoTransaction, TxBuildable, TxOpBuilder, TxResultBuilder},
+    builder_traits::{
+        IntoParamTransaction, TxOpParamBuilder, TxParamBuildable, TxResultParamBuilder,
+    },
     custodian::Custodian,
     finisher::Finisher,
     finishers::{
@@ -17,42 +19,48 @@ use crate::{
         remove_where_op::RemoveWhereOp, retain_only_op::RetainOnlyOp, retain_op::RetainOp,
         retain_where_op::RetainWhereOp, swap_value_op::SwapValueOp,
     },
-    transaction::Transaction,
+    parameterized_transaction::ParameterizedTransaction,
     transaction_base::TransactionBase,
-    tx_finishable_impl::TxFinishableImpl,
+    tx_param_finishable_impl::TxParamFinishableImpl,
 };
 use std::hash::Hash;
 
-pub struct TxBuildableImpl<'txmap, K, V> {
+pub struct TxParamBuildableImpl<'txmap, K, V, P> {
     pub(crate) indexer: Indexer,
     pub(crate) custodian: &'txmap Custodian<K, V>,
     pub(crate) guards: Vec<Guard<K, V>>,
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, ()>>>,
+    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, P>>>,
 }
 
-impl<'txmap, K, V> TxBuildable<'txmap, K, V> for TxBuildableImpl<'txmap, K, V>
+impl<'txmap, K, V, P> TxParamBuildable<'txmap, K, V, P> for TxParamBuildableImpl<'txmap, K, V, P>
 where
     K: Hash + Eq + 'static,
     V: 'static,
+    P: 'static,
 {
 }
 
-impl<'txmap, K, V> TxOpBuilder<'txmap, K, V> for TxBuildableImpl<'txmap, K, V>
+impl<'txmap, K, V, P> TxOpParamBuilder<'txmap, K, V, P> for TxParamBuildableImpl<'txmap, K, V, P>
 where
     K: Hash + Eq + 'static,
     V: 'static,
+    P: 'static,
 {
     // single key ops
-    fn insert_with<G>(mut self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
+    fn insert_with<G>(
+        mut self,
+        key: K,
+        value_generator: G,
+    ) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        G: Fn(&K) -> V + 'static,
+        G: Fn(&K, &P) -> V + 'static,
         K: Clone,
     {
-        let op = InsertWithOp::new(&self.indexer, key, value_generator);
+        let op = InsertWithOp::new_with_params(&self.indexer, key, value_generator);
         self.ops.push(Box::new(op));
         self
     }
-    fn insert_default(mut self, key: K) -> impl TxBuildable<'txmap, K, V>
+    fn insert_default(mut self, key: K) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         K: Clone,
         V: Default,
@@ -61,11 +69,11 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn modify<M>(mut self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
+    fn modify<M>(mut self, key: K, mutate: M) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        M: Fn(&K, &mut V) + 'static,
+        M: Fn(&K, &mut V, &P) + 'static,
     {
-        let op = ModifyOp::new(&self.indexer, key, mutate);
+        let op = ModifyOp::new_with_params(&self.indexer, key, mutate);
         self.ops.push(Box::new(op));
         self
     }
@@ -74,12 +82,12 @@ where
         key: K,
         peek_keys: [K; N],
         mutate: M,
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
+        M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
         K: Clone,
     {
-        let op = ModifyPeekOp::new(&self.indexer, key, peek_keys, mutate);
+        let op = ModifyPeekOp::new_with_params(&self.indexer, key, peek_keys, mutate);
         self.ops.push(Box::new(op));
         self
     }
@@ -88,13 +96,13 @@ where
         key: K,
         mutate: M,
         value_generator: G,
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        M: Fn(&K, &mut V) + 'static,
-        G: Fn(&K) -> V + 'static,
+        M: Fn(&K, &mut V, &P) + 'static,
+        G: Fn(&K, &P) -> V + 'static,
         K: Clone,
     {
-        let op = ModifyOrInsertWithOp::new(&self.indexer, key, mutate, value_generator);
+        let op = ModifyOrInsertWithOp::new_with_params(&self.indexer, key, mutate, value_generator);
         self.ops.push(Box::new(op));
         self
     }
@@ -104,24 +112,29 @@ where
         peek_keys: [K; N],
         mutate: M,
         value_generator: G,
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
-        G: Fn(&K) -> V + 'static,
+        M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
+        G: Fn(&K, &P) -> V + 'static,
         K: Clone,
     {
-        let op =
-            ModifyPeekOrInsertWithOp::new(&self.indexer, key, peek_keys, mutate, value_generator);
+        let op = ModifyPeekOrInsertWithOp::new_with_params(
+            &self.indexer,
+            key,
+            peek_keys,
+            mutate,
+            value_generator,
+        );
         self.ops.push(Box::new(op));
         self
     }
-    fn modify_or_default<M>(mut self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
+    fn modify_or_default<M>(mut self, key: K, mutate: M) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        M: Fn(&K, &mut V) + 'static,
+        M: Fn(&K, &mut V, &P) + 'static,
         K: Clone,
         V: Default,
     {
-        let op = ModifyOrDefaultOp::new(&self.indexer, key, mutate);
+        let op = ModifyOrDefaultOp::new_with_params(&self.indexer, key, mutate);
         self.ops.push(Box::new(op));
         self
     }
@@ -130,22 +143,22 @@ where
         key: K,
         peek_keys: [K; N],
         mutate: M,
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
+        M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
         K: Clone,
         V: Default,
     {
-        let op = ModifyPeekOrDefaultOp::new(&self.indexer, key, peek_keys, mutate);
+        let op = ModifyPeekOrDefaultOp::new_with_params(&self.indexer, key, peek_keys, mutate);
         self.ops.push(Box::new(op));
         self
     }
-    fn map<T>(mut self, key: K, transform: T) -> impl TxBuildable<'txmap, K, V>
+    fn map<T>(mut self, key: K, transform: T) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        T: Fn(&K, Option<&V>) -> Option<V> + 'static,
+        T: Fn(&K, Option<&V>, &P) -> Option<V> + 'static,
         K: Clone,
     {
-        let map_op = MapOp::new(&self.indexer, key, transform);
+        let map_op = MapOp::new_with_params(&self.indexer, key, transform);
         self.ops.push(Box::new(map_op));
         self
     }
@@ -154,18 +167,18 @@ where
         key: K,
         transform: T,
         peek_keys: [K; N],
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
+        T: Fn(&K, Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
         K: Clone,
     {
-        let map_peek_op = MapPeekOp::new(&self.indexer, key, peek_keys, transform);
+        let map_peek_op = MapPeekOp::new_with_params(&self.indexer, key, peek_keys, transform);
         self.ops.push(Box::new(map_peek_op));
         self
     }
 
     // multi key ops
-    fn swap_value(mut self, a: K, b: K) -> impl TxBuildable<'txmap, K, V>
+    fn swap_value(mut self, a: K, b: K) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         K: Clone,
     {
@@ -173,7 +186,7 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn move_value(mut self, from: K, to: K) -> impl TxBuildable<'txmap, K, V>
+    fn move_value(mut self, from: K, to: K) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         K: Clone,
     {
@@ -183,7 +196,7 @@ where
     }
 
     // batch ops
-    fn remove<I>(mut self, keys: I) -> impl TxBuildable<'txmap, K, V>
+    fn remove<I>(mut self, keys: I) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         I: IntoIterator<Item = K>,
     {
@@ -191,16 +204,16 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn remove_where<I, C>(mut self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn remove_where<I, C>(mut self, keys: I, condition: C) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool + 'static,
+        C: Fn(&K, &V, &P) -> bool + 'static,
     {
-        let op = RemoveWhereOp::new(&self.indexer, keys, condition);
+        let op = RemoveWhereOp::new_with_params(&self.indexer, keys, condition);
         self.ops.push(Box::new(op));
         self
     }
-    fn retain_only<I>(mut self, keys: I) -> impl TxBuildable<'txmap, K, V>
+    fn retain_only<I>(mut self, keys: I) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         I: IntoIterator<Item = K>,
     {
@@ -208,41 +221,42 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn retain_where<I, C>(mut self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn retain_where<I, C>(mut self, keys: I, condition: C) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool + 'static,
+        C: Fn(&K, &V, &P) -> bool + 'static,
     {
-        let op = RetainWhereOp::new(&self.indexer, keys, condition);
+        let op = RetainWhereOp::new_with_params(&self.indexer, keys, condition);
         self.ops.push(Box::new(op));
         self
     }
 
     // global ops
-    fn clear(mut self) -> impl TxBuildable<'txmap, K, V> {
+    fn clear(mut self) -> impl TxParamBuildable<'txmap, K, V, P> {
         let op = ClearOp::new(&self.indexer);
         self.ops.push(Box::new(op));
         self
     }
-    fn remove_if<C>(mut self, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn remove_if<C>(mut self, condition: C) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        C: Fn(&K, &V) -> bool + 'static,
+        C: Fn(&K, &V, &P) -> bool + 'static,
     {
-        let op = RemoveIfOp::new(&self.indexer, condition);
+        let op = RemoveIfOp::new_with_params(&self.indexer, condition);
         self.ops.push(Box::new(op));
         self
     }
-    fn retain<C>(mut self, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn retain<C>(mut self, condition: C) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        C: Fn(&K, &V) -> bool + 'static,
+        C: Fn(&K, &V, &P) -> bool + 'static,
     {
-        let op = RetainOp::new(&self.indexer, condition);
+        let op = RetainOp::new_with_params(&self.indexer, condition);
         self.ops.push(Box::new(op));
         self
     }
 }
 
-impl<'txmap, K, V> TxResultBuilder<'txmap, K, V> for TxBuildableImpl<'txmap, K, V>
+impl<'txmap, K, V, P> TxResultParamBuilder<'txmap, K, V, P>
+    for TxParamBuildableImpl<'txmap, K, V, P>
 where
     K: Hash + Eq,
 {
@@ -250,7 +264,7 @@ where
         self,
         key: K,
         transform: T,
-    ) -> impl IntoTransaction<'txmap, K, V, ValueFinisher<K, V, R>>
+    ) -> impl IntoParamTransaction<'txmap, K, V, P, ValueFinisher<K, V, R>>
     where
         T: Fn(&K, &V) -> R + 'static,
     {
@@ -263,7 +277,7 @@ where
         } = self;
         let value_finisher = ValueFinisher::new(indexer, key, transform);
         let finisher = Finisher::new(value_finisher);
-        TxFinishableImpl {
+        TxParamFinishableImpl {
             custodian,
             finisher,
             guards,
@@ -274,7 +288,7 @@ where
         self,
         keys: I,
         transform: T,
-    ) -> impl IntoTransaction<'txmap, K, V, ValuesFinisher<K, V, R>>
+    ) -> impl IntoParamTransaction<'txmap, K, V, P, ValuesFinisher<K, V, R>>
     where
         I: IntoIterator<Item = K>,
         T: Fn(&K, &V) -> R + 'static,
@@ -287,7 +301,7 @@ where
         } = self;
         let values_finisher = ValuesFinisher::new(self.indexer, keys, transform);
         let finisher = Finisher::new(values_finisher);
-        TxFinishableImpl {
+        TxParamFinishableImpl {
             custodian,
             guards,
             ops,
@@ -296,8 +310,10 @@ where
     }
 }
 
-impl<'txmap, K, V> IntoTransaction<'txmap, K, V, NoneFinisher> for TxBuildableImpl<'txmap, K, V> {
-    fn into_transaction(self) -> Transaction<'txmap, K, V, NoneFinisher> {
+impl<'txmap, K, V, P> IntoParamTransaction<'txmap, K, V, P, NoneFinisher>
+    for TxParamBuildableImpl<'txmap, K, V, P>
+{
+    fn into_transaction(self) -> ParameterizedTransaction<'txmap, K, V, P, NoneFinisher> {
         let Self {
             custodian,
             guards,
@@ -318,6 +334,6 @@ impl<'txmap, K, V> IntoTransaction<'txmap, K, V, NoneFinisher> for TxBuildableIm
             ops,
             finisher: Finisher::new(NoneFinisher),
         };
-        Transaction { base }
+        ParameterizedTransaction { base }
     }
 }

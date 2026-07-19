@@ -5,7 +5,7 @@ pub(crate) const MISSING_MUTEX_GUARD_ERROR: &str = "Missing mutex guard";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TxResult<T> {
     Completed(T),
-    ConditionNotMet(usize, String),
+    RequirementNotMet(usize, String),
 }
 
 impl<T> std::fmt::Display for TxResult<T>
@@ -15,8 +15,8 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Completed(result) => write!(f, "Transaction completed. Result: {}", result),
-            Self::ConditionNotMet(index, name) => {
-                write!(f, "Condition not met at index [{}]: {}", index, name)
+            Self::RequirementNotMet(index, name) => {
+                write!(f, "Requirement at index [{}] not met: {}", index, name)
             }
         }
     }

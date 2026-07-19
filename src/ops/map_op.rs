@@ -4,24 +4,21 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct MapOp<K, V>
-where
-    K: Clone + Hash + Eq,
-{
+pub(crate) struct MapOp<K, V, P = ()> {
     guards_bitmask: u128,
     key_index: u8,
     key: K,
     #[allow(clippy::type_complexity)]
-    transform: Box<dyn Fn(&K, Option<&V>) -> Option<V>>,
+    transform: Box<dyn Fn(&K, Option<&V>, &P) -> Option<V>>,
 }
 
-impl<K, V> MapOp<K, V>
+impl<K, V, P> MapOp<K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Hash + Eq,
 {
-    pub fn new<T>(indexer: &Indexer, key: K, transform: T) -> Self
+    pub fn new_with_params<T>(indexer: &Indexer, key: K, transform: T) -> Self
     where
-        T: Fn(&K, Option<&V>) -> Option<V> + 'static,
+        T: Fn(&K, Option<&V>, &P) -> Option<V> + 'static,
     {
         let key_index = indexer.index(&key);
         Self {
@@ -31,23 +28,39 @@ where
             transform: Box::new(transform),
         }
     }
-    fn mapped_value(&self, mutex_guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) -> Option<V> {
+    fn mapped_value(
+        &self,
+        mutex_guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
+        params: &P,
+    ) -> Option<V> {
         let key_guard = mutex_guards.get(self.key_index);
         let key_shard = key_guard.expect(MISSING_MUTEX_GUARD_ERROR);
         let key_value = key_shard.get(&self.key);
-        (self.transform)(&self.key, key_value)
+        (self.transform)(&self.key, key_value, params)
     }
 }
 
-impl<K, V> OpTrait<K, V> for MapOp<K, V>
+impl<K, V> MapOp<K, V, ()>
+where
+    K: Hash + Eq,
+{
+    pub fn new<T>(indexer: &Indexer, key: K, transform: T) -> Self
+    where
+        T: Fn(&K, Option<&V>) -> Option<V> + 'static,
+    {
+        Self::new_with_params(indexer, key, move |k, v, _| transform(k, v))
+    }
+}
+
+impl<K, V, P> OpTrait<K, V, P> for MapOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
     fn guards_bitmask(&self) -> u128 {
         self.guards_bitmask
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
-        let new_value = self.mapped_value(mutex_guards);
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, params: &P) {
+        let new_value = self.mapped_value(mutex_guards, params);
         let guard = mutex_guards.get_mut(self.key_index);
         let shard = guard.expect(MISSING_MUTEX_GUARD_ERROR);
         match new_value {

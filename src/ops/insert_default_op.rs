@@ -4,10 +4,7 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::{hash::Hash, marker::PhantomData};
 
-pub(crate) struct InsertDefaultOp<K, V>
-where
-    K: Clone + Hash + Eq,
-{
+pub(crate) struct InsertDefaultOp<K, V> {
     guards_bitmask: u128,
     key_index: u8,
     key: K,
@@ -16,8 +13,7 @@ where
 
 impl<K, V> InsertDefaultOp<K, V>
 where
-    K: Clone + Hash + Eq,
-    V: Default,
+    K: Hash,
 {
     pub fn new(indexer: &Indexer, key: K) -> Self {
         let key_index = indexer.index(&key);
@@ -30,7 +26,7 @@ where
     }
 }
 
-impl<K, V> OpTrait<K, V> for InsertDefaultOp<K, V>
+impl<K, V, P> OpTrait<K, V, P> for InsertDefaultOp<K, V>
 where
     K: Clone + Hash + Eq,
     V: Default,
@@ -38,7 +34,7 @@ where
     fn guards_bitmask(&self) -> u128 {
         self.guards_bitmask
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, _: &P) {
         let mutex_guard = mutex_guards
             .get_mut(self.key_index)
             .expect(MISSING_MUTEX_GUARD_ERROR);
