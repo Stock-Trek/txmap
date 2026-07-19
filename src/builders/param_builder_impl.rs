@@ -1,80 +1,59 @@
 use crate::{
-    builder_traits::{
-        TxBuildable, TxBuilder, TxGuardBuilder, TxOpBuilder, TxParamBuildable, TxParamBuilder,
+    builders::{
+        builder_traits::{TxGuardParamBuilder, TxOpParamBuilder, TxParamBuildable, TxParamBuilder},
+        param_buildable_impl::TxParamBuildableImpl,
     },
     custodian::Custodian,
     guard::Guard,
     indexer::Indexer,
-    tx_buildable_impl::TxBuildableImpl,
-    tx_param_buildable_impl::TxParamBuildableImpl,
 };
 use std::hash::Hash;
 
-pub struct TxBuilderImpl<'txmap, K, V> {
+pub struct TxParamBuilderImpl<'txmap, K, V, P> {
     pub(crate) indexer: Indexer,
     pub(crate) custodian: &'txmap Custodian<K, V>,
-    pub(crate) guards: Vec<Guard<K, V>>,
+    pub(crate) guards: Vec<Guard<K, V, P>>,
 }
 
-impl<'txmap, K, V> TxBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V>
+impl<'txmap, K, V, P> TxParamBuilder<'txmap, K, V, P> for TxParamBuilderImpl<'txmap, K, V, P>
 where
     K: Hash + Eq + 'static,
     V: 'static,
+    P: 'static,
 {
 }
 
-impl<'txmap, K, V> TxGuardBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V>
+impl<'txmap, K, V, P> TxGuardParamBuilder<'txmap, K, V, P> for TxParamBuilderImpl<'txmap, K, V, P>
 where
     K: Hash + Eq + 'static,
     V: 'static,
+    P: 'static,
 {
     fn require<const N: usize, C>(
         mut self,
         name: impl AsRef<str>,
         keys: [K; N],
         condition: C,
-    ) -> impl TxBuilder<'txmap, K, V>
+    ) -> impl TxParamBuilder<'txmap, K, V, P>
     where
-        C: Fn([Option<&V>; N]) -> bool + 'static,
+        C: Fn([Option<&V>; N], &P) -> bool + 'static,
     {
-        let guard = Guard::new(self.indexer, name.as_ref().into(), keys, condition);
+        let guard = Guard::new_with_params(self.indexer, name.as_ref().into(), keys, condition);
         self.guards.push(guard);
         self
     }
 }
 
-impl<'txmap, K, V> TxParamBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V>
+impl<'txmap, K, V, P> TxOpParamBuilder<'txmap, K, V, P> for TxParamBuilderImpl<'txmap, K, V, P>
 where
     K: Hash + Eq + 'static,
     V: 'static,
-{
-    fn with_param<P>(self) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        P: 'static,
-    {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
-        TxParamBuildableImpl {
-            custodian,
-            guards,
-            indexer,
-            ops: Vec::new(),
-        }
-    }
-}
-
-impl<'txmap, K, V> TxOpBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V>
-where
-    K: Hash + Eq + 'static,
-    V: 'static,
+    P: 'static,
 {
     // single key ops
-    fn insert_with<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
+    fn insert_with<G>(self, key: K, value_generator: G) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        G: Fn(&K) -> V + 'static,
+        G: Fn(&K, &P) -> V + 'static,
         K: Clone,
     {
         let Self {
@@ -82,7 +61,7 @@ where
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -90,7 +69,7 @@ where
         };
         builder.insert_with(key, value_generator)
     }
-    fn insert_default(self, key: K) -> impl TxBuildable<'txmap, K, V>
+    fn insert_default(self, key: K) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         K: Clone,
         V: Default,
@@ -100,7 +79,7 @@ where
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -108,16 +87,16 @@ where
         };
         builder.insert_default(key)
     }
-    fn modify<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
+    fn modify<M>(self, key: K, mutate: M) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        M: Fn(&K, &mut V) + 'static,
+        M: Fn(&K, &mut V, &P) + 'static,
     {
         let Self {
             indexer,
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -130,9 +109,9 @@ where
         key: K,
         peek_keys: [K; N],
         mutate: M,
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
+        M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
         K: Clone,
     {
         let Self {
@@ -140,7 +119,7 @@ where
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -153,10 +132,10 @@ where
         key: K,
         mutate: M,
         value_generator: G,
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        M: Fn(&K, &mut V) + 'static,
-        G: Fn(&K) -> V + 'static,
+        M: Fn(&K, &mut V, &P) + 'static,
+        G: Fn(&K, &P) -> V + 'static,
         K: Clone,
     {
         let Self {
@@ -164,7 +143,7 @@ where
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -178,10 +157,10 @@ where
         peek_keys: [K; N],
         mutate: M,
         value_generator: G,
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
-        G: Fn(&K) -> V + 'static,
+        M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
+        G: Fn(&K, &P) -> V + 'static,
         K: Clone,
     {
         let Self {
@@ -189,7 +168,7 @@ where
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -197,9 +176,9 @@ where
         };
         builder.modify_peek_or_insert_with(key, peek_keys, mutate, value_generator)
     }
-    fn modify_or_default<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
+    fn modify_or_default<M>(self, key: K, mutate: M) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        M: Fn(&K, &mut V) + 'static,
+        M: Fn(&K, &mut V, &P) + 'static,
         K: Clone,
         V: Default,
     {
@@ -208,7 +187,7 @@ where
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -221,9 +200,9 @@ where
         key: K,
         peek_keys: [K; N],
         mutate: M,
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
+        M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
         K: Clone,
         V: Default,
     {
@@ -232,7 +211,7 @@ where
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -240,9 +219,9 @@ where
         };
         builder.modify_peek_or_default(key, peek_keys, mutate)
     }
-    fn map<T>(self, key: K, transform: T) -> impl TxBuildable<'txmap, K, V>
+    fn map<T>(self, key: K, transform: T) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        T: Fn(&K, Option<&V>) -> Option<V> + 'static,
+        T: Fn(&K, Option<&V>, &P) -> Option<V> + 'static,
         K: Clone,
     {
         let Self {
@@ -250,7 +229,7 @@ where
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -263,9 +242,9 @@ where
         key: K,
         transform: T,
         peek_keys: [K; N],
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
+        T: Fn(&K, Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
         K: Clone,
     {
         let Self {
@@ -273,7 +252,7 @@ where
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -283,7 +262,7 @@ where
     }
 
     // multi key ops
-    fn swap_value(self, a: K, b: K) -> impl TxBuildable<'txmap, K, V>
+    fn swap_value(self, a: K, b: K) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         K: Clone,
     {
@@ -292,7 +271,7 @@ where
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -300,7 +279,7 @@ where
         };
         builder.swap_value(a, b)
     }
-    fn move_value(self, from: K, to: K) -> impl TxBuildable<'txmap, K, V>
+    fn move_value(self, from: K, to: K) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         K: Clone,
     {
@@ -309,7 +288,7 @@ where
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -319,7 +298,7 @@ where
     }
 
     // batch ops
-    fn remove<I>(self, keys: I) -> impl TxBuildable<'txmap, K, V>
+    fn remove<I>(self, keys: I) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         I: IntoIterator<Item = K>,
     {
@@ -328,7 +307,7 @@ where
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -336,17 +315,17 @@ where
         };
         builder.remove(keys)
     }
-    fn remove_where<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn remove_where<I, C>(self, keys: I, condition: C) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool + 'static,
+        C: Fn(&K, &V, &P) -> bool + 'static,
     {
         let Self {
             indexer,
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -354,7 +333,7 @@ where
         };
         builder.remove_where(keys, condition)
     }
-    fn retain_only<I>(self, keys: I) -> impl TxBuildable<'txmap, K, V>
+    fn retain_only<I>(self, keys: I) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         I: IntoIterator<Item = K>,
     {
@@ -363,7 +342,7 @@ where
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -371,17 +350,17 @@ where
         };
         builder.retain_only(keys)
     }
-    fn retain_where<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn retain_where<I, C>(self, keys: I, condition: C) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool + 'static,
+        C: Fn(&K, &V, &P) -> bool + 'static,
     {
         let Self {
             indexer,
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -391,13 +370,13 @@ where
     }
 
     // global ops
-    fn clear(self) -> impl TxBuildable<'txmap, K, V> {
+    fn clear(self) -> impl TxParamBuildable<'txmap, K, V, P> {
         let Self {
             indexer,
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -405,16 +384,16 @@ where
         };
         builder.clear()
     }
-    fn remove_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn remove_if<C>(self, condition: C) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        C: Fn(&K, &V) -> bool + 'static,
+        C: Fn(&K, &V, &P) -> bool + 'static,
     {
         let Self {
             indexer,
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,
@@ -422,16 +401,16 @@ where
         };
         builder.remove_if(condition)
     }
-    fn retain<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn retain<C>(self, condition: C) -> impl TxParamBuildable<'txmap, K, V, P>
     where
-        C: Fn(&K, &V) -> bool + 'static,
+        C: Fn(&K, &V, &P) -> bool + 'static,
     {
         let Self {
             indexer,
             custodian,
             guards,
         } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxParamBuildableImpl {
             indexer,
             custodian,
             guards,

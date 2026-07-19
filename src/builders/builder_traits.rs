@@ -3,13 +3,19 @@ use crate::{
         finisher_trait::FinisherTrait, none_finisher::NoneFinisher, value_finisher::ValueFinisher,
         values_finisher::ValuesFinisher,
     },
-    parameterized_transaction::ParameterizedTransaction,
-    transaction::Transaction,
+    transaction::{ParameterizedTransaction, Transaction},
 };
 use std::hash::Hash;
 
 pub trait TxBuilder<'txmap, K, V>:
-    TxGuardBuilder<'txmap, K, V> + TxParamBuilder<'txmap, K, V> + TxOpBuilder<'txmap, K, V>
+    TxGuardBuilder<'txmap, K, V> + TxOpBuilder<'txmap, K, V>
+where
+    K: Hash + Eq,
+{
+}
+
+pub trait TxParamBuilder<'txmap, K, V, P>:
+    TxGuardParamBuilder<'txmap, K, V, P> + TxOpParamBuilder<'txmap, K, V, P>
 where
     K: Hash + Eq,
 {
@@ -33,6 +39,15 @@ where
 {
 }
 
+pub trait TxParameterizer<'txmap, K, V>
+where
+    K: Hash + Eq,
+{
+    fn with_param<P>(self) -> impl TxParamBuilder<'txmap, K, V, P>
+    where
+        P: 'static;
+}
+
 pub trait TxGuardBuilder<'txmap, K, V>
 where
     K: Hash + Eq,
@@ -47,13 +62,18 @@ where
         C: Fn([Option<&V>; N]) -> bool + 'static;
 }
 
-pub trait TxParamBuilder<'txmap, K, V>
+pub trait TxGuardParamBuilder<'txmap, K, V, P>
 where
     K: Hash + Eq,
 {
-    fn with_param<P>(self) -> impl TxParamBuildable<'txmap, K, V, P>
+    fn require<const N: usize, C>(
+        self,
+        name: impl AsRef<str>,
+        keys: [K; N],
+        condition: C,
+    ) -> impl TxParamBuilder<'txmap, K, V, P>
     where
-        P: 'static;
+        C: Fn([Option<&V>; N], &P) -> bool + 'static;
 }
 
 pub trait TxOpBuilder<'txmap, K, V>

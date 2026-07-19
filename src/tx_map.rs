@@ -1,6 +1,6 @@
 use crate::{
-    custodian::Custodian, indexer::Indexer, result::MISSING_MUTEX_GUARD_ERROR,
-    shard_count::ShardCount, tx_stem_builder::TxStemBuilder,
+    builders::stem_builder::TxStemBuilder, custodian::Custodian, indexer::Indexer,
+    result::MISSING_MUTEX_GUARD_ERROR, shard_count::ShardCount,
 };
 use std::hash::{DefaultHasher, Hash};
 
@@ -92,25 +92,25 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{builder_traits::TxParamBuilder, prelude::*};
+    use crate::prelude::*;
 
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     struct User {
         first_name: String,
         last_name: String,
     }
+    #[derive(Debug, Default)]
     struct Funds {
         usd_and_cents: u64,
         sterling_and_pence: u64,
     }
+    #[derive(Debug, Default)]
     struct Transfer {
         usd_and_cents: u64,
     }
 
     #[test]
     pub fn transfer() {
-        use crate::result::TxResult;
-
         let db: TxMap<User, Funds> = TxMap::new(ShardCount::_8);
         let bob = User {
             first_name: "Bob".into(),
@@ -168,36 +168,31 @@ mod tests {
 
         let send_x_usd_from_bob_to_tim = db
             .transaction()
-            .require("Has available funds", [tim.clone()], |[tim_funds]| {
-                tim_funds.is_some_and(|f| f.usd_and_cents >= transfer.usd_and_cents)
-            })
             .with_param::<Transfer>()
-            .with_operation(tim.clone(), |tim_funds, transfer| {
-                Some(Funds {
-                    sterling_and_pence: tim_funds.unwrap().sterling_and_pence,
-                    usd_and_cents: tim_funds.unwrap().usd_and_cents - transfer.usd_and_cents,
-                })
+            .require(
+                "Has available funds",
+                [tim.clone()],
+                |[tim_funds], params| {
+                    tim_funds.is_some_and(|f| f.usd_and_cents >= params.usd_and_cents)
+                },
+            )
+            .modify_or_default(bob.clone(), |_bob, funds, params| {
+                funds.usd_and_cents -= params.usd_and_cents
             })
-            .with_operation(bob.clone(), |bob_funds, transfer| {
-                Some(bob_funds.map_or(
-                    Funds {
-                        usd_and_cents: transfer.usd_and_cents,
-                        sterling_and_pence: 0,
-                    },
-                    |f| Funds {
-                        usd_and_cents: f.usd_and_cents + transfer.usd_and_cents,
-                        sterling_and_pence: f.sterling_and_pence,
-                    },
-                ))
+            .modify_or_default(tim.clone(), |_tim, funds, params| {
+                funds.usd_and_cents += params.usd_and_cents
+            })
+            .get_all([bob.clone(), tim.clone()], |_user, funds| {
+                funds.usd_and_cents
             })
             .into_transaction();
         assert_eq!(
-            send_x_usd_from_bob_to_tim.execute_params(&Transfer { usd_and_cents: 40 }),
-            TxResult::Completed(())
+            send_x_usd_from_bob_to_tim.execute(&Transfer { usd_and_cents: 40 }),
+            TxResult::Completed(vec![Some(60), Some(90)])
         );
         assert_ne!(
-            send_x_usd_from_bob_to_tim.execute_params(&Transfer { usd_and_cents: 20 }),
-            TxResult::Completed(())
+            send_x_usd_from_bob_to_tim.execute(&Transfer { usd_and_cents: 20 }),
+            TxResult::Completed(vec![Some(40), Some(60)])
         );
 
         let add_100_usd_to_bob_if_exists = db
@@ -217,18 +212,12 @@ mod tests {
 
         let add_123_to_pam = db
             .transaction()
-            .modify_or_insert_with(
-                pam.clone(),
-                |_p, pam_funds| {
-                    pam_funds.usd_and_cents += 123;
-                },
-                |_p| Funds {
-                    sterling_and_pence: 0,
-                    usd_and_cents: 123,
-                },
-            )
+            .modify_or_default(pam.clone(), |_p, pam_funds| {
+                pam_funds.usd_and_cents += 123;
+            })
+            .get(pam.clone(), |_user, funds| funds.usd_and_cents)
             .into_transaction();
-        assert_eq!(add_123_to_pam.execute(), TxResult::Completed(()));
-        assert_eq!(add_123_to_pam.execute(), TxResult::Completed(()));
+        assert_eq!(add_123_to_pam.execute(), TxResult::Completed(Some(123)));
+        assert_eq!(add_123_to_pam.execute(), TxResult::Completed(Some(246)));
     }
 }

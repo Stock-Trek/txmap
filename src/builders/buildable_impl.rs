@@ -1,5 +1,8 @@
 use crate::{
-    builder_traits::{IntoTransaction, TxBuildable, TxOpBuilder, TxResultBuilder},
+    builders::{
+        builder_traits::{IntoTransaction, TxBuildable, TxOpBuilder, TxResultBuilder},
+        finishable_impl::TxFinishableImpl,
+    },
     custodian::Custodian,
     finisher::Finisher,
     finishers::{
@@ -17,9 +20,7 @@ use crate::{
         remove_where_op::RemoveWhereOp, retain_only_op::RetainOnlyOp, retain_op::RetainOp,
         retain_where_op::RetainWhereOp, swap_value_op::SwapValueOp,
     },
-    transaction::Transaction,
-    transaction_base::TransactionBase,
-    tx_finishable_impl::TxFinishableImpl,
+    transaction::{Transaction, TransactionBase},
 };
 use std::hash::Hash;
 

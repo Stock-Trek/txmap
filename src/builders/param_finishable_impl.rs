@@ -1,24 +1,29 @@
 use crate::{
-    builder_traits::IntoTransaction, custodian::Custodian, finisher::Finisher,
-    finishers::finisher_trait::FinisherTrait, guard::Guard, ops::op_trait::OpTrait,
-    transaction::Transaction, transaction_base::TransactionBase,
+    builders::builder_traits::IntoParamTransaction,
+    custodian::Custodian,
+    finisher::Finisher,
+    finishers::finisher_trait::FinisherTrait,
+    guard::Guard,
+    ops::op_trait::OpTrait,
+    transaction::{ParameterizedTransaction, TransactionBase},
 };
 
-pub struct TxFinishableImpl<'txmap, K, V, F>
+pub struct TxParamFinishableImpl<'txmap, K, V, P, F>
 where
     F: FinisherTrait<K, V>,
 {
     pub(crate) custodian: &'txmap Custodian<K, V>,
-    pub(crate) guards: Vec<Guard<K, V>>,
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, ()>>>,
+    pub(crate) guards: Vec<Guard<K, V, P>>,
+    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, P>>>,
     pub(crate) finisher: Finisher<K, V, F>,
 }
 
-impl<'txmap, K, V, F> IntoTransaction<'txmap, K, V, F> for TxFinishableImpl<'txmap, K, V, F>
+impl<'txmap, K, V, P, F> IntoParamTransaction<'txmap, K, V, P, F>
+    for TxParamFinishableImpl<'txmap, K, V, P, F>
 where
     F: FinisherTrait<K, V>,
 {
-    fn into_transaction(self) -> Transaction<'txmap, K, V, F> {
+    fn into_transaction(self) -> ParameterizedTransaction<'txmap, K, V, P, F> {
         let Self {
             custodian,
             guards,
@@ -40,6 +45,6 @@ where
             ops,
             finisher,
         };
-        Transaction { base }
+        ParameterizedTransaction { base }
     }
 }

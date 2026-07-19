@@ -1,6 +1,9 @@
 use crate::{
-    builder_traits::{
-        IntoParamTransaction, TxOpParamBuilder, TxParamBuildable, TxResultParamBuilder,
+    builders::{
+        builder_traits::{
+            IntoParamTransaction, TxOpParamBuilder, TxParamBuildable, TxResultParamBuilder,
+        },
+        param_finishable_impl::TxParamFinishableImpl,
     },
     custodian::Custodian,
     finisher::Finisher,
@@ -19,16 +22,14 @@ use crate::{
         remove_where_op::RemoveWhereOp, retain_only_op::RetainOnlyOp, retain_op::RetainOp,
         retain_where_op::RetainWhereOp, swap_value_op::SwapValueOp,
     },
-    parameterized_transaction::ParameterizedTransaction,
-    transaction_base::TransactionBase,
-    tx_param_finishable_impl::TxParamFinishableImpl,
+    transaction::{ParameterizedTransaction, TransactionBase},
 };
 use std::hash::Hash;
 
 pub struct TxParamBuildableImpl<'txmap, K, V, P> {
     pub(crate) indexer: Indexer,
     pub(crate) custodian: &'txmap Custodian<K, V>,
-    pub(crate) guards: Vec<Guard<K, V>>,
+    pub(crate) guards: Vec<Guard<K, V, P>>,
     pub(crate) ops: Vec<Box<dyn OpTrait<K, V, P>>>,
 }
 
