@@ -2,29 +2,29 @@ use crate::{indexer::Indexer, ops::op_trait::OpTrait};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
-use std::{hash::Hash, marker::PhantomData};
+use std::hash::Hash;
 
 pub(crate) struct RetainOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
     guards_bitmask: u128,
-    keys: Vec<K>,
-    _phantom: PhantomData<V>,
+    #[allow(clippy::type_complexity)]
+    condition: Box<dyn Fn(&K, &V) -> bool>,
 }
 
 impl<K, V> RetainOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn new<I>(indexer: &Indexer, keys: I) -> Self
+    pub fn new<C>(indexer: &Indexer, condition: C) -> Self
     where
-        I: IntoIterator<Item = K>,
+        C: Fn(&K, &V) -> bool + 'static,
     {
+        let guards_bitmask = indexer.all_bitmask();
         Self {
-            guards_bitmask: indexer.all_bitmask(),
-            keys: keys.into_iter().collect(),
-            _phantom: PhantomData,
+            guards_bitmask,
+            condition: Box::new(condition),
         }
     }
 }
@@ -38,7 +38,7 @@ where
     }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
         for mutex_guard in mutex_guards.values_mut() {
-            mutex_guard.retain(|k, _| self.keys.contains(k));
+            mutex_guard.retain(|k, v| (self.condition)(k, v));
         }
     }
 }

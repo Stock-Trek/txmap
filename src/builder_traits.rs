@@ -136,18 +136,18 @@ where
         I: IntoIterator<Item = K>,
         K: 'static,
         V: 'static;
-    fn remove_if<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn remove_where<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,
         K: 'static,
         V: 'static;
-    fn retain<I>(self, keys: I) -> impl TxBuildable<'txmap, K, V>
+    fn retain_only<I>(self, keys: I) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
         K: 'static,
         V: 'static;
-    fn retain_if<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn retain_where<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,
@@ -159,12 +159,12 @@ where
     where
         K: 'static,
         V: 'static;
-    fn remove_any_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn remove_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         C: Fn(&K, &V) -> bool + 'static,
         K: 'static,
         V: 'static;
-    fn retain_any_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn retain<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         C: Fn(&K, &V) -> bool + 'static,
         K: 'static,

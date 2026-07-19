@@ -4,32 +4,34 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct RemoveAnyIfOp<K, V>
+pub(crate) struct RetainWhereOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
     guards_bitmask: u128,
+    keys: Vec<K>,
     #[allow(clippy::type_complexity)]
     condition: Box<dyn Fn(&K, &V) -> bool>,
 }
 
-impl<K, V> RemoveAnyIfOp<K, V>
+impl<K, V> RetainWhereOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn new<C>(indexer: &Indexer, condition: C) -> Self
+    pub fn new<I, C>(indexer: &Indexer, keys: I, condition: C) -> Self
     where
+        I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,
     {
-        let guards_bitmask = indexer.all_bitmask();
         Self {
-            guards_bitmask,
+            guards_bitmask: indexer.all_bitmask(),
+            keys: keys.into_iter().collect(),
             condition: Box::new(condition),
         }
     }
 }
 
-impl<K, V> OpTrait<K, V> for RemoveAnyIfOp<K, V>
+impl<K, V> OpTrait<K, V> for RetainWhereOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
@@ -38,7 +40,7 @@ where
     }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
         for mutex_guard in mutex_guards.values_mut() {
-            mutex_guard.retain(|k, v| !(self.condition)(k, v));
+            mutex_guard.retain(|k, v| self.keys.contains(k) && (self.condition)(k, v));
         }
     }
 }

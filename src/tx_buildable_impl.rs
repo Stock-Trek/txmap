@@ -13,9 +13,9 @@ use crate::{
         modify_or_default_op::ModifyOrDefaultOp, modify_or_insert_with_op::ModifyOrInsertWithOp,
         modify_peek_op::ModifyPeekOp, modify_peek_or_default_op::ModifyPeekOrDefaultOp,
         modify_peek_or_insert_with_op::ModifyPeekOrInsertWithOp, move_value_op::MoveValueOp,
-        op_trait::OpTrait, remove_any_if_op::RemoveAnyIfOp, remove_if_op::RemoveIfOp,
-        remove_op::RemoveOp, retain_any_if_op::RetainAnyIfOp, retain_if_op::RetainIfOp,
-        retain_op::RetainOp, swap_value_op::SwapValueOp,
+        op_trait::OpTrait, remove_if_op::RemoveIfOp, remove_op::RemoveOp,
+        remove_where_op::RemoveWhereOp, retain_only_op::RetainOnlyOp, retain_op::RetainOp,
+        retain_where_op::RetainWhereOp, swap_value_op::SwapValueOp,
     },
     transaction::Transaction,
     tx_finishable_impl::TxFinishableImpl,
@@ -202,35 +202,35 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn remove_if<I, C>(mut self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn remove_where<I, C>(mut self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,
         K: 'static,
         V: 'static,
     {
-        let op = RemoveIfOp::new(&self.indexer, keys, condition);
+        let op = RemoveWhereOp::new(&self.indexer, keys, condition);
         self.ops.push(Box::new(op));
         self
     }
-    fn retain<I>(mut self, keys: I) -> impl TxBuildable<'txmap, K, V>
+    fn retain_only<I>(mut self, keys: I) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
         K: 'static,
         V: 'static,
     {
-        let op = RetainOp::new(&self.indexer, keys);
+        let op = RetainOnlyOp::new(&self.indexer, keys);
         self.ops.push(Box::new(op));
         self
     }
-    fn retain_if<I, C>(mut self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn retain_where<I, C>(mut self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,
         K: 'static,
         V: 'static,
     {
-        let op = RetainIfOp::new(&self.indexer, keys, condition);
+        let op = RetainWhereOp::new(&self.indexer, keys, condition);
         self.ops.push(Box::new(op));
         self
     }
@@ -245,23 +245,23 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn remove_any_if<C>(mut self, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn remove_if<C>(mut self, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         C: Fn(&K, &V) -> bool + 'static,
         K: 'static,
         V: 'static,
     {
-        let op = RemoveAnyIfOp::new(&self.indexer, condition);
+        let op = RemoveIfOp::new(&self.indexer, condition);
         self.ops.push(Box::new(op));
         self
     }
-    fn retain_any_if<C>(mut self, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn retain<C>(mut self, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         C: Fn(&K, &V) -> bool + 'static,
         K: 'static,
         V: 'static,
     {
-        let op = RetainAnyIfOp::new(&self.indexer, condition);
+        let op = RetainOp::new(&self.indexer, condition);
         self.ops.push(Box::new(op));
         self
     }
