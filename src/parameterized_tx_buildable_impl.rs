@@ -1,7 +1,7 @@
 use crate::{
     custodian::Custodian,
     indexer::Indexer,
-    ops::{map_op::MapOp, map_peek_op::MapPeekOp, op_trait::ParameterizedOpTrait},
+    ops::{map_op::MapOp, map_peek_op::MapPeekOp, op_trait::OpTrait},
     parameterized_builder_traits::{
         IntoParameterizedTransaction, ParameterizedTxBuildable, WithParameterizedOperation,
     },
@@ -19,7 +19,7 @@ where
     pub(crate) indexer: Indexer,
     pub(crate) custodian: &'txmap Custodian<K, V>,
     pub(crate) prerequisites: Vec<ParameterizedPrerequisite<K, V, P>>,
-    pub(crate) ops: Vec<Box<dyn ParameterizedOpTrait<K, V, P>>>,
+    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, P>>>,
 }
 
 impl<'txmap, K, V, P> ParameterizedTxBuildable<'txmap, K, V, P>

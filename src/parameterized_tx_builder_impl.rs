@@ -1,7 +1,7 @@
 use crate::{
     custodian::Custodian,
     indexer::Indexer,
-    ops::{map_op::MapOp, map_peek_op::MapPeekOp, op_trait::ParameterizedOpTrait},
+    ops::{map_op::MapOp, map_peek_op::MapPeekOp, op_trait::OpTrait},
     parameterized_builder_traits::{
         ParameterizedTxBuildable, ParameterizedTxBuilder, WithParameterizedOperation,
         WithParameterizedPrerequisite,
@@ -79,7 +79,7 @@ where
             indexer,
             custodian,
             prerequisites,
-            ops: vec![Box::new(op) as Box<dyn ParameterizedOpTrait<K, V, P>>],
+            ops: vec![Box::new(op) as Box<dyn OpTrait<K, V, P>>],
         }
     }
     fn with_operation_and_context<const N: usize, F>(
@@ -103,7 +103,7 @@ where
             indexer,
             custodian,
             prerequisites,
-            ops: vec![Box::new(op) as Box<dyn ParameterizedOpTrait<K, V, P>>],
+            ops: vec![Box::new(op) as Box<dyn OpTrait<K, V, P>>],
         }
     }
 }

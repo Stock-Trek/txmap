@@ -3,7 +3,7 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) trait ParameterizedOpTrait<K, V, P>
+pub(crate) trait OpTrait<K, V, P>
 where
     K: Clone + Hash + Eq,
 {

@@ -1,6 +1,6 @@
 use crate::{
     indexer::{IndexedData, Indexer},
-    ops::op_trait::ParameterizedOpTrait,
+    ops::op_trait::OpTrait,
     result::{INCORRECT_PEEK_VALUES_LENGTH, MISSING_MUTEX_GUARD_ERROR},
 };
 use hashbrown::HashMap;
@@ -85,7 +85,7 @@ where
     }
 }
 
-impl<K, V, P> ParameterizedOpTrait<K, V, P> for MapPeekOp<K, V, P>
+impl<K, V, P> OpTrait<K, V, P> for MapPeekOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {

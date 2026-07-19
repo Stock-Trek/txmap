@@ -3,7 +3,7 @@ use crate::{
     finisher::Finisher,
     finishers::finisher_trait::FinisherTrait,
     guard::Guard,
-    ops::op_trait::ParameterizedOpTrait,
+    ops::op_trait::OpTrait,
     parameterized_prerequisite::ParameterizedPrerequisite,
     result::{MISSING_MUTEX_GUARD_ERROR, TxResult},
 };
@@ -23,7 +23,7 @@ where
     pub(crate) guards_bitmask: u128,
     pub(crate) guards: Vec<Guard<K, V>>,
     pub(crate) param_prerequisites: Vec<ParameterizedPrerequisite<K, V, P>>,
-    pub(crate) ops: Vec<Box<dyn ParameterizedOpTrait<K, V, P>>>,
+    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, P>>>,
     pub(crate) finisher: Finisher<K, V, F>,
 }
 

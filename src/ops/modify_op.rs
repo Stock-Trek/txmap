@@ -1,5 +1,5 @@
 use crate::{
-    indexer::Indexer, ops::op_trait::ParameterizedOpTrait, result::MISSING_MUTEX_GUARD_ERROR,
+    indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR,
 };
 use hashbrown::HashMap;
 use intmap::IntMap;
@@ -47,7 +47,7 @@ where
     }
 }
 
-impl<K, V, P> ParameterizedOpTrait<K, V, P> for ModifyOp<K, V, P>
+impl<K, V, P> OpTrait<K, V, P> for ModifyOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {

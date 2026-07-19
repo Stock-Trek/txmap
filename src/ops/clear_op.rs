@@ -1,4 +1,4 @@
-use crate::{indexer::Indexer, ops::op_trait::ParameterizedOpTrait};
+use crate::{indexer::Indexer, ops::op_trait::OpTrait};
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
@@ -34,7 +34,7 @@ where
     }
 }
 
-impl<K, V, P> ParameterizedOpTrait<K, V, P> for ClearOp<K, V, P>
+impl<K, V, P> OpTrait<K, V, P> for ClearOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
