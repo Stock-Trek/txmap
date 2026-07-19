@@ -1,0 +1,47 @@
+name: "Remove emoji reactions"
+description: "Remove all emoji reactions from a comment and/or an issue"
+inputs:
+  comment-id:
+    description: "Comment ID to remove reactions from"
+  issue-number:
+    description: "Issue Number to remove reactions from"
+  token:
+    description: "GitHub token used for request"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      if: inputs.comment-id != ''
+      run: |
+        LIST_URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/comments/${{ inputs.comment-id }}/reactions"
+        REACTION_DATA=$(curl -s \
+          -H "Accept: application/vnd.github.v3+json" \
+          -H "Authorization: Bearer ${{ inputs.token }}" \
+          -H "X-GitHub-Api-Version: 2026-03-10" \
+          "${LIST_URL}?per_page=100")
+        REACTION_IDS=$(echo "${REACTION_DATA}" | jq -r '.[] | .id')
+        while read -r id; do
+          curl -X DELETE \
+            -H "Authorization: Bearer ${{ inputs.token }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/reactions/${id}"
+          echo "Deleted reaction ${id}"
+        done <<< "${REACTION_IDS}"
+    - shell: bash
+      if: inputs.issue-number != ''
+      run: |
+        LIST_URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${{ inputs.issue-number }}/reactions"
+        REACTION_DATA=$(curl -s \
+          -H "Accept: application/vnd.github.v3+json" \
+          -H "Authorization: Bearer ${{ inputs.token }}" \
+          -H "X-GitHub-Api-Version: 2026-03-10" \
+          "${LIST_URL}?per_page=100")
+        REACTION_IDS=$(echo "${REACTION_DATA}" | jq -r '.[] | .id')
+        while read -r id; do
+          curl -X DELETE \
+            -H "Authorization: Bearer ${{ inputs.token }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/reactions/${id}"
+          echo "Deleted reaction ${id}"
+        done <<< "${REACTION_IDS}"

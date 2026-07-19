@@ -54,6 +54,13 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
 
+      - name: Remove all previous reactions from issue and comment
+        uses: ./.github/actions/remove-emoji-reactions
+        with:
+          comment-id: ${{ github.event.comment.id }}
+          issue-number: ${{ github.event.issue.number }}
+          token: ${{ steps.app-token.outputs.token }}
+
       - name: Acknowledge
         uses: ./.github/actions/emoji-react
         with:
