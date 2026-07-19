@@ -8,7 +8,7 @@ pub(crate) struct RetainIfOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    pub guards_bitmask: u128,
+    guards_bitmask: u128,
     keys: Vec<(u8, K)>,
     condition: Box<dyn Fn(&K, &V) -> bool>,
 }
@@ -41,6 +41,9 @@ impl<K, V> OpTrait<K, V> for RetainIfOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
+    fn guards_bitmask(&self) -> u128 {
+        self.guards_bitmask
+    }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
         for (key_index, key) in &self.keys {
             if let Some(guard) = mutex_guards.get_mut(*key_index) {

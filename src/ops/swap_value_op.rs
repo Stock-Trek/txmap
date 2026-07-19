@@ -8,7 +8,7 @@ pub(crate) struct SwapValueOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    pub guards_bitmask: u128,
+    guards_bitmask: u128,
     a_index: u8,
     b_index: u8,
     a: K,
@@ -38,6 +38,9 @@ impl<K, V> OpTrait<K, V> for SwapValueOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
+    fn guards_bitmask(&self) -> u128 {
+        self.guards_bitmask
+    }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
         let a_guard = mutex_guards
             .get_mut(self.a_index)

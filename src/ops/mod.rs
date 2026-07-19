@@ -10,7 +10,6 @@ pub mod modify_peek_op;
 pub mod modify_peek_or_default_op;
 pub mod modify_peek_or_insert_with_op;
 pub mod move_value_op;
-pub mod mut_op;
 pub mod op_trait;
 pub mod remove_any_if_op;
 pub mod remove_if_op;

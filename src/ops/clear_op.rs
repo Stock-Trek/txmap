@@ -8,7 +8,7 @@ pub(crate) struct ClearOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    pub guards_bitmask: u128,
+    guards_bitmask: u128,
     shard_count: u8,
     _phantom: PhantomData<(K, V)>,
 }
@@ -32,6 +32,9 @@ impl<K, V> OpTrait<K, V> for ClearOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
+    fn guards_bitmask(&self) -> u128 {
+        self.guards_bitmask
+    }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
         for i in 0..self.shard_count {
             if let Some(guard) = mutex_guards.get_mut(i) {

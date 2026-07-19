@@ -12,7 +12,7 @@ pub(crate) struct ModifyPeekOrInsertWithOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
-    pub guards_bitmask: u128,
+    guards_bitmask: u128,
     pub key_index: u8,
     pub key: K,
     indexed_peek_keys: IndexedData<K>,
@@ -75,6 +75,9 @@ impl<K, V> OpTrait<K, V> for ModifyPeekOrInsertWithOp<K, V>
 where
     K: Clone + Hash + Eq,
 {
+    fn guards_bitmask(&self) -> u128 {
+        self.guards_bitmask
+    }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) {
         if let Some(mut value) = self.remove_value(mutex_guards) {
             let mut peek_values = Vec::with_capacity(self.indexed_peek_keys.indexed.len());

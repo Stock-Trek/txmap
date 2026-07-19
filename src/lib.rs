@@ -4,7 +4,6 @@ pub mod finisher;
 pub mod finishers;
 pub mod guard;
 pub mod indexer;
-pub mod op;
 pub mod ops;
 pub mod parameterized_builder_traits;
 pub mod parameterized_operation;

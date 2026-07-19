@@ -44,13 +44,18 @@ where
     // single key ops
     fn insert_with<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
     where
-        G: Fn(&K) -> V + 'static;
+        G: Fn(&K) -> V + 'static,
+        K: 'static,
+        V: 'static;
     fn insert_default(self, key: K) -> impl TxBuildable<'txmap, K, V>
     where
-        V: Default;
+        K: 'static,
+        V: Default + 'static;
     fn modify<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
     where
-        M: Fn(&K, &mut V) + 'static;
+        M: Fn(&K, &mut V) + 'static,
+        K: 'static,
+        V: 'static;
     fn modify_peek<const N: usize, M>(
         self,
         key: K,
@@ -58,7 +63,9 @@ where
         mutate: M,
     ) -> impl TxBuildable<'txmap, K, V>
     where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static;
+        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
+        K: 'static,
+        V: 'static;
     fn modify_or_insert_with<M, G>(
         self,
         key: K,
@@ -67,7 +74,9 @@ where
     ) -> impl TxBuildable<'txmap, K, V>
     where
         M: Fn(&K, &mut V) + 'static,
-        G: Fn(&K) -> V + 'static;
+        G: Fn(&K) -> V + 'static,
+        K: 'static,
+        V: 'static;
     fn modify_peek_or_insert_with<const N: usize, M, G>(
         self,
         key: K,
@@ -77,11 +86,14 @@ where
     ) -> impl TxBuildable<'txmap, K, V>
     where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
-        G: Fn(&K) -> V + 'static;
+        G: Fn(&K) -> V + 'static,
+        K: 'static,
+        V: 'static;
     fn modify_or_default<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
     where
         M: Fn(&K, &mut V) + 'static,
-        V: Default;
+        K: 'static,
+        V: Default + 'static;
     fn modify_peek_or_default<const N: usize, M>(
         self,
         key: K,
@@ -90,10 +102,13 @@ where
     ) -> impl TxBuildable<'txmap, K, V>
     where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
-        V: Default;
+        K: 'static,
+        V: Default + 'static;
     fn map<T>(self, key: K, transform: T) -> impl TxBuildable<'txmap, K, V>
     where
-        T: Fn(&K, Option<&V>) -> Option<V> + 'static;
+        T: Fn(&K, Option<&V>) -> Option<V> + 'static,
+        K: 'static,
+        V: 'static;
     fn map_peek<const N: usize, T>(
         self,
         key: K,
@@ -101,36 +116,59 @@ where
         peek_keys: [K; N],
     ) -> impl TxBuildable<'txmap, K, V>
     where
-        T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static;
+        T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
+        K: 'static,
+        V: 'static;
 
     // multi key ops
-    fn swap_value(self, a: K, b: K) -> impl TxBuildable<'txmap, K, V>;
-    fn move_value(self, from: K, to: K) -> impl TxBuildable<'txmap, K, V>;
+    fn swap_value(self, a: K, b: K) -> impl TxBuildable<'txmap, K, V>
+    where
+        K: 'static,
+        V: 'static;
+    fn move_value(self, from: K, to: K) -> impl TxBuildable<'txmap, K, V>
+    where
+        K: 'static,
+        V: 'static;
 
     // batch ops
     fn remove<I>(self, keys: I) -> impl TxBuildable<'txmap, K, V>
     where
-        I: IntoIterator<Item = K>;
+        I: IntoIterator<Item = K>,
+        K: 'static,
+        V: 'static;
     fn remove_if<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool + 'static;
+        C: Fn(&K, &V) -> bool + 'static,
+        K: 'static,
+        V: 'static;
     fn retain<I>(self, keys: I) -> impl TxBuildable<'txmap, K, V>
     where
-        I: IntoIterator<Item = K>;
+        I: IntoIterator<Item = K>,
+        K: 'static,
+        V: 'static;
     fn retain_if<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
         I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool + 'static;
+        C: Fn(&K, &V) -> bool + 'static,
+        K: 'static,
+        V: 'static;
 
     // global ops
-    fn clear(self) -> impl TxBuildable<'txmap, K, V>;
+    fn clear(self) -> impl TxBuildable<'txmap, K, V>
+    where
+        K: 'static,
+        V: 'static;
     fn remove_any_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
-        C: Fn(&K, &V) -> bool + 'static;
+        C: Fn(&K, &V) -> bool + 'static,
+        K: 'static,
+        V: 'static;
     fn retain_any_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
     where
-        C: Fn(&K, &V) -> bool + 'static;
+        C: Fn(&K, &V) -> bool + 'static,
+        K: 'static,
+        V: 'static;
 }
 
 pub trait TxResultBuilder<'txmap, K, V>
@@ -143,7 +181,9 @@ where
         transform: T,
     ) -> impl IntoTransaction<'txmap, K, V, ValueFinisher<K, V, R>>
     where
-        T: Fn(&K, &V) -> R + 'static;
+        T: Fn(&K, &V) -> R + 'static,
+        K: 'static,
+        V: 'static;
     fn get_all<I, T, R>(
         self,
         keys: I,
@@ -151,7 +191,9 @@ where
     ) -> impl IntoTransaction<'txmap, K, V, ValuesFinisher<K, V, R>>
     where
         I: IntoIterator<Item = K>,
-        T: Fn(&K, &V) -> R + 'static;
+        T: Fn(&K, &V) -> R + 'static,
+        K: 'static,
+        V: 'static;
 }
 
 pub trait IntoTransaction<'txmap, K, V, F>
