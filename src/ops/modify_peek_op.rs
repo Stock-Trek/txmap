@@ -87,6 +87,13 @@ where
         self.guards_bitmask
     }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, params: &P) {
+        // It's not possible to read peeked values while modifying the key value in place
+        // Therefore we:
+        // 1 .Remove the value
+        // 2. Get the read-only peeked values
+        // 3. Allow the user to modify the removed value
+        // 4. Re-insert the modified value
+        // This is why ModifyPeekOp requires K:Clone while ModifyOp doesn't
         if let Some(mut value) = self.remove_value(mutex_guards) {
             let mut peek_values = Vec::with_capacity(self.indexed_peek_keys.indexed.len());
             for (shard_index, peek_key) in &self.indexed_peek_keys.indexed {
