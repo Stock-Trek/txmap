@@ -4,7 +4,7 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct MapOp<K, V, P = ()> {
+pub(crate) struct UpdateOp<K, V, P = ()> {
     guards_bitmask: u128,
     key_index: u8,
     key: K,
@@ -12,7 +12,7 @@ pub(crate) struct MapOp<K, V, P = ()> {
     transform: Box<dyn Fn(&K, Option<&V>, &P) -> Option<V>>,
 }
 
-impl<K, V, P> MapOp<K, V, P>
+impl<K, V, P> UpdateOp<K, V, P>
 where
     K: Hash + Eq,
 {
@@ -40,7 +40,7 @@ where
     }
 }
 
-impl<K, V> MapOp<K, V, ()>
+impl<K, V> UpdateOp<K, V, ()>
 where
     K: Hash + Eq,
 {
@@ -52,7 +52,7 @@ where
     }
 }
 
-impl<K, V, P> OpTrait<K, V, P> for MapOp<K, V, P>
+impl<K, V, P> OpTrait<K, V, P> for UpdateOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {

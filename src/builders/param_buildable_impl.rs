@@ -14,13 +14,14 @@ use crate::{
     indexer::Indexer,
     ops::{
         clear_op::ClearOp, insert_default_op::InsertDefaultOp, insert_with_op::InsertWithOp,
-        map_op::MapOp, map_peek_op::MapPeekOp, modify_op::ModifyOp,
-        modify_or_default_op::ModifyOrDefaultOp, modify_or_insert_with_op::ModifyOrInsertWithOp,
-        modify_peek_op::ModifyPeekOp, modify_peek_or_default_op::ModifyPeekOrDefaultOp,
+        modify_op::ModifyOp, modify_or_default_op::ModifyOrDefaultOp,
+        modify_or_insert_with_op::ModifyOrInsertWithOp, modify_peek_op::ModifyPeekOp,
+        modify_peek_or_default_op::ModifyPeekOrDefaultOp,
         modify_peek_or_insert_with_op::ModifyPeekOrInsertWithOp, move_value_op::MoveValueOp,
         op_trait::OpTrait, remove_if_op::RemoveIfOp, remove_op::RemoveOp,
         remove_where_op::RemoveWhereOp, retain_only_op::RetainOnlyOp, retain_op::RetainOp,
-        retain_where_op::RetainWhereOp, swap_value_op::SwapValueOp,
+        retain_where_op::RetainWhereOp, swap_value_op::SwapValueOp, update_op::UpdateOp,
+        update_peek_op::UpdatePeekOp,
     },
     transaction::{ParameterizedTransaction, TransactionBase},
 };
@@ -48,6 +49,15 @@ where
     P: 'static,
 {
     // single key ops
+    fn insert_default(mut self, key: K) -> impl TxParamBuildable<'txmap, K, V, P>
+    where
+        K: Clone,
+        V: Default,
+    {
+        let op = InsertDefaultOp::new(&self.indexer, key);
+        self.ops.push(Box::new(op));
+        self
+    }
     fn insert_with<G>(
         mut self,
         key: K,
@@ -58,15 +68,6 @@ where
         K: Clone,
     {
         let op = InsertWithOp::new_with_params(&self.indexer, key, value_generator);
-        self.ops.push(Box::new(op));
-        self
-    }
-    fn insert_default(mut self, key: K) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        K: Clone,
-        V: Default,
-    {
-        let op = InsertDefaultOp::new(&self.indexer, key);
         self.ops.push(Box::new(op));
         self
     }
@@ -154,16 +155,16 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn map<T>(mut self, key: K, transform: T) -> impl TxParamBuildable<'txmap, K, V, P>
+    fn update<T>(mut self, key: K, transform: T) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         T: Fn(&K, Option<&V>, &P) -> Option<V> + 'static,
         K: Clone,
     {
-        let map_op = MapOp::new_with_params(&self.indexer, key, transform);
-        self.ops.push(Box::new(map_op));
+        let op = UpdateOp::new_with_params(&self.indexer, key, transform);
+        self.ops.push(Box::new(op));
         self
     }
-    fn map_peek<const N: usize, T>(
+    fn update_peek<const N: usize, T>(
         mut self,
         key: K,
         transform: T,
@@ -173,25 +174,25 @@ where
         T: Fn(&K, Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
         K: Clone,
     {
-        let map_peek_op = MapPeekOp::new_with_params(&self.indexer, key, peek_keys, transform);
-        self.ops.push(Box::new(map_peek_op));
+        let op = UpdatePeekOp::new_with_params(&self.indexer, key, peek_keys, transform);
+        self.ops.push(Box::new(op));
         self
     }
 
     // multi key ops
-    fn swap_value(mut self, a: K, b: K) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        K: Clone,
-    {
-        let op = SwapValueOp::new(&self.indexer, a, b);
-        self.ops.push(Box::new(op));
-        self
-    }
     fn move_value(mut self, from: K, to: K) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         K: Clone,
     {
         let op = MoveValueOp::new(&self.indexer, from, to);
+        self.ops.push(Box::new(op));
+        self
+    }
+    fn swap_value(mut self, a: K, b: K) -> impl TxParamBuildable<'txmap, K, V, P>
+    where
+        K: Clone,
+    {
+        let op = SwapValueOp::new(&self.indexer, a, b);
         self.ops.push(Box::new(op));
         self
     }

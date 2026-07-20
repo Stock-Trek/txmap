@@ -142,7 +142,7 @@ mod tests {
             last_name: "Pamson".into(),
         };
         db.transaction()
-            .map(tim.clone(), |_t, _f| {
+            .update(tim.clone(), |_t, _f| {
                 Some(Funds {
                     usd_and_cents: 150,
                     sterling_and_pence: 0,
@@ -155,13 +155,13 @@ mod tests {
             .require("Has available funds", [tim.clone()], |[tim_funds]| {
                 tim_funds.is_some_and(|f| f.usd_and_cents > 100)
             })
-            .map(tim.clone(), |_t, tim_funds| {
+            .update(tim.clone(), |_t, tim_funds| {
                 Some(Funds {
                     sterling_and_pence: tim_funds.unwrap().sterling_and_pence,
                     usd_and_cents: tim_funds.unwrap().usd_and_cents - 100,
                 })
             })
-            .map(bob.clone(), |_b, bob_funds| {
+            .update(bob.clone(), |_b, bob_funds| {
                 Some(bob_funds.map_or(
                     Funds {
                         usd_and_cents: 100,
@@ -511,7 +511,7 @@ mod tests {
         let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
         let tx = map
             .transaction()
-            .map("k".into(), |_k, _v| Some(42))
+            .update("k".into(), |_k, _v| Some(42))
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(()));
         assert_eq!(map.get_with(&"k".into(), |v| *v), Some(42));
@@ -523,7 +523,7 @@ mod tests {
         map.insert("k".into(), 100);
         let tx = map
             .transaction()
-            .map("k".into(), |_k, _v| None)
+            .update("k".into(), |_k, _v| None)
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(()));
         assert_eq!(map.get_with(&"k".into(), |v| *v), None);
@@ -535,7 +535,7 @@ mod tests {
         map.insert("k".into(), 10);
         let tx = map
             .transaction()
-            .map("k".into(), |_k, v| v.map(|x| x * 2))
+            .update("k".into(), |_k, v| v.map(|x| x * 2))
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(()));
         assert_eq!(map.get_with(&"k".into(), |v| *v), Some(20));
@@ -842,7 +842,7 @@ mod tests {
         let tx = map
             .transaction()
             .with_param::<u64>()
-            .map("k".into(), |_k, v, mult| v.map(|x| x * mult))
+            .update("k".into(), |_k, v, mult| v.map(|x| x * mult))
             .get("k".into(), |_k, v| *v)
             .into_transaction();
         assert_eq!(tx.execute(&3), TxResult::Completed(Some(30)));
@@ -1028,13 +1028,13 @@ mod tests {
     }
 
     #[test]
-    fn map_peek_modifies_based_on_peek() {
+    fn update_peek_modifies_based_on_peek() {
         let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
         map.insert("k".into(), 10);
         map.insert("p".into(), 5);
         let tx = map
             .transaction()
-            .map_peek(
+            .update_peek(
                 "k".into(),
                 |_k, v, [p]| v.map(|x| x + p.unwrap_or(&0)),
                 ["p".into()],
@@ -1272,7 +1272,7 @@ mod tests {
             .transaction()
             .modify_or_default("a".into(), |_k, v| *v = 10)
             .modify_or_default("b".into(), |_k, v| *v = 20)
-            .map("c".into(), |_k, _v| Some(30))
+            .update("c".into(), |_k, _v| Some(30))
             .get_all(["a".into(), "b".into(), "c".into()], |_k, v| *v)
             .into_transaction();
         assert_eq!(
@@ -1558,14 +1558,14 @@ mod tests {
     }
 
     #[test]
-    fn param_map_peek() {
+    fn param_update_peek() {
         let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
         map.insert("k".into(), 10);
         map.insert("p".into(), 5);
         let tx = map
             .transaction()
             .with_param::<u64>()
-            .map_peek(
+            .update_peek(
                 "k".into(),
                 |_k, v, [p], mult| v.map(|x| (x + p.unwrap_or(&0)) * mult),
                 ["p".into()],

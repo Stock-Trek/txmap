@@ -217,30 +217,30 @@ assert_eq!(result2, TxResult::Completed([Some(120), Some(80)]));
 
 ### Operation reference
 
-| Builder method               | Description                                                                          | Additional required bounds |
-|------------------------------|--------------------------------------------------------------------------------------|----------------------------|
-| `insert_with`                | Insert a value, generated from the key.                                              | `K: Clone`                 |
-| `insert_default`             | Insert `V::default()` for the key.                                                   | `K: Clone` `V: Default`    |
-| `modify`                     | Mutate an existing value in-place. Does nothing if key absent.                       |            `V: Default`    |
-| `modify_peek`                | Like `modify` while peeking at other values.                                         | `K: Clone`                 |
-| `modify_or_insert_with`      | Finds the value or creates one via a generator if key absent, then mutates it.       | `K: Clone`                 |
-| `modify_peek_or_insert_with` | Like `modify_or_insert_with` while peeking at other values.                          | `K: Clone`                 |
-| `modify_or_default`          | Finds the value or creates one via `V::default()` if key absent, then mutates it.    | `K: Clone` `V: Default`    |
-| `modify_peek_or_default`     | Like `modify_or_default` while peeking at other values.                              | `K: Clone` `V: Default`    |
-| `map`                        | Insert, update, or remove a single entry. Return `Some(v)` to set, `None` to delete. | `K: Clone`                 |
-| `map_peek`                   | Like `map` while peeking at other values.                                            | `K: Clone`                 |
-|                              |                                                                                      |                            |
-| `swap_value`                 | Swap the values of two keys.                                                         | `K: Clone`                 |
-| `move_value`                 | Remove a value from one key and insert it on another key.                            | `K: Clone`                 |
-|                              |                                                                                      |                            |
-| `remove`                     | Remove the given keys.                                                               |                            |
-| `remove_where`               | Remove the given keys which also satisfy a condition.                                |                            |
-| `retain_only`                | Retain only the given keys.                                                          |                            |
-| `retain_where`               | Retain only the given keys which also satisfy a condition.                           |                            |
-|                              |                                                                                      |                            |
-| `clear`                      | Remove all entries.                                                                  |                            |
-| `remove_if`                  | Remove any entries which satisfy a condition.                                        |                            |
-| `retain`                     | Retain only the entries which satisfy a condition.                                   |                            |
+| Builder method               | Description                                                                       | Additional required bounds |
+|------------------------------|-----------------------------------------------------------------------------------|----------------------------|
+| `insert_default`             | Insert `V::default()` for the key.                                                | `K: Clone` `V: Default`    |
+| `insert_with`                | Insert a value, generated from the key.                                           | `K: Clone`                 |
+| `modify`                     | Mutate an existing value in-place. Does nothing if key absent.                    | `V: Default`               |
+| `modify_peek`                | Like `modify` while peeking at other values.                                      | `K: Clone`                 |
+| `modify_or_insert_with`      | Finds the value or creates one via a generator if key absent, then mutates it.    | `K: Clone`                 |
+| `modify_peek_or_insert_with` | Like `modify_or_insert_with` while peeking at other values.                       | `K: Clone`                 |
+| `modify_or_default`          | Finds the value or creates one via `V::default()` if key absent, then mutates it. | `K: Clone` `V: Default`    |
+| `modify_peek_or_default`     | Like `modify_or_default` while peeking at other values.                           | `K: Clone` `V: Default`    |
+| `update`                     | Update a single entry. Return `Some(v)` to insert/replace, `None` to delete.      | `K: Clone`                 |
+| `update_peek`                | Like `update` while peeking at other values.                                      | `K: Clone`                 |
+|                              |                                                                                   |                            |
+| `move_value`                 | Remove a value from one key and insert it with another key.                       | `K: Clone`                 |
+| `swap_value`                 | Swap the values of two keys.                                                      | `K: Clone`                 |
+|                              |                                                                                   |                            |
+| `remove`                     | Remove the given keys.                                                            |                            |
+| `remove_where`               | Remove the given keys which also satisfy a condition.                             |                            |
+| `retain_only`                | Retain only the given keys.                                                       |                            |
+| `retain_where`               | Retain only the given keys which also satisfy a condition.                        |                            |
+|                              |                                                                                   |                            |
+| `clear`                      | Remove all entries.                                                               |                            |
+| `remove_if`                  | Remove any entries which satisfy a condition.                                     |                            |
+| `retain`                     | Retain only the entries which satisfy a condition.                                |                            |
 
 ### Finisher methods
 
@@ -272,19 +272,19 @@ pub enum TxResult<T> {
 
 | Operation                                                                                      |
 |------------------------------------------------------------------------------------------------|
-| `insert_with(key, \|k[, params]\| { new_value } )`                                             |
 | `insert_default(key)`                                                                          |
+| `insert_with(key, \|k[, params]\| { new_value } )`                                             |
 | `modify(key, \|k, mut v[, params]\|)`                                                          |
 | `modify_peek(key, peek_keys, \|k, mut v, pks[, params]\|)`                                     |
 | `modify_or_insert_with(key, \|k, mut v[, params]\|, \|k\| { new_value })`                      |
 | `modify_peek_or_insert_with(key, peek_keys, \|k, mut v, pks[, params]\|, \|k\| { new_value })` |
 | `modify_or_default(key, \|k, mut v[, params]\|)`                                               |
 | `modify_peek_or_default(key, peek_keys, \|k, mut v, pks[, params]\|)`                          |
-| `map(key, \|k, v_opt[, params]\| { new_value_opt })`                                           |
-| `map_peek(key, peek_keys, \|k, v_opt, pks[, params]\| { new_value_opt })`                      |
+| `update(key, \|k, v_opt[, params]\| { new_value_opt })`                                        |
+| `update_peek(key, peek_keys, \|k, v_opt, pks[, params]\| { new_value_opt })`                   |
 |                                                                                                |
-| `swap_value(a, b)`                                                                             |
 | `move_value(from, to)`                                                                         |
+| `swap_value(a, b)`                                                                             |
 |                                                                                                |
 | `remove(keys)`                                                                                 |
 | `remove_where(keys, \|k, v[, params]\| { remove })`                                            |

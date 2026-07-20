@@ -8,7 +8,7 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct MapPeekOp<K, V, P = ()> {
+pub(crate) struct UpdatePeekOp<K, V, P = ()> {
     guards_bitmask: u128,
     key_index: u8,
     key: K,
@@ -17,7 +17,7 @@ pub(crate) struct MapPeekOp<K, V, P = ()> {
     transform: Box<dyn Fn(&K, Option<&V>, &[Option<&V>], &P) -> Option<V>>,
 }
 
-impl<K, V, P> MapPeekOp<K, V, P>
+impl<K, V, P> UpdatePeekOp<K, V, P>
 where
     K: Hash + Eq,
 {
@@ -63,7 +63,7 @@ where
     }
 }
 
-impl<K, V> MapPeekOp<K, V, ()>
+impl<K, V> UpdatePeekOp<K, V, ()>
 where
     K: Hash + Eq,
 {
@@ -82,7 +82,7 @@ where
     }
 }
 
-impl<K, V, P> OpTrait<K, V, P> for MapPeekOp<K, V, P>
+impl<K, V, P> OpTrait<K, V, P> for UpdatePeekOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {

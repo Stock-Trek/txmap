@@ -1,8 +1,6 @@
 pub mod clear_op;
 pub mod insert_default_op;
 pub mod insert_with_op;
-pub mod map_op;
-pub mod map_peek_op;
 pub mod modify_op;
 pub mod modify_or_default_op;
 pub mod modify_or_insert_with_op;
@@ -18,3 +16,5 @@ pub mod retain_only_op;
 pub mod retain_op;
 pub mod retain_where_op;
 pub mod swap_value_op;
+pub mod update_op;
+pub mod update_peek_op;

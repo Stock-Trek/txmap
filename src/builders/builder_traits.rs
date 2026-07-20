@@ -81,14 +81,14 @@ where
     K: Hash + Eq,
 {
     // single key ops
-    fn insert_with<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
-    where
-        G: Fn(&K) -> V + 'static,
-        K: Clone;
     fn insert_default(self, key: K) -> impl TxBuildable<'txmap, K, V>
     where
         K: Clone,
         V: Default;
+    fn insert_with<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
+    where
+        G: Fn(&K) -> V + 'static,
+        K: Clone;
     fn modify<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
     where
         M: Fn(&K, &mut V) + 'static;
@@ -137,11 +137,11 @@ where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
         K: Clone,
         V: Default;
-    fn map<T>(self, key: K, transform: T) -> impl TxBuildable<'txmap, K, V>
+    fn update<T>(self, key: K, transform: T) -> impl TxBuildable<'txmap, K, V>
     where
         T: Fn(&K, Option<&V>) -> Option<V> + 'static,
         K: Clone;
-    fn map_peek<const N: usize, T>(
+    fn update_peek<const N: usize, T>(
         self,
         key: K,
         transform: T,
@@ -152,10 +152,10 @@ where
         K: Clone;
 
     // multi key ops
-    fn swap_value(self, a: K, b: K) -> impl TxBuildable<'txmap, K, V>
+    fn move_value(self, from: K, to: K) -> impl TxBuildable<'txmap, K, V>
     where
         K: Clone;
-    fn move_value(self, from: K, to: K) -> impl TxBuildable<'txmap, K, V>
+    fn swap_value(self, a: K, b: K) -> impl TxBuildable<'txmap, K, V>
     where
         K: Clone;
 
@@ -246,11 +246,11 @@ where
         M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
         K: Clone,
         V: Default;
-    fn map<T>(self, key: K, transform: T) -> impl TxParamBuildable<'txmap, K, V, P>
+    fn update<T>(self, key: K, transform: T) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         T: Fn(&K, Option<&V>, &P) -> Option<V> + 'static,
         K: Clone;
-    fn map_peek<const N: usize, T>(
+    fn update_peek<const N: usize, T>(
         self,
         key: K,
         transform: T,

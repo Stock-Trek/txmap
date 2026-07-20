@@ -71,24 +71,6 @@ where
     V: 'static,
 {
     // single key ops
-    fn insert_with<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
-    where
-        G: Fn(&K) -> V + 'static,
-        K: Clone,
-    {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
-        let builder = TxBuildableImpl {
-            indexer,
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.insert_with(key, value_generator)
-    }
     fn insert_default(self, key: K) -> impl TxBuildable<'txmap, K, V>
     where
         K: Clone,
@@ -106,6 +88,24 @@ where
             ops: Vec::new(),
         };
         builder.insert_default(key)
+    }
+    fn insert_with<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
+    where
+        G: Fn(&K) -> V + 'static,
+        K: Clone,
+    {
+        let Self {
+            indexer,
+            custodian,
+            guards,
+        } = self;
+        let builder = TxBuildableImpl {
+            indexer,
+            custodian,
+            guards,
+            ops: Vec::new(),
+        };
+        builder.insert_with(key, value_generator)
     }
     fn modify<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
     where
@@ -239,7 +239,7 @@ where
         };
         builder.modify_peek_or_default(key, peek_keys, mutate)
     }
-    fn map<T>(self, key: K, transform: T) -> impl TxBuildable<'txmap, K, V>
+    fn update<T>(self, key: K, transform: T) -> impl TxBuildable<'txmap, K, V>
     where
         T: Fn(&K, Option<&V>) -> Option<V> + 'static,
         K: Clone,
@@ -255,9 +255,9 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.map(key, transform)
+        builder.update(key, transform)
     }
-    fn map_peek<const N: usize, T>(
+    fn update_peek<const N: usize, T>(
         self,
         key: K,
         transform: T,
@@ -278,27 +278,10 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.map_peek(key, transform, peek_keys)
+        builder.update_peek(key, transform, peek_keys)
     }
 
     // multi key ops
-    fn swap_value(self, a: K, b: K) -> impl TxBuildable<'txmap, K, V>
-    where
-        K: Clone,
-    {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
-        let builder = TxBuildableImpl {
-            indexer,
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.swap_value(a, b)
-    }
     fn move_value(self, from: K, to: K) -> impl TxBuildable<'txmap, K, V>
     where
         K: Clone,
@@ -315,6 +298,23 @@ where
             ops: Vec::new(),
         };
         builder.move_value(from, to)
+    }
+    fn swap_value(self, a: K, b: K) -> impl TxBuildable<'txmap, K, V>
+    where
+        K: Clone,
+    {
+        let Self {
+            indexer,
+            custodian,
+            guards,
+        } = self;
+        let builder = TxBuildableImpl {
+            indexer,
+            custodian,
+            guards,
+            ops: Vec::new(),
+        };
+        builder.swap_value(a, b)
     }
 
     // batch ops
