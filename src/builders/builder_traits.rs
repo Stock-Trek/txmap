@@ -118,8 +118,8 @@ where
     fn update_peek<const N: usize, T>(
         self,
         key: K,
-        transform: T,
         peek_keys: [K; N],
+        transform: T,
     ) -> impl TxBuildable<'txmap, K, V>
     where
         T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,

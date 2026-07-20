@@ -47,11 +47,9 @@ mod tests {
         let map = map_alice_bob(10, 5);
         let tx = map
             .transaction()
-            .update_peek(
-                ALICE.into(),
-                |_k, v, [p]| v.map(|x| x + p.unwrap_or(&0)),
-                [BOB.into()],
-            )
+            .update_peek(ALICE.into(), [BOB.into()], |_k, v, [p]| {
+                v.map(|x| x + p.unwrap_or(&0))
+            })
             .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(15)));

@@ -113,7 +113,7 @@ assert_eq!(db.get_with(&"bob".to_string(), |v| *v), Some(50));
 
 #### Transaction with guards (preconditions)
 
-Guards are checked before any mutations take place. If any guard fails, the transaction is **not executed** — no locks are held, no mutations occur — and `TxResult::RequirementNotMet` is returned.
+Guards are checked before any mutations take place. If any guard fails, the transaction is **not executed**, all locks are dropped, no mutations occur, and `TxResult::RequirementNotMet` is returned.
 
 ```rust
 use txmap::prelude::*;
@@ -146,7 +146,7 @@ match tx.execute() {
 
 #### Transaction returning a value
 
-Use `.get()` or `.get_copied()` before `.into_transaction()` to return a value from the transaction.
+Use one of `.get()`, `.get_copied()`, `.get_cloned()`, `get_all()`, `.get_all_copied()` or `.get_all_cloned()` before `.into_transaction()` to return a value or values at the end of the transaction.
 
 ```rust
 use txmap::prelude::*;
@@ -380,7 +380,7 @@ pub enum TxResult<T> {
 | `modify(key, \|k, mut v[, params]\|)`                                                          |
 | `modify_peek(key, peek_keys, \|k, mut v, pks[, params]\|)`                                     |
 | `update(key, \|k, v_opt[, params]\| { new_value_opt })`                                        |
-| `update_peek(key, transform, peek_keys)`                                                       |
+| `update_peek(key, peek_keys,\|k, v_opt[, params]\| { new_value_opt })`                         |
 |                                                                                                |
 | `move_value(from, to)`                                                                         |
 | `swap_value(a, b)`                                                                             |
