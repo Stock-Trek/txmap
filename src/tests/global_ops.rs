@@ -1,12 +1,18 @@
 #[cfg(test)]
 mod tests {
-    use crate::prelude::*;
+    use crate::{
+        prelude::*,
+        tests::{
+            creators::creators::empty_map,
+            data::data::{ALICE, BOB, CHUCK},
+        },
+    };
 
     #[test]
     fn clear_via_transaction() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-        map.insert("a".into(), 1);
-        map.insert("b".into(), 2);
+        let map = empty_map();
+        map.insert(ALICE.into(), 1);
+        map.insert(BOB.into(), 2);
         let tx = map.transaction().clear().into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(()));
         assert!(map.is_empty());
@@ -14,10 +20,10 @@ mod tests {
 
     #[test]
     fn remove_if_removes_matching() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-        map.insert("a".into(), 1);
-        map.insert("b".into(), 2);
-        map.insert("c".into(), 3);
+        let map = empty_map();
+        map.insert(ALICE.into(), 1);
+        map.insert(BOB.into(), 2);
+        map.insert(CHUCK.into(), 3);
         let tx = map
             .transaction()
             .remove_if(|_k, v| *v > 1)
@@ -28,22 +34,22 @@ mod tests {
 
     #[test]
     fn retain_keeps_matching() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-        map.insert("a".into(), 1);
-        map.insert("b".into(), 2);
-        map.insert("c".into(), 3);
+        let map = empty_map();
+        map.insert(ALICE.into(), 1);
+        map.insert(BOB.into(), 2);
+        map.insert(CHUCK.into(), 3);
         let tx = map
             .transaction()
             .retain(|_k, v| *v % 2 == 0)
+            .get_copied(BOB.into())
             .into_transaction();
-        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(tx.execute(), TxResult::Completed(Some(2)));
         assert_eq!(map.len(), 1);
-        assert_eq!(map.get_with(&"b".into(), |v| *v), Some(2));
     }
 
     #[test]
     fn remove_if_empty_map() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let map = empty_map();
         let tx = map
             .transaction()
             .remove_if(|_k, _v| true)
@@ -53,15 +59,15 @@ mod tests {
 
     #[test]
     fn retain_all_on_empty_map() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let map = empty_map();
         let tx = map.transaction().retain(|_k, _v| false).into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(()));
     }
 
     #[test]
     fn param_clear() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-        map.insert("a".into(), 1);
+        let map = empty_map();
+        map.insert(ALICE.into(), 1);
         let tx = map
             .transaction()
             .with_param::<()>()
@@ -73,10 +79,10 @@ mod tests {
 
     #[test]
     fn param_remove_if_global() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-        map.insert("a".into(), 1);
-        map.insert("b".into(), 2);
-        map.insert("c".into(), 3);
+        let map = empty_map();
+        map.insert(ALICE.into(), 1);
+        map.insert(BOB.into(), 2);
+        map.insert(CHUCK.into(), 3);
         let tx = map
             .transaction()
             .with_param::<u64>()
@@ -88,16 +94,17 @@ mod tests {
 
     #[test]
     fn param_retain_global() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-        map.insert("a".into(), 10);
-        map.insert("b".into(), 20);
-        map.insert("c".into(), 30);
+        let map = empty_map();
+        map.insert(ALICE.into(), 10);
+        map.insert(BOB.into(), 20);
+        map.insert(CHUCK.into(), 30);
         let tx = map
             .transaction()
             .with_param::<u64>()
             .retain(|_k, v, min| *v >= *min)
+            .get_copied(CHUCK.into())
             .into_transaction();
-        assert_eq!(tx.execute(&25), TxResult::Completed(()));
+        assert_eq!(tx.execute(&25), TxResult::Completed(Some(30)));
         assert_eq!(map.len(), 1);
     }
 }

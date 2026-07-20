@@ -2,7 +2,10 @@
 mod tests {
     use crate::{
         prelude::*,
-        tests::{creators::creators::map_alice, data::data::ALICE},
+        tests::{
+            creators::creators::{empty_typed_map, map_alice},
+            data::data::{ALICE, BOB},
+        },
     };
 
     #[test]
@@ -20,7 +23,7 @@ mod tests {
 
     #[test]
     fn param_requirement_not_met() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let map = empty_typed_map::<String, u64>();
         map.insert("funds".into(), 100);
         let tx = map
             .transaction()
@@ -39,149 +42,149 @@ mod tests {
 
     #[test]
     fn param_insert_with() {
-        let map: TxMap<String, String> = TxMap::new(ShardCount::_8);
+        let map: TxMap<String, String> = empty_typed_map();
         let tx = map
             .transaction()
             .with_param::<String>()
-            .insert_with("k".into(), |_k, param| param.clone())
+            .insert_with(ALICE.into(), |_k, param| param.clone())
+            .get(ALICE.into(), |_k, v| v.clone())
             .into_transaction();
-        assert_eq!(tx.execute(&"hello".into()), TxResult::Completed(()));
         assert_eq!(
-            map.get_with(&"k".into(), |v| v.clone()),
-            Some("hello".into())
+            tx.execute(&"hello".into()),
+            TxResult::Completed(Some("hello".into()))
         );
     }
 
     #[test]
     fn param_map_op() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-        map.insert("k".into(), 10);
+        let map = empty_typed_map::<String, u64>();
+        map.insert(ALICE.into(), 10);
         let tx = map
             .transaction()
             .with_param::<u64>()
-            .update("k".into(), |_k, v, mult| v.map(|x| x * mult))
-            .get("k".into(), |_k, v| *v)
+            .update(ALICE.into(), |_k, v, mult| v.map(|x| x * mult))
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(&3), TxResult::Completed(Some(30)));
     }
 
     #[test]
     fn param_remove_where() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-        map.insert("a".into(), 5);
-        map.insert("b".into(), 15);
+        let map = empty_typed_map::<String, u64>();
+        map.insert(ALICE.into(), 5);
+        map.insert(BOB.into(), 15);
         let tx = map
             .transaction()
             .with_param::<u64>()
-            .remove_where(["a".into(), "b".into()], |_k, v, threshold| *v > *threshold)
+            .remove_where([ALICE.into(), BOB.into()], |_k, v, threshold| {
+                *v > *threshold
+            })
+            .get_copied(ALICE.into())
             .into_transaction();
-        assert_eq!(tx.execute(&10), TxResult::Completed(()));
+        assert_eq!(tx.execute(&10), TxResult::Completed(Some(5)));
         assert_eq!(map.len(), 1);
-        assert_eq!(map.get_with(&"a".into(), |v| *v), Some(5));
     }
 
     #[test]
     fn param_retain_where() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-        map.insert("a".into(), 5);
-        map.insert("b".into(), 15);
+        let map = empty_typed_map::<String, u64>();
+        map.insert(ALICE.into(), 5);
+        map.insert(BOB.into(), 15);
         let tx = map
             .transaction()
             .with_param::<u64>()
-            .retain_where(["a".into(), "b".into()], |_k, v, threshold| {
+            .retain_where([ALICE.into(), BOB.into()], |_k, v, threshold| {
                 *v >= *threshold
             })
+            .get_copied(BOB.into())
             .into_transaction();
-        assert_eq!(tx.execute(&10), TxResult::Completed(()));
+        assert_eq!(tx.execute(&10), TxResult::Completed(Some(15)));
         assert_eq!(map.len(), 1);
-        assert_eq!(map.get_with(&"b".into(), |v| *v), Some(15));
     }
 
     #[test]
     fn param_modify_peek() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-        map.insert("k".into(), 10);
-        map.insert("p".into(), 5);
+        let map = empty_typed_map::<String, u64>();
+        map.insert(ALICE.into(), 10);
+        map.insert(BOB.into(), 5);
         let tx = map
             .transaction()
             .with_param::<u64>()
-            .modify_peek("k".into(), ["p".into()], |_k, v, [p], mult| {
-                *v = p.copied().unwrap_or(0) * mult
+            .modify_peek(ALICE.into(), [BOB.into()], |_k, v, [bob], mult| {
+                *v = bob.copied().unwrap_or(0) * mult
             })
-            .get("k".into(), |_k, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(&3), TxResult::Completed(Some(15)));
     }
 
     #[test]
     fn param_swap_value() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-        map.insert("a".into(), 1);
-        map.insert("b".into(), 2);
+        let map = empty_typed_map::<String, u64>();
+        map.insert(ALICE.into(), 1);
+        map.insert(BOB.into(), 2);
         let tx = map
             .transaction()
             .with_param::<()>()
-            .swap_value("a".into(), "b".into())
+            .swap_value(ALICE.into(), BOB.into())
+            .get_all_copied([ALICE.into(), BOB.into()])
             .into_transaction();
-        assert_eq!(tx.execute(&()), TxResult::Completed(()));
-        assert_eq!(map.get_with(&"a".into(), |v| *v), Some(2));
-        assert_eq!(map.get_with(&"b".into(), |v| *v), Some(1));
+        assert_eq!(tx.execute(&()), TxResult::Completed(vec![Some(2), Some(1)]));
     }
 
     #[test]
     fn param_move_value() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-        map.insert("a".into(), 42);
+        let map = empty_typed_map::<String, u64>();
+        map.insert(ALICE.into(), 42);
         let tx = map
             .transaction()
             .with_param::<()>()
-            .move_value("a".into(), "b".into())
+            .move_value(ALICE.into(), BOB.into())
+            .get_all_copied([ALICE.into(), BOB.into()])
             .into_transaction();
-        assert_eq!(tx.execute(&()), TxResult::Completed(()));
-        assert_eq!(map.get_with(&"b".into(), |v| *v), Some(42));
-        assert_eq!(map.get_with(&"a".into(), |v| *v), None);
+        assert_eq!(tx.execute(&()), TxResult::Completed(vec![None, Some(42)]));
     }
 
     #[test]
     fn param_get_all() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-        map.insert("a".into(), 10);
+        let map = empty_typed_map::<String, u64>();
+        map.insert(ALICE.into(), 10);
         let tx = map
             .transaction()
             .with_param::<()>()
-            .modify("a".into(), |_k, v, _p| *v += 0)
-            .modify("b".into(), |_k, v, _p| *v += 0)
-            .get_all(["a".into(), "b".into()], |_k, v| *v)
+            .modify(ALICE.into(), |_k, v, _p| *v += 0)
+            .modify(BOB.into(), |_k, v, _p| *v += 0)
+            .get_all_copied([ALICE.into(), BOB.into()])
             .into_transaction();
         assert_eq!(tx.execute(&()), TxResult::Completed(vec![Some(10), None]));
     }
 
     #[test]
     fn param_insert_default() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let map = empty_typed_map::<String, u64>();
         let tx = map
             .transaction()
             .with_param::<()>()
-            .insert_default("k".into())
+            .insert_default(ALICE.into())
+            .get_copied(ALICE.into())
             .into_transaction();
-        assert_eq!(tx.execute(&()), TxResult::Completed(()));
-        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(0));
+        assert_eq!(tx.execute(&()), TxResult::Completed(Some(0)));
     }
 
     #[test]
     fn param_update_peek() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-        map.insert("k".into(), 10);
-        map.insert("p".into(), 5);
+        let map = empty_typed_map::<String, u64>();
+        map.insert(ALICE.into(), 10);
+        map.insert(BOB.into(), 5);
         let tx = map
             .transaction()
             .with_param::<u64>()
             .update_peek(
-                "k".into(),
-                |_k, v, [p], mult| v.map(|x| (x + p.unwrap_or(&0)) * mult),
-                ["p".into()],
+                ALICE.into(),
+                |_k, v, [bob], mult| v.map(|x| (x + bob.unwrap_or(&0)) * mult),
+                [BOB.into()],
             )
-            .get("k".into(), |_k, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(&2), TxResult::Completed(Some(30)));
     }

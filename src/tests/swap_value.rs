@@ -14,7 +14,7 @@ mod tests {
         let tx = map
             .transaction()
             .swap_value(ALICE.into(), BOB.into())
-            .get_all([ALICE.into(), BOB.into()], |_k, v| *v)
+            .get_all_copied([ALICE.into(), BOB.into()])
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(vec![Some(2), Some(1)]));
     }
@@ -25,7 +25,7 @@ mod tests {
         let tx = map
             .transaction()
             .swap_value(ALICE.into(), BOB.into())
-            .get_all([ALICE.into(), BOB.into()], |_k, v| *v)
+            .get_all_copied([ALICE.into(), BOB.into()])
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(vec![None, Some(1)]));
     }
