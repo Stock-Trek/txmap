@@ -47,42 +47,6 @@ Larger shard counts reduce lock contention at the cost of slightly more memory. 
 The map key type `K` must implement `Hash` and `Eq`. Some functions also require `Clone`.
 The value type `V` has no trait bounds by default. Operations that create default values (e.g., `insert_default`) require `V: Default`.
 
-### Basic operations
-
-```rust
-use txmap::prelude::*;
-
-let map = TxMap::new(ShardCount::_8);
-
-// Insert
-map.insert("alice".to_string(), 100u64);
-
-// Get a value with a transform closure
-let balance = map.get_with(&"alice".to_string(), |v| *v);
-assert_eq!(balance, Some(100));
-
-// Copy a value directly (requires V: Copy)
-let copied = map.get_copied(&"alice".to_string());
-assert_eq!(copied, Some(100));
-
-// Remove
-let old = map.remove(&"alice".to_string());
-assert_eq!(old, Some(100));
-
-// Clear all entries
-map.clear();
-
-// Length / empty
-assert!(map.is_empty());
-assert_eq!(map.len(), 0);
-
-// Fold over all entries
-map.insert("a".to_string(), 10);
-map.insert("b".to_string(), 20);
-let sum = map.fold(0u64, |_k, v| Some(*v), |acc, v| acc + v);
-assert_eq!(sum, 30);
-```
-
 ### Transactions
 
 Transactions group multiple operations into an atomic unit. They are built using a fluent builder API. Use `.into_transaction()` to produce a reusable transaction, then `.execute()` to run it.
