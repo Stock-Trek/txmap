@@ -6,7 +6,7 @@
 
 A concurrent transactional hash map for Rust with fine-grained locking and internal mutability.
 
-`TxMap` partitions stored key-value pairs across multiple shards, each protected by it's own `parking_lot::Mutex` and backed by it's own `hashbrown:HashMap`. Read and write operations acquire locks only on the shards they need, maximizing concurrency. Transactional operations group multiple operations into atomic units, and support parameterized closures.
+`TxMap` partitions stored key-value pairs across multiple shards, each protected by its own `parking_lot::Mutex` and backed by its own `hashbrown::HashMap`. Read and write operations acquire locks only on the shards they need, maximizing concurrency. Transactional operations group multiple operations into atomic units, and support parameterized closures.
 
 ## Features
 
@@ -57,9 +57,13 @@ let map = TxMap::new(ShardCount::_8);
 // Insert
 map.insert("alice".to_string(), 100u64);
 
-// Get a value with a transform closure. Direct access to values is not supported, this is to enable concurrent modification
+// Get a value with a transform closure
 let balance = map.get_with(&"alice".to_string(), |v| *v);
 assert_eq!(balance, Some(100));
+
+// Copy a value directly (requires V: Copy)
+let copied = map.get_copied(&"alice".to_string());
+assert_eq!(copied, Some(100));
 
 // Remove
 let old = map.remove(&"alice".to_string());
@@ -71,11 +75,17 @@ map.clear();
 // Length / empty
 assert!(map.is_empty());
 assert_eq!(map.len(), 0);
+
+// Fold over all entries
+map.insert("a".to_string(), 10);
+map.insert("b".to_string(), 20);
+let sum = map.fold(0u64, |_k, v| Some(*v), |acc, v| acc + v);
+assert_eq!(sum, 30);
 ```
 
 ### Transactions
 
-Transactions group multiple operations into an atomic unit. They are built using a fluent builder API.
+Transactions group multiple operations into an atomic unit. They are built using a fluent builder API. Use `.into_transaction()` to produce a reusable transaction, then `.execute()` to run it.
 
 #### Simple transaction (no result)
 
@@ -102,6 +112,8 @@ assert_eq!(db.get_with(&"bob".to_string(), |v| *v), Some(50));
 ```
 
 #### Transaction with guards (preconditions)
+
+Guards are checked before any mutations take place. If any guard fails, the transaction is **not executed**, all locks are dropped, no mutations occur, and `TxResult::RequirementNotMet` is returned.
 
 ```rust
 use txmap::prelude::*;
@@ -132,9 +144,9 @@ match tx.execute() {
 }
 ```
 
-If any guard condition fails, the transaction is **not executed** - no locks are held, no mutations occur - and `TxResult::RequirementNotMet` is returned.
-
 #### Transaction returning a value
+
+Use one of `.get()`, `.get_copied()`, `.get_cloned()`, `get_all()`, `.get_all_copied()` or `.get_all_cloned()` before `.into_transaction()` to return a value or values at the end of the transaction.
 
 ```rust
 use txmap::prelude::*;
@@ -215,6 +227,93 @@ let result2 = transfer_alice_to_bob_tx.execute(&Transfer { amount: 30 });
 assert_eq!(result2, TxResult::Completed([Some(120), Some(80)]));
 ```
 
+### Finite state machine example
+
+Use `update` to implement state transitions that return `Some(new_state)` to update or `None` to delete.
+
+```rust
+use txmap::prelude::*;
+
+#[derive(Clone, PartialEq)]
+enum OrderState { Pending, Shipped, Delivered }
+
+let orders: TxMap<String, OrderState> = TxMap::new(ShardCount::_8);
+orders.insert("order-1".into(), OrderState::Pending);
+
+// Transition order-1 from Pending to Shipped
+let result = orders
+    .transaction()
+    .update("order-1".into(), |_id, state| {
+        state.and_then(|s| match s {
+            OrderState::Pending => Some(OrderState::Shipped),
+            _ => None, // reject transition, deleting the entry
+        })
+    })
+    .get_cloned("order-1".into())
+    .into_transaction()
+    .execute();
+
+assert_eq!(result, TxResult::Completed(Some(OrderState::Shipped)));
+```
+
+### Swap and move operations
+
+Atomically swap values between two keys, or move a value from one key to another.
+
+```rust
+use txmap::prelude::*;
+
+let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+map.insert("a".to_string(), 10);
+map.insert("b".to_string(), 20);
+
+// Swap values
+let result = map
+    .transaction()
+    .swap_value("a".to_string(), "b".to_string())
+    .get_all_copied(["a".to_string(), "b".to_string()])
+    .into_transaction()
+    .execute();
+assert_eq!(result, TxResult::Completed(vec![Some(20), Some(10)]));
+
+// Move value (from "a" to "b", leaving "a" empty)
+let result = map
+    .transaction()
+    .move_value("a".to_string(), "b".to_string())
+    .get_all_copied(["a".to_string(), "b".to_string()])
+    .into_transaction()
+    .execute();
+assert_eq!(result, TxResult::Completed(vec![None, Some(20)]));
+```
+
+### Batch operations
+
+Conditionally remove or retain entries in bulk.
+
+```rust
+use txmap::prelude::*;
+
+let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+map.insert("alice".into(), 1);
+map.insert("bob".into(), 2);
+map.insert("chuck".into(), 3);
+
+// Remove entries with values > 1
+map.transaction()
+    .remove_if(|_k, v| *v > 1)
+    .into_transaction()
+    .execute();
+assert_eq!(map.len(), 1); // only alice remains
+
+// Retain only specific keys
+map.insert("bob".into(), 2);
+map.transaction()
+    .retain_only(["alice".into(), "bob".into()])
+    .into_transaction()
+    .execute();
+assert_eq!(map.len(), 2);
+```
+
 ### Operation reference
 
 | Builder method               | Description                                                                       | Additional required bounds |
@@ -223,7 +322,7 @@ assert_eq!(result2, TxResult::Completed([Some(120), Some(80)]));
 | `insert_default_if_absent`   | Insert `V::default()` for the key, only if the key is absent.                     | `K: Clone` `V: Default`    |
 | `insert_with`                | Insert a value generated from the key.                                            | `K: Clone`                 |
 | `insert_with_if_absent`      | Insert a value generated from the key, only if the key is absent.                 | `K: Clone`                 |
-| `modify`                     | Mutate an existing value in-place. Does nothing if key absent.                    | `V: Default`               |
+| `modify`                     | Mutate an existing value in-place. Does nothing if key absent.                    |                            |
 | `modify_peek`                | Like `modify` while peeking at other values.                                      | `K: Clone`                 |
 | `update`                     | Update a single entry. Return `Some(v)` to insert/replace, `None` to delete.      | `K: Clone`                 |
 | `update_peek`                | Like `update` while peeking at other values.                                      | `K: Clone`                 |
@@ -242,19 +341,19 @@ assert_eq!(result2, TxResult::Completed([Some(120), Some(80)]));
 
 ### Finisher methods
 
-Up to one of these is called before `into_transaction()` in the builder chain to define what the transaction should return.
+Up to one of these is called before `.into_transaction()` to define what the transaction should return.
 
-| Method                                      | Description                                              | Transaction result type    |
-|---------------------------------------------|----------------------------------------------------------|----------------------------|
-| *(none - default)*                          | Execute with no return value.                            | `TxResult<()>`             |
-| `get_copied(key)`                           | Copy a single value. Requires `V: Copy`                  | `TxResult<Option<V>>`      |
-| `get_all_copied(keys)`                      | Copy an array of values. Requires `V: Copy`              | `TxResult<Vec<Option<V>>>` |
-| `get_cloned(key)`                           | Clone a single value. Requires `V: Clone`                | `TxResult<Option<V>>`      |
-| `get_all_cloned(keys)`                      | Clone an array of values. Requires `V: Clone`            | `TxResult<Vec<Option<V>>>` |
-| `get(key, \|k, v[, params]\| { ... })`      | Read a single value and apply a transformation to it.    | `TxResult<Option<R>>`      |
-| `get_all(keys, \|k, v[, params]\| { ... })` | Read multiple values and apply a transformation to them. | `TxResult<Vec<Option<R>>>` |
+| Method                                      | Description                                              | Transaction result type    | Required bound |
+|---------------------------------------------|----------------------------------------------------------|----------------------------|----------------|
+| *(none - default)*                          | Execute with no return value.                            | `TxResult<()>`             |                |
+| `get_copied(key)`                           | Copy a single value.                                     | `TxResult<Option<V>>`      | `V: Copy`      |
+| `get_all_copied(keys)`                      | Copy an array of values.                                 | `TxResult<Vec<Option<V>>>` | `V: Copy`      |
+| `get_cloned(key)`                           | Clone a single value.                                    | `TxResult<Option<V>>`      | `V: Clone`     |
+| `get_all_cloned(keys)`                      | Clone an array of values.                                | `TxResult<Vec<Option<V>>>` | `V: Clone`     |
+| `get(key, \|k, v[, params]\| { ... })`      | Read a single value and apply a transformation to it.    | `TxResult<Option<R>>`      |                |
+| `get_all(keys, \|k, v[, params]\| { ... })` | Read multiple values and apply a transformation to them. | `TxResult<Vec<Option<R>>>` |                |
 
-To create the final transaction call `into_transaction()`. This will produce a re-useable transaction that can be executed as many times as you want within the lifetime of it's TxMap.
+To create the final transaction call `into_transaction()`. This will produce a re-useable transaction that can be executed as many times as you want within the lifetime of its `TxMap`.
 
 ### `TxResult`
 
@@ -281,7 +380,7 @@ pub enum TxResult<T> {
 | `modify(key, \|k, mut v[, params]\|)`                                                          |
 | `modify_peek(key, peek_keys, \|k, mut v, pks[, params]\|)`                                     |
 | `update(key, \|k, v_opt[, params]\| { new_value_opt })`                                        |
-| `update_peek(key, peek_keys, \|k, v_opt, pks[, params]\| { new_value_opt })`                   |
+| `update_peek(key, peek_keys,\|k, v_opt[, params]\| { new_value_opt })`                         |
 |                                                                                                |
 | `move_value(from, to)`                                                                         |
 | `swap_value(a, b)`                                                                             |
