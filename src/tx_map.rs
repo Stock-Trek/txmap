@@ -92,7 +92,19 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::prelude::*;
+    use crate::{
+        indexer::Indexer,
+        prelude::*,
+        result::{
+            INCORRECT_GUARD_VALUES_LENGTH, INCORRECT_PEEK_VALUES_LENGTH, MISSING_MUTEX_GUARD_ERROR,
+        },
+        shard_count::all_guards_bitmask,
+    };
+    use std::{
+        hash::{DefaultHasher, Hash},
+        sync::{Arc, Barrier},
+        thread,
+    };
 
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     struct User {
@@ -107,6 +119,11 @@ mod tests {
     #[derive(Debug, Default)]
     struct Transfer {
         usd_and_cents: u64,
+    }
+
+    #[derive(Debug, Default, Clone, PartialEq)]
+    struct Counter {
+        value: u64,
     }
 
     #[test]
@@ -219,5 +236,1403 @@ mod tests {
             .into_transaction();
         assert_eq!(add_123_to_pam.execute(), TxResult::Completed(Some(123)));
         assert_eq!(add_123_to_pam.execute(), TxResult::Completed(Some(246)));
+    }
+
+    // ── TxMap basic operations ─────────────────────────────────────────────────
+
+    #[test]
+    fn new_map_is_empty() {
+        let map: TxMap<String, String> = TxMap::new(ShardCount::_8);
+        assert!(map.is_empty());
+        assert_eq!(map.len(), 0);
+    }
+
+    #[test]
+    fn insert_and_get_with() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        assert_eq!(map.insert("a".into(), 42), None);
+        assert_eq!(map.insert("a".into(), 99), Some(42));
+        let val = map.get_with(&"a".into(), |v| *v);
+        assert_eq!(val, Some(99));
+    }
+
+    #[test]
+    fn remove_returns_value() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("x".into(), 7);
+        assert_eq!(map.remove(&"x".into()), Some(7));
+        assert_eq!(map.remove(&"x".into()), None);
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn clear_empties_map() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        map.insert("b".into(), 2);
+        assert_eq!(map.len(), 2);
+        map.clear();
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn fold_accumulates_matching_entries() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 10);
+        map.insert("b".into(), 20);
+        map.insert("c".into(), 30);
+        let sum = map.fold(0u64, |_k, v| Some(*v), |acc, v| acc + v);
+        assert_eq!(sum, 60);
+        let filtered = map.fold(
+            0u64,
+            |k, v| if k.as_str() != "b" { Some(*v) } else { None },
+            |acc, v| acc + v,
+        );
+        assert_eq!(filtered, 40);
+    }
+
+    #[test]
+    fn get_with_on_missing_key() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        assert_eq!(map.get_with(&"missing".into(), |v| *v), None);
+    }
+
+    #[test]
+    fn insert_overwrites_and_returns_previous() {
+        let map: TxMap<String, String> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), "v1".into());
+        assert_eq!(map.insert("k".into(), "v2".into()), Some("v1".into()));
+        assert_eq!(map.get_with(&"k".into(), |v| v.clone()), Some("v2".into()));
+    }
+
+    // ── ShardCount edge cases ──────────────────────────────────────────────────
+
+    #[test]
+    fn all_shard_counts_work() {
+        for sc in [
+            ShardCount::_8,
+            ShardCount::_16,
+            ShardCount::_32,
+            ShardCount::_64,
+            ShardCount::_128,
+        ] {
+            let map: TxMap<u64, u64> = TxMap::new(sc);
+            assert!(map.is_empty());
+            map.insert(1, 10);
+            assert_eq!(map.len(), 1);
+            assert_eq!(map.get_with(&1, |v| *v), Some(10));
+        }
+    }
+
+    #[test]
+    fn all_guards_bitmask_128_works() {
+        // 128 shards means bitmask is all ones in u128
+        let mask = all_guards_bitmask(128);
+        assert_eq!(mask, !0u128);
+    }
+
+    #[test]
+    fn all_guards_bitmask_8_works() {
+        let mask = all_guards_bitmask(8);
+        assert_eq!(mask, 0b1111_1111u128);
+    }
+
+    #[test]
+    fn indexer_distributes_across_shards() {
+        let indexer = Indexer {
+            shard_count: 8,
+            hasher_creator: || Box::new(DefaultHasher::new()),
+        };
+        let mut seen = std::collections::HashSet::new();
+        for i in 0..1000u64 {
+            seen.insert(indexer.index(&i));
+        }
+        // With 1000 keys and 8 shards, we should hit most shards
+        assert!(
+            seen.len() >= 4,
+            "should hit at least 4 shards, got {}",
+            seen.len()
+        );
+    }
+
+    // ── Transaction: requirement not met ───────────────────────────────────────
+
+    #[test]
+    fn requirement_not_met_returns_error() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .require("must be positive", ["a".into()], |[v]| {
+                v.is_some_and(|x| *x > 0)
+            })
+            .modify_or_default("a".into(), |_k, v| *v = 0)
+            .into_transaction();
+        // 'a' doesn't exist, so v is None -> condition fails
+        let result = tx.execute();
+        assert!(
+            matches!(&result, TxResult::RequirementNotMet(0, name) if name == "must be positive"),
+            "expected RequirementNotMet, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn requirement_met_after_insert() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 5);
+        let tx = map
+            .transaction()
+            .require("enough", ["a".into()], |[v]| v.is_some_and(|x| *x >= 5))
+            .modify_or_default("a".into(), |_k, v| *v += 0)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+    }
+
+    #[test]
+    fn requirement_with_multiple_keys() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("x".into(), 100);
+        map.insert("y".into(), 200);
+        let tx = map
+            .transaction()
+            .require("sum >= 250", ["x".into(), "y".into()], |[x, y]| {
+                x.copied().unwrap_or(0) + y.copied().unwrap_or(0) >= 250
+            })
+            .modify_or_default("x".into(), |_k, v| *v += 0)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+    }
+
+    #[test]
+    fn requirement_fails_with_partial_keys() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("x".into(), 100);
+        // 'y' missing, should fail condition
+        let tx = map
+            .transaction()
+            .require("both exist", ["x".into(), "y".into()], |[x, y]| {
+                x.is_some() && y.is_some()
+            })
+            .modify_or_default("x".into(), |_k, v| *v += 0)
+            .into_transaction();
+        assert!(matches!(tx.execute(), TxResult::RequirementNotMet(0, _)));
+    }
+
+    // ── Transaction: modify / modify_or_default ────────────────────────────────
+
+    #[test]
+    fn modify_existing_key() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 10);
+        let tx = map
+            .transaction()
+            .modify("k".into(), |_k, v| *v += 5)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(15));
+    }
+
+    #[test]
+    fn modify_missing_key_is_noop() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .modify("missing".into(), |_k, v| *v = 42)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"missing".into(), |v| *v), None);
+    }
+
+    #[test]
+    fn modify_or_default_inserts_when_missing() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .modify_or_default("new".into(), |_k, v| *v = 99)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"new".into(), |v| *v), Some(99));
+    }
+
+    #[test]
+    fn modify_or_default_updates_existing() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 5);
+        let tx = map
+            .transaction()
+            .modify_or_default("k".into(), |_k, v| *v += 10)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(15));
+    }
+
+    // ── Transaction: insert_with / insert_default ──────────────────────────────
+
+    #[test]
+    fn insert_with_creates_entry() {
+        let map: TxMap<String, String> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .insert_with("k".into(), |key| format!("value_for_{}", key))
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(
+            map.get_with(&"k".into(), |v| v.clone()),
+            Some("value_for_k".into())
+        );
+    }
+
+    #[test]
+    fn insert_with_overwrites_existing() {
+        let map: TxMap<String, String> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), "old".into());
+        let tx = map
+            .transaction()
+            .insert_with("k".into(), |_| "new".into())
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| v.clone()), Some("new".into()));
+    }
+
+    #[test]
+    fn insert_default_uses_default_trait() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .insert_default("k".into())
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(0));
+    }
+
+    // ── Transaction: map ops ───────────────────────────────────────────────────
+
+    #[test]
+    fn map_inserts_when_returning_some() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .map("k".into(), |_k, _v| Some(42))
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(42));
+    }
+
+    #[test]
+    fn map_removes_when_returning_none() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 100);
+        let tx = map
+            .transaction()
+            .map("k".into(), |_k, _v| None)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), None);
+    }
+
+    #[test]
+    fn map_transforms_existing_value() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 10);
+        let tx = map
+            .transaction()
+            .map("k".into(), |_k, v| v.map(|x| x * 2))
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(20));
+    }
+
+    // ── Transaction: get / get_all finishers ───────────────────────────────────
+
+    #[test]
+    fn get_returns_transformed_value() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 7);
+        let result = map
+            .transaction()
+            .modify_or_default("k".into(), |_k, v| *v += 0)
+            .get("k".into(), |_k, v| *v * 2)
+            .into_transaction()
+            .execute();
+        assert_eq!(result, TxResult::Completed(Some(14)));
+    }
+
+    #[test]
+    fn get_returns_option_via_map_finisher() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 10);
+        // Use the result of modify_or_default to lock the same shard, then get
+        let result = map
+            .transaction()
+            .modify_or_default("k".into(), |_k, v| *v += 0)
+            .get("k".into(), |_k, v| *v)
+            .into_transaction()
+            .execute();
+        assert_eq!(result, TxResult::Completed(Some(10)));
+    }
+
+    #[test]
+    fn get_all_returns_multiple_values() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 10);
+        map.insert("b".into(), 20);
+        // ValuesFinisher expects all keys' shards to be in the bitmask.
+        // We must lock all needed shards via an operation.
+        let result = map
+            .transaction()
+            .modify_or_default("a".into(), |_k, v| *v += 0)
+            .modify_or_default("b".into(), |_k, v| *v += 0)
+            .modify_or_default("c".into(), |_k, v| *v += 0)
+            .get_all(["a".into(), "b".into(), "c".into()], |_k, v| *v)
+            .into_transaction()
+            .execute();
+        assert_eq!(
+            result,
+            TxResult::Completed(vec![Some(10), Some(20), Some(0)])
+        );
+    }
+
+    // ── Transaction: swap_value / move_value ───────────────────────────────────
+
+    #[test]
+    fn swap_value_exchanges_values() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        map.insert("b".into(), 2);
+        let tx = map
+            .transaction()
+            .swap_value("a".into(), "b".into())
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"a".into(), |v| *v), Some(2));
+        assert_eq!(map.get_with(&"b".into(), |v| *v), Some(1));
+    }
+
+    #[test]
+    fn swap_value_same_shard() {
+        // Use keys that hash to same shard in _128 to force same-shard swap
+        let map: TxMap<u64, u64> = TxMap::new(ShardCount::_128);
+        map.insert(0, 10);
+        map.insert(128, 20); // likely same shard as 0
+        let tx = map.transaction().swap_value(0, 128).into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+    }
+
+    #[test]
+    fn swap_value_with_missing() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        let tx = map
+            .transaction()
+            .swap_value("a".into(), "missing".into())
+            .into_transaction();
+        tx.execute();
+        // 'a' is removed, 'missing' gets a's value
+        assert_eq!(map.get_with(&"a".into(), |v| *v), None);
+        assert_eq!(map.get_with(&"missing".into(), |v| *v), Some(1));
+    }
+
+    #[test]
+    fn move_value_transfers_value() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("from".into(), 42);
+        let tx = map
+            .transaction()
+            .move_value("from".into(), "to".into())
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"from".into(), |v| *v), None);
+        assert_eq!(map.get_with(&"to".into(), |v| *v), Some(42));
+    }
+
+    #[test]
+    fn move_value_missing_from_is_noop() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .move_value("missing".into(), "to".into())
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"to".into(), |v| *v), None);
+    }
+
+    // ── Transaction: batch ops ─────────────────────────────────────────────────
+
+    #[test]
+    fn remove_multiple_keys() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        map.insert("b".into(), 2);
+        map.insert("c".into(), 3);
+        let tx = map
+            .transaction()
+            .remove(["a".into(), "c".into()])
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.get_with(&"b".into(), |v| *v), Some(2));
+    }
+
+    #[test]
+    fn remove_where_conditionally() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        map.insert("b".into(), 2);
+        map.insert("c".into(), 3);
+        let tx = map
+            .transaction()
+            .remove_where(["a".into(), "b".into(), "c".into()], |_k, v| *v >= 2)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"a".into(), |v| *v), Some(1));
+        assert_eq!(map.len(), 1);
+    }
+
+    #[test]
+    fn retain_only_keeps_specified() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        map.insert("b".into(), 2);
+        map.insert("c".into(), 3);
+        let tx = map
+            .transaction()
+            .retain_only(["a".into(), "b".into()])
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get_with(&"c".into(), |v| *v), None);
+    }
+
+    #[test]
+    fn retain_where_keeps_matching() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 10);
+        map.insert("b".into(), 20);
+        map.insert("c".into(), 30);
+        let tx = map
+            .transaction()
+            .retain_where(["a".into(), "b".into(), "c".into()], |_k, v| *v >= 20)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get_with(&"a".into(), |v| *v), None);
+    }
+
+    // ── Transaction: global ops ────────────────────────────────────────────────
+
+    #[test]
+    fn clear_via_transaction() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        map.insert("b".into(), 2);
+        let tx = map.transaction().clear().into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn remove_if_removes_matching() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        map.insert("b".into(), 2);
+        map.insert("c".into(), 3);
+        let tx = map
+            .transaction()
+            .remove_if(|_k, v| *v > 1)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.len(), 1);
+    }
+
+    #[test]
+    fn retain_keeps_matching() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        map.insert("b".into(), 2);
+        map.insert("c".into(), 3);
+        let tx = map
+            .transaction()
+            .retain(|_k, v| *v % 2 == 0)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.get_with(&"b".into(), |v| *v), Some(2));
+    }
+
+    // ── Transaction: chained ops ───────────────────────────────────────────────
+
+    #[test]
+    fn chained_modify_and_get() {
+        let map: TxMap<String, Counter> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .modify_or_default("ctr".into(), |_k, c| c.value += 1)
+            .modify_or_default("ctr".into(), |_k, c| c.value += 1)
+            .get("ctr".into(), |_k, c| c.value)
+            .into_transaction();
+        let result = tx.execute();
+        assert_eq!(result, TxResult::Completed(Some(2)));
+    }
+
+    #[test]
+    fn chained_ops_on_multiple_keys() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .insert_default("x".into())
+            .modify_or_default("x".into(), |_k, v| *v += 10)
+            .modify_or_default("y".into(), |_k, v| *v += 20)
+            .get_all(["x".into(), "y".into()], |_k, v| *v)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(vec![Some(10), Some(20)]));
+    }
+
+    // ── Parameterized transactions ─────────────────────────────────────────────
+
+    #[test]
+    fn param_transaction_basic() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .with_param::<u64>()
+            .modify_or_default("k".into(), |_k, v, param| *v += param)
+            .get("k".into(), |_k, v| *v)
+            .into_transaction();
+        assert_eq!(tx.execute(&50), TxResult::Completed(Some(50)));
+        assert_eq!(tx.execute(&30), TxResult::Completed(Some(80)));
+    }
+
+    #[test]
+    fn param_requirement_not_met() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("funds".into(), 100);
+        let tx = map
+            .transaction()
+            .with_param::<u64>()
+            .require("sufficient", ["funds".into()], |[v], min| {
+                v.copied().unwrap_or(0) >= *min
+            })
+            .modify_or_default("funds".into(), |_k, v, _p| *v += 0)
+            .into_transaction();
+        assert_eq!(tx.execute(&50), TxResult::Completed(()));
+        assert!(matches!(
+            tx.execute(&200),
+            TxResult::RequirementNotMet(0, _)
+        ));
+    }
+
+    #[test]
+    fn param_insert_with() {
+        let map: TxMap<String, String> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .with_param::<String>()
+            .insert_with("k".into(), |_k, param| param.clone())
+            .into_transaction();
+        assert_eq!(tx.execute(&"hello".into()), TxResult::Completed(()));
+        assert_eq!(
+            map.get_with(&"k".into(), |v| v.clone()),
+            Some("hello".into())
+        );
+    }
+
+    #[test]
+    fn param_map_op() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 10);
+        let tx = map
+            .transaction()
+            .with_param::<u64>()
+            .map("k".into(), |_k, v, mult| v.map(|x| x * mult))
+            .get("k".into(), |_k, v| *v)
+            .into_transaction();
+        assert_eq!(tx.execute(&3), TxResult::Completed(Some(30)));
+    }
+
+    #[test]
+    fn param_remove_where() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 5);
+        map.insert("b".into(), 15);
+        let tx = map
+            .transaction()
+            .with_param::<u64>()
+            .remove_where(["a".into(), "b".into()], |_k, v, threshold| *v > *threshold)
+            .into_transaction();
+        assert_eq!(tx.execute(&10), TxResult::Completed(()));
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.get_with(&"a".into(), |v| *v), Some(5));
+    }
+
+    #[test]
+    fn param_retain_where() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 5);
+        map.insert("b".into(), 15);
+        let tx = map
+            .transaction()
+            .with_param::<u64>()
+            .retain_where(["a".into(), "b".into()], |_k, v, threshold| {
+                *v >= *threshold
+            })
+            .into_transaction();
+        assert_eq!(tx.execute(&10), TxResult::Completed(()));
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.get_with(&"b".into(), |v| *v), Some(15));
+    }
+
+    #[test]
+    fn param_remove_if_global() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        map.insert("b".into(), 2);
+        map.insert("c".into(), 3);
+        let tx = map
+            .transaction()
+            .with_param::<u64>()
+            .remove_if(|_k, v, max| *v > *max)
+            .into_transaction();
+        assert_eq!(tx.execute(&1), TxResult::Completed(()));
+        assert_eq!(map.len(), 1);
+    }
+
+    #[test]
+    fn param_retain_global() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 10);
+        map.insert("b".into(), 20);
+        map.insert("c".into(), 30);
+        let tx = map
+            .transaction()
+            .with_param::<u64>()
+            .retain(|_k, v, min| *v >= *min)
+            .into_transaction();
+        assert_eq!(tx.execute(&25), TxResult::Completed(()));
+        assert_eq!(map.len(), 1);
+    }
+
+    // ── peek variants ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn modify_peek_modifies_with_peek_values() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("target".into(), 100);
+        map.insert("reference".into(), 50);
+        let tx = map
+            .transaction()
+            .modify_peek("target".into(), ["reference".into()], |_k, v, [ref_val]| {
+                if let Some(r) = ref_val {
+                    *v += r;
+                }
+            })
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"target".into(), |v| *v), Some(150));
+    }
+
+    #[test]
+    fn modify_peek_missing_target_is_noop() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("ref".into(), 99);
+        let tx = map
+            .transaction()
+            .modify_peek("missing".into(), ["ref".into()], |_k, v, [_r]| *v = 0)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"ref".into(), |v| *v), Some(99));
+    }
+
+    #[test]
+    fn modify_peek_or_default_inserts_when_missing_and_peeks() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("other".into(), 100);
+        let tx = map
+            .transaction()
+            .modify_peek_or_default("new".into(), ["other".into()], |_k, v, [other]| {
+                *v = other.copied().unwrap_or(0) + 5;
+            })
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"new".into(), |v| *v), Some(105));
+    }
+
+    #[test]
+    fn modify_peek_or_default_updates_existing_with_peek() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("target".into(), 10);
+        map.insert("other".into(), 200);
+        let tx = map
+            .transaction()
+            .modify_peek_or_default("target".into(), ["other".into()], |_k, v, [other]| {
+                *v += other.copied().unwrap_or(0);
+            })
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"target".into(), |v| *v), Some(210));
+    }
+
+    #[test]
+    fn modify_or_insert_with_modifies_existing() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 5);
+        let tx = map
+            .transaction()
+            .modify_or_insert_with("k".into(), |_k, v| *v += 10, |_k| 100)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(15));
+    }
+
+    #[test]
+    fn modify_or_insert_with_inserts_when_missing() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .modify_or_insert_with("k".into(), |_k, v| *v += 10, |_k| 100)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(100));
+    }
+
+    #[test]
+    fn modify_peek_or_insert_with_modifies_existing() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 5);
+        map.insert("p".into(), 50);
+        let tx = map
+            .transaction()
+            .modify_peek_or_insert_with(
+                "k".into(),
+                ["p".into()],
+                |_k, v, [p]| *v += p.unwrap_or(&0),
+                |_k| 0,
+            )
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(55));
+    }
+
+    #[test]
+    fn modify_peek_or_insert_with_inserts_when_missing() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .modify_peek_or_insert_with(
+                "k".into(),
+                [],
+                |_k, v, []: [Option<&u64>; 0]| *v = 99,
+                |_k| 42,
+            )
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(42));
+    }
+
+    #[test]
+    fn map_peek_modifies_based_on_peek() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 10);
+        map.insert("p".into(), 5);
+        let tx = map
+            .transaction()
+            .map_peek(
+                "k".into(),
+                |_k, v, [p]| v.map(|x| x + p.unwrap_or(&0)),
+                ["p".into()],
+            )
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(15));
+    }
+
+    // ── Concurrency tests ──────────────────────────────────────────────────────
+
+    #[test]
+    fn concurrent_inserts_are_thread_safe() {
+        let map: Arc<TxMap<u64, u64>> = Arc::new(TxMap::new(ShardCount::_8));
+        let mut handles = Vec::new();
+        for t in 0..8 {
+            let m = Arc::clone(&map);
+            handles.push(thread::spawn(move || {
+                for i in 0..1000 {
+                    m.insert(i * 8 + t, t);
+                }
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+        assert_eq!(map.len(), 8000);
+    }
+
+    #[test]
+    fn concurrent_transactions_dont_deadlock() {
+        let map: Arc<TxMap<u64, u64>> = Arc::new(TxMap::new(ShardCount::_16));
+        let barrier = Arc::new(Barrier::new(4));
+        let mut handles = Vec::new();
+        for t in 0..4 {
+            let m = Arc::clone(&map);
+            let b = Arc::clone(&barrier);
+            handles.push(thread::spawn(move || {
+                b.wait();
+                for i in 0..200 {
+                    let key = (i * 4 + t) as u64;
+                    let _ = m
+                        .transaction()
+                        .modify_or_default(key, |_k, v| *v += 1)
+                        .into_transaction()
+                        .execute();
+                }
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+        assert_eq!(map.len(), 800);
+    }
+
+    #[test]
+    fn concurrent_reads_and_writes() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let map: Arc<TxMap<u64, u64>> = Arc::new(TxMap::new(ShardCount::_32));
+        let done = Arc::new(AtomicBool::new(false));
+
+        // Writer thread
+        let mw = Arc::clone(&map);
+        let dw = Arc::clone(&done);
+        let writer = thread::spawn(move || {
+            for i in 0..5000 {
+                mw.insert(i, i * 2);
+            }
+            dw.store(true, Ordering::SeqCst);
+        });
+
+        // Reader thread
+        let mr = Arc::clone(&map);
+        let reader = thread::spawn(move || {
+            while !done.load(Ordering::SeqCst) {
+                let _ = mr.fold(0u64, |_k, v| Some(*v), |acc, v| acc + v);
+            }
+        });
+
+        writer.join().unwrap();
+        reader.join().unwrap();
+    }
+
+    #[test]
+    fn concurrent_same_shard_contention() {
+        // Force all keys to the same shard by using a custom hasher that always returns 0
+        let map: TxMap<u64, u64> = TxMap::new(ShardCount::_8);
+        let map = Arc::new(map);
+        let mut handles = Vec::new();
+        for _t in 0..4 {
+            let m = Arc::clone(&map);
+            handles.push(thread::spawn(move || {
+                for i in 0..500 {
+                    let _ = m
+                        .transaction()
+                        .modify_or_default(i as u64, |_k, v| *v += 1)
+                        .into_transaction()
+                        .execute();
+                }
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+        // Total count = sum of all values
+        let total: u64 = map.fold(0u64, |_k, v| Some(*v), |acc, v| acc + v);
+        assert_eq!(total, 2000);
+    }
+
+    #[test]
+    fn atomic_transaction_isolation() {
+        // Two concurrent transactions that should not see each other's intermediate state
+        let map: Arc<TxMap<u64, u64>> = Arc::new(TxMap::new(ShardCount::_8));
+        map.insert(1, 0);
+        let map_clone = Arc::clone(&map);
+        let map_clone2 = Arc::clone(&map);
+        let barrier = Arc::new(Barrier::new(2));
+        let b1 = Arc::clone(&barrier);
+        let b2 = Arc::clone(&barrier);
+
+        let h1 = thread::spawn(move || {
+            b1.wait();
+            for _ in 0..100 {
+                let _ = map_clone
+                    .transaction()
+                    .modify(1, |_k, v| *v += 1)
+                    .into_transaction()
+                    .execute();
+            }
+        });
+
+        let h2 = thread::spawn(move || {
+            b2.wait();
+            for _ in 0..100 {
+                let _ = map_clone2
+                    .transaction()
+                    .modify(1, |_k, v| *v += 1)
+                    .into_transaction()
+                    .execute();
+            }
+        });
+
+        h1.join().unwrap();
+        h2.join().unwrap();
+        assert_eq!(map.get_with(&1, |v| *v), Some(200));
+    }
+
+    // ── Edge cases and adversarial tests ───────────────────────────────────────
+
+    #[test]
+    fn large_number_of_keys() {
+        let map: TxMap<u64, u64> = TxMap::new(ShardCount::_128);
+        for i in 0..10_000 {
+            map.insert(i, i * 3);
+        }
+        assert_eq!(map.len(), 10_000);
+        // Verify a few values
+        for i in (0..10_000).step_by(1000) {
+            assert_eq!(map.get_with(&i, |v| *v), Some(i * 3));
+        }
+    }
+
+    #[test]
+    fn duplicate_keys_dont_cause_issues() {
+        let map: TxMap<String, String> = TxMap::new(ShardCount::_8);
+        let key: String = "same".into();
+        for i in 0..100 {
+            map.insert(key.clone(), format!("v{i}"));
+        }
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.get_with(&key, |v| v.clone()), Some("v99".into()));
+    }
+
+    #[test]
+    fn empty_key_works() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("".into(), 1);
+        assert_eq!(map.get_with(&"".into(), |v| *v), Some(1));
+        let tx = map
+            .transaction()
+            .modify_or_default("".into(), |_k, v| *v += 1)
+            .get("".into(), |_k, v| *v)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(Some(2)));
+    }
+
+    #[test]
+    fn transaction_on_empty_map() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let result = map
+            .transaction()
+            .modify_or_default("k".into(), |_k, v| *v = 42)
+            .get("k".into(), |_k, v| *v)
+            .into_transaction()
+            .execute();
+        assert_eq!(result, TxResult::Completed(Some(42)));
+    }
+
+    #[test]
+    fn guard_with_same_key_multiple_times() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 5);
+        // Duplicate the key in the guard array
+        let result = map
+            .transaction()
+            .require("both refer to a", ["a".into(), "a".into()], |[v1, v2]| {
+                v1 == v2 && v1.is_some_and(|x| *x == 5)
+            })
+            .modify_or_default("a".into(), |_k, v| *v += 0)
+            .into_transaction()
+            .execute();
+        assert_eq!(result, TxResult::Completed(()));
+    }
+
+    #[test]
+    fn multiple_guards_all_fail_one() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        map.insert("b".into(), 2);
+        // First a requirement, then a guard-based requirement
+        let result = map
+            .transaction()
+            .require("a > 0", ["a".into()], |[v]| v.is_some_and(|x| *x > 0))
+            .require("b > 10", ["b".into()], |[v]| v.is_some_and(|x| *x > 10))
+            .modify_or_default("a".into(), |_k, v| *v += 0)
+            .into_transaction()
+            .execute();
+        assert!(matches!(result, TxResult::RequirementNotMet(1, _)));
+    }
+
+    #[test]
+    fn mixed_ops_in_one_transaction() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .modify_or_default("a".into(), |_k, v| *v = 10)
+            .modify_or_default("b".into(), |_k, v| *v = 20)
+            .map("c".into(), |_k, _v| Some(30))
+            .get_all(["a".into(), "b".into(), "c".into()], |_k, v| *v)
+            .into_transaction();
+        assert_eq!(
+            tx.execute(),
+            TxResult::Completed(vec![Some(10), Some(20), Some(30)])
+        );
+    }
+
+    #[test]
+    fn chain_many_ops() {
+        let map: TxMap<u64, u64> = TxMap::new(ShardCount::_8);
+        // Build transaction with multiple ops chained manually
+        let tx = map
+            .transaction()
+            .insert_default(0)
+            .insert_default(1)
+            .insert_default(2)
+            .insert_default(3)
+            .insert_default(4)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.len(), 5);
+    }
+
+    #[test]
+    fn chain_many_ops_with_params() {
+        let map: TxMap<u64, u64> = TxMap::new(ShardCount::_8);
+        // Use a single transaction that modifies via with_param
+        let tx = map
+            .transaction()
+            .with_param::<Vec<u64>>()
+            .modify_or_default(0, |_k, v, p| *v = p[0])
+            .modify_or_default(1, |_k, v, p| *v = p[1])
+            .get_all([0, 1], |_k, v| *v)
+            .into_transaction();
+        let result = tx.execute(&vec![99, 99]);
+        assert_eq!(result, TxResult::Completed(vec![Some(99), Some(99)]));
+    }
+
+    #[test]
+    fn clear_then_reinsert() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        map.clear();
+        assert!(map.is_empty());
+        map.insert("a".into(), 2);
+        assert_eq!(map.get_with(&"a".into(), |v| *v), Some(2));
+    }
+
+    #[test]
+    fn remove_if_empty_map() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .remove_if(|_k, _v| true)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+    }
+
+    #[test]
+    fn retain_all_on_empty_map() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map.transaction().retain(|_k, _v| false).into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+    }
+
+    #[test]
+    fn huge_string_keys() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let big_key = "x".repeat(10_000);
+        map.insert(big_key.clone(), 42);
+        assert_eq!(map.get_with(&big_key, |v| *v), Some(42));
+    }
+
+    #[test]
+    fn swap_value_same_key() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 7);
+        let tx = map
+            .transaction()
+            .swap_value("k".into(), "k".into())
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(7));
+    }
+
+    #[test]
+    fn move_value_to_self() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 7);
+        let tx = map
+            .transaction()
+            .move_value("k".into(), "k".into())
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(7));
+    }
+
+    #[test]
+    fn modify_peek_with_empty_peek_keys() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 10);
+        let tx = map
+            .transaction()
+            .modify_peek("k".into(), [], |_k, v, []: [Option<&u64>; 0]| *v = 99)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(99));
+    }
+
+    #[test]
+    fn param_modify_peek() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 10);
+        map.insert("p".into(), 5);
+        let tx = map
+            .transaction()
+            .with_param::<u64>()
+            .modify_peek("k".into(), ["p".into()], |_k, v, [p], mult| {
+                *v = p.copied().unwrap_or(0) * mult
+            })
+            .get("k".into(), |_k, v| *v)
+            .into_transaction();
+        assert_eq!(tx.execute(&3), TxResult::Completed(Some(15)));
+    }
+
+    #[test]
+    fn param_modify_or_insert_with() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .with_param::<u64>()
+            .modify_or_insert_with("k".into(), |_k, v, p| *v += p, |_k, p| *p)
+            .get("k".into(), |_k, v| *v)
+            .into_transaction();
+        assert_eq!(tx.execute(&10), TxResult::Completed(Some(10)));
+        assert_eq!(tx.execute(&5), TxResult::Completed(Some(15)));
+    }
+
+    #[test]
+    fn param_swap_value() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        map.insert("b".into(), 2);
+        let tx = map
+            .transaction()
+            .with_param::<()>()
+            .swap_value("a".into(), "b".into())
+            .into_transaction();
+        assert_eq!(tx.execute(&()), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"a".into(), |v| *v), Some(2));
+        assert_eq!(map.get_with(&"b".into(), |v| *v), Some(1));
+    }
+
+    #[test]
+    fn param_move_value() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 42);
+        let tx = map
+            .transaction()
+            .with_param::<()>()
+            .move_value("a".into(), "b".into())
+            .into_transaction();
+        assert_eq!(tx.execute(&()), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"b".into(), |v| *v), Some(42));
+        assert_eq!(map.get_with(&"a".into(), |v| *v), None);
+    }
+
+    #[test]
+    fn param_clear() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        let tx = map
+            .transaction()
+            .with_param::<()>()
+            .clear()
+            .into_transaction();
+        assert_eq!(tx.execute(&()), TxResult::Completed(()));
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn param_remove() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        map.insert("b".into(), 2);
+        let tx = map
+            .transaction()
+            .with_param::<()>()
+            .remove(["a".into()])
+            .into_transaction();
+        assert_eq!(tx.execute(&()), TxResult::Completed(()));
+        assert_eq!(map.len(), 1);
+    }
+
+    #[test]
+    fn param_retain_only() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 1);
+        map.insert("b".into(), 2);
+        let tx = map
+            .transaction()
+            .with_param::<()>()
+            .retain_only(["a".into()])
+            .into_transaction();
+        assert_eq!(tx.execute(&()), TxResult::Completed(()));
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.get_with(&"a".into(), |v| *v), Some(1));
+    }
+
+    #[test]
+    fn param_get_all() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("a".into(), 10);
+        let tx = map
+            .transaction()
+            .with_param::<()>()
+            .modify_or_default("a".into(), |_k, v, _p| *v += 0)
+            .modify_or_default("b".into(), |_k, v, _p| *v += 0)
+            .get_all(["a".into(), "b".into()], |_k, v| *v)
+            .into_transaction();
+        assert_eq!(
+            tx.execute(&()),
+            TxResult::Completed(vec![Some(10), Some(0)])
+        );
+    }
+
+    #[test]
+    fn param_insert_default() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .with_param::<()>()
+            .insert_default("k".into())
+            .into_transaction();
+        assert_eq!(tx.execute(&()), TxResult::Completed(()));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(0));
+    }
+
+    #[test]
+    fn param_modify_or_default() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .with_param::<u64>()
+            .modify_or_default("k".into(), |_k, v, p| *v += p)
+            .get("k".into(), |_k, v| *v)
+            .into_transaction();
+        assert_eq!(tx.execute(&5), TxResult::Completed(Some(5)));
+        assert_eq!(tx.execute(&3), TxResult::Completed(Some(8)));
+    }
+
+    #[test]
+    fn param_modify_peek_or_default() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("p".into(), 100);
+        let tx = map
+            .transaction()
+            .with_param::<u64>()
+            .modify_peek_or_default("k".into(), ["p".into()], |_k, v, [p], mult| {
+                *v = p.copied().unwrap_or(0) * mult;
+            })
+            .get("k".into(), |_k, v| *v)
+            .into_transaction();
+        assert_eq!(tx.execute(&3), TxResult::Completed(Some(300)));
+    }
+
+    #[test]
+    fn param_modify_peek_or_insert_with() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let tx = map
+            .transaction()
+            .with_param::<u64>()
+            .modify_peek_or_insert_with(
+                "k".into(),
+                [],
+                |_k, v, []: [Option<&u64>; 0], p| *v = *p,
+                |_k, p| *p,
+            )
+            .get("k".into(), |_k, v| *v)
+            .into_transaction();
+        assert_eq!(tx.execute(&42), TxResult::Completed(Some(42)));
+    }
+
+    #[test]
+    fn param_map_peek() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), 10);
+        map.insert("p".into(), 5);
+        let tx = map
+            .transaction()
+            .with_param::<u64>()
+            .map_peek(
+                "k".into(),
+                |_k, v, [p], mult| v.map(|x| (x + p.unwrap_or(&0)) * mult),
+                ["p".into()],
+            )
+            .get("k".into(), |_k, v| *v)
+            .into_transaction();
+        assert_eq!(tx.execute(&2), TxResult::Completed(Some(30)));
+    }
+
+    // ── Guard condition tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn guard_checks_empty_values_correctly() {
+        let map: TxMap<String, Option<u64>> = TxMap::new(ShardCount::_8);
+        map.insert("k".into(), Some(10));
+        let tx = map
+            .transaction()
+            .require("value is some", ["k".into()], |[v]| v.is_some())
+            .modify_or_default("k".into(), |_k, v| *v = v.take())
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+    }
+
+    #[test]
+    fn guard_with_all_keys_same_shard() {
+        let map: TxMap<u64, u64> = TxMap::new(ShardCount::_8);
+        map.insert(0, 10);
+        map.insert(8, 20);
+        let tx = map
+            .transaction()
+            .require("sum", [0, 8], |[a, b]| {
+                a.copied().unwrap_or(0) + b.copied().unwrap_or(0) == 30
+            })
+            .modify_or_default(0, |_k, v| *v += 0)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(()));
+    }
+
+    // This test checks that a single require at the start with a modify + get works correctly
+    #[test]
+    fn require_with_modify_and_get() {
+        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        map.insert("balance".into(), 100);
+        let tx = map
+            .transaction()
+            .require("balance >= 50", ["balance".into()], |[v]| {
+                v.copied().unwrap_or(0) >= 50
+            })
+            .modify("balance".into(), |_k, v| *v -= 30)
+            .get("balance".into(), |_k, v| *v)
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(Some(70)));
+    }
+
+    // ── Error constant tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn error_constants_are_defined() {
+        assert!(!MISSING_MUTEX_GUARD_ERROR.is_empty());
+        assert!(!INCORRECT_GUARD_VALUES_LENGTH.is_empty());
+        assert!(!INCORRECT_PEEK_VALUES_LENGTH.is_empty());
+    }
+
+    #[test]
+    fn display_tx_result() {
+        let completed: TxResult<i32> = TxResult::Completed(42);
+        let display = format!("{completed}");
+        assert!(display.contains("42"), "display string should contain 42");
     }
 }
