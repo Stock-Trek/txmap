@@ -84,28 +84,24 @@ use txmap::prelude::*;
 
 let db: TxMap<String, u64> = TxMap::new(ShardCount::_8);
 db.insert("alice".to_string(), 100);
+db.insert("bob".to_string(), 0);
 
 let tx = db
     .transaction()
     .require(
         "Alice has sufficient funds",
         ["alice".to_string()],
-        |[alice_balance]| alice_balance.is_some_and(|b| *b >= 50),
+        |[alice_balance]| alice_balance.is_some_and(|b| *b >= 250),
     )
     .modify("alice".to_string(), |_name, balance| {
-        *balance -= 50;
+        *balance -= 250;
     })
     .modify("bob".to_string(), |_name, balance| {
-        *balance += 50;
+        *balance += 250;
     })
     .into_transaction();
 
-match tx.execute() {
-    TxResult::Completed(()) => println!("Transfer succeeded"),
-    TxResult::RequirementNotMet(_, name) => {
-        println!("Transaction rejected: {name}")
-    }
-}
+assert!(matches!(tx.execute(), TxResult::RequirementNotMet(0, _)));
 ```
 
 #### Transaction returning a value
