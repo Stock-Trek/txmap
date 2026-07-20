@@ -57,17 +57,17 @@ jobs:
           cargo clippy
           cargo test
 
-      # - name: Get version, check if tag exists, create and publish if not
-      #   run: |
-      #     VERSION=$(cargo pkgid | rev | cut -d '@' -f 1 | cut -d '#' -f 1 | rev)
-      #     TAG="v${VERSION}"
-      #     if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "refs/tags/${TAG}"; then
-      #       echo "Tag ${TAG} already exists"
-      #     else
-      #       cargo publish --registry shipyard
-      #       echo "Creating tag ${TAG}"
-      #       git config user.name "github-actions[bot]"
-      #       git config user.email 'CreateTags[bot]@users.noreply.github.com'
-      #       git tag "${TAG}"
-      #       git push origin "${TAG}"
-      #     fi
+      - name: Get version, check if tag exists, create and publish if not
+        run: |
+          VERSION=$(cargo pkgid | rev | cut -d '@' -f 1 | cut -d '#' -f 1 | rev)
+          TAG="v${VERSION}"
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "refs/tags/${TAG}"; then
+            echo "Tag ${TAG} already exists"
+          else
+            cargo publish
+            echo "Creating tag ${TAG}"
+            git config user.name "github-actions[bot]"
+            git config user.email 'CreateTags[bot]@users.noreply.github.com'
+            git tag "${TAG}"
+            git push origin "${TAG}"
+          fi
