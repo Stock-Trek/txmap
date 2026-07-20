@@ -45,7 +45,7 @@ Larger shard counts reduce lock contention at the cost of slightly more memory. 
 ### Key type requirements
 
 The map key type `K` must implement `Hash` and `Eq`. Some functions also require `Clone`.
-The value type `V` has no trait bounds by default. Operations that create default values (e.g., `modify_or_default`) require `V: Default`.
+The value type `V` has no trait bounds by default. Operations that create default values (e.g., `insert_default`) require `V: Default`.
 
 ### Basic operations
 
@@ -101,7 +101,7 @@ db.transaction()
     .modify("alice".to_string(), |_name, balance| {
         *balance -= 50;
     })
-    .modify_or_default("bob".to_string(), |_name, balance| {
+    .modify("bob".to_string(), |_name, balance| {
         *balance += 50;
     })
     .into_transaction()
@@ -131,7 +131,7 @@ let tx = db
     .modify("alice".to_string(), |_name, balance| {
         *balance -= 50;
     })
-    .modify_or_default("bob".to_string(), |_name, balance| {
+    .modify("bob".to_string(), |_name, balance| {
         *balance += 50;
     })
     .into_transaction();
@@ -172,11 +172,11 @@ assert_eq!(new_balance, TxResult::Completed(Some(150)));
 use txmap::prelude::*;
 
 let db: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-db.insert("alice".to_string(), 100);
-db.insert("bob".to_string(), 200);
 
 let balances = db
     .transaction()
+    .insert_with_if_absent("alice".to_string(), |_k| 100)
+    .insert_with_if_absent("bob".to_string(), |_k| 200)
     .get_all(
         vec!["alice".to_string(), "bob".to_string()],
         |_name, balance| *balance,
@@ -213,7 +213,7 @@ let transfer_alice_to_bob_tx = db
     .modify("alice".to_string(), |_name, balance, params| {
         *balance -= params.amount;
     })
-    .modify_or_default("bob".to_string(), |_name, balance, params| {
+    .modify("bob".to_string(), |_name, balance, params| {
         *balance += params.amount;
     })
     .get_all(["alice".to_string(), "bob".to_string()], |_name, balance| *balance)
@@ -221,10 +221,10 @@ let transfer_alice_to_bob_tx = db
 
 // Execute with different parameters
 let result1 = transfer_alice_to_bob_tx.execute(&Transfer { amount: 50 });
-assert_eq!(result1, TxResult::Completed([Some(150), Some(50)]));
+assert_eq!(result1, TxResult::Completed(vec![Some(150), Some(50)]));
 
 let result2 = transfer_alice_to_bob_tx.execute(&Transfer { amount: 30 });
-assert_eq!(result2, TxResult::Completed([Some(120), Some(80)]));
+assert_eq!(result2, TxResult::Completed(vec![Some(120), Some(80)]));
 ```
 
 ### Finite state machine example
@@ -234,7 +234,7 @@ Use `update` to implement state transitions that return `Some(new_state)` to upd
 ```rust
 use txmap::prelude::*;
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 enum OrderState { Pending, Shipped, Delivered }
 
 let orders: TxMap<String, OrderState> = TxMap::new(ShardCount::_8);
