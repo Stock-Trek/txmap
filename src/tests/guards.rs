@@ -3,8 +3,8 @@ mod tests {
     use crate::{
         prelude::*,
         tests::{
-            creators::creators::{empty_map, empty_typed_map, map_alice, map_alice_bob},
-            data::data::{ALICE, BOB},
+            creators::{empty_map, empty_typed_map, map_alice, map_alice_bob},
+            data::{ALICE, BOB},
         },
     };
 
@@ -62,8 +62,8 @@ mod tests {
         let tx = map
             .transaction()
             .require("sum", keys, |values| {
-                for i in 0..100 {
-                    if values[i].is_none_or(|v| *v != i as u64) {
+                for (i, value) in values.iter().enumerate() {
+                    if value.is_none_or(|v| *v != i as u64) {
                         return false;
                     }
                 }

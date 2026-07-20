@@ -3,8 +3,8 @@ mod tests {
     use crate::{
         prelude::*,
         tests::{
-            creators::creators::empty_typed_map,
-            types::types::{Funds, Transfer, User},
+            creators::empty_typed_map,
+            types::{Funds, Transfer, User},
         },
     };
 

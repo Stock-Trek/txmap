@@ -4,8 +4,8 @@ mod tests {
         builders::builder_traits::{IntoTransaction, TxOpBuilder, TxResultBuilder},
         result::TxResult,
         tests::{
-            creators::creators::{empty_map, empty_typed_map, map_alice},
-            data::data::ALICE,
+            creators::{empty_map, empty_typed_map, map_alice},
+            data::ALICE,
         },
     };
 

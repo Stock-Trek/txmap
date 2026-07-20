@@ -3,8 +3,8 @@ mod tests {
     use crate::{
         prelude::*,
         tests::{
-            creators::creators::map_alice_bob_chuck,
-            data::data::{ALICE, BOB, CHUCK},
+            creators::map_alice_bob_chuck,
+            data::{ALICE, BOB, CHUCK},
         },
     };
 

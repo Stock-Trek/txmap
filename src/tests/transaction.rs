@@ -3,9 +3,9 @@ mod tests {
     use crate::{
         prelude::*,
         tests::{
-            creators::creators::{empty_map, empty_typed_map},
-            data::data::{ALICE, BOB, CHUCK},
-            types::types::Counter,
+            creators::{empty_map, empty_typed_map},
+            data::{ALICE, BOB, CHUCK},
+            types::Counter,
         },
     };
 

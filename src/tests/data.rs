@@ -1,7 +1,12 @@
 #[cfg(test)]
-pub(crate) mod data {
-    pub(crate) const ALICE: &str = "Alice";
-    pub(crate) const BOB: &str = "Bob";
-    pub(crate) const CHUCK: &str = "Chuck";
-    pub(crate) const DAVE: &str = "Dave";
-}
+#[allow(dead_code)]
+pub(crate) const ALICE: &str = "Alice";
+#[cfg(test)]
+#[allow(dead_code)]
+pub(crate) const BOB: &str = "Bob";
+#[cfg(test)]
+#[allow(dead_code)]
+pub(crate) const CHUCK: &str = "Chuck";
+#[cfg(test)]
+#[allow(dead_code)]
+pub(crate) const DAVE: &str = "Dave";
