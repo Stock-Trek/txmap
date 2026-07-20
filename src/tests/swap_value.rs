@@ -29,4 +29,15 @@ mod tests {
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(vec![None, Some(1)]));
     }
+
+    #[test]
+    fn swap_value_same_key() {
+        let map = map_alice(7);
+        let tx = map
+            .transaction()
+            .swap_value(ALICE.into(), ALICE.into())
+            .get_copied(ALICE.into())
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(Some(7)));
+    }
 }

@@ -3,7 +3,7 @@ mod tests {
     use crate::{
         prelude::*,
         tests::{
-            creators::creators::{empty_typed_map, map_alice},
+            creators::creators::{empty_map, empty_typed_map, map_alice, map_alice_bob},
             data::data::{ALICE, BOB},
         },
     };
@@ -57,8 +57,7 @@ mod tests {
 
     #[test]
     fn param_map_op() {
-        let map = empty_typed_map::<String, u64>();
-        map.insert(ALICE.into(), 10);
+        let map = map_alice(10);
         let tx = map
             .transaction()
             .with_param::<u64>()
@@ -70,9 +69,7 @@ mod tests {
 
     #[test]
     fn param_remove_where() {
-        let map = empty_typed_map::<String, u64>();
-        map.insert(ALICE.into(), 5);
-        map.insert(BOB.into(), 15);
+        let map = map_alice_bob(5, 15);
         let tx = map
             .transaction()
             .with_param::<u64>()
@@ -87,9 +84,7 @@ mod tests {
 
     #[test]
     fn param_retain_where() {
-        let map = empty_typed_map::<String, u64>();
-        map.insert(ALICE.into(), 5);
-        map.insert(BOB.into(), 15);
+        let map = map_alice_bob(5, 15);
         let tx = map
             .transaction()
             .with_param::<u64>()
@@ -104,9 +99,7 @@ mod tests {
 
     #[test]
     fn param_modify_peek() {
-        let map = empty_typed_map::<String, u64>();
-        map.insert(ALICE.into(), 10);
-        map.insert(BOB.into(), 5);
+        let map = map_alice_bob(10, 5);
         let tx = map
             .transaction()
             .with_param::<u64>()
@@ -120,9 +113,7 @@ mod tests {
 
     #[test]
     fn param_swap_value() {
-        let map = empty_typed_map::<String, u64>();
-        map.insert(ALICE.into(), 1);
-        map.insert(BOB.into(), 2);
+        let map = map_alice_bob(1, 2);
         let tx = map
             .transaction()
             .with_param::<()>()
@@ -134,8 +125,7 @@ mod tests {
 
     #[test]
     fn param_move_value() {
-        let map = empty_typed_map::<String, u64>();
-        map.insert(ALICE.into(), 42);
+        let map = map_alice(42);
         let tx = map
             .transaction()
             .with_param::<()>()
@@ -147,8 +137,7 @@ mod tests {
 
     #[test]
     fn param_get_all() {
-        let map = empty_typed_map::<String, u64>();
-        map.insert(ALICE.into(), 10);
+        let map = map_alice(10);
         let tx = map
             .transaction()
             .with_param::<()>()
@@ -161,7 +150,7 @@ mod tests {
 
     #[test]
     fn param_insert_default() {
-        let map = empty_typed_map::<String, u64>();
+        let map = empty_map();
         let tx = map
             .transaction()
             .with_param::<()>()
@@ -173,9 +162,7 @@ mod tests {
 
     #[test]
     fn param_update_peek() {
-        let map = empty_typed_map::<String, u64>();
-        map.insert(ALICE.into(), 10);
-        map.insert(BOB.into(), 5);
+        let map = map_alice_bob(10, 5);
         let tx = map
             .transaction()
             .with_param::<u64>()

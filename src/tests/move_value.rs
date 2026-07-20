@@ -3,7 +3,7 @@ mod tests {
     use crate::{
         prelude::*,
         tests::{
-            creators::creators::{map_alice, map_alice_bob},
+            creators::creators::{empty_map, map_alice, map_alice_bob},
             data::data::{ALICE, BOB},
         },
     };
@@ -39,5 +39,17 @@ mod tests {
             .get_all_copied([BOB.into(), ALICE.into()])
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(vec![None, None]));
+    }
+
+    #[test]
+    fn move_value_to_self() {
+        let map = empty_map();
+        map.insert(ALICE.into(), 7);
+        let tx = map
+            .transaction()
+            .move_value(ALICE.into(), ALICE.into())
+            .get_copied(ALICE.into())
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(Some(7)));
     }
 }

@@ -2,12 +2,15 @@
 mod tests {
     use crate::{
         prelude::*,
-        tests::types::types::{Funds, Transfer, User},
+        tests::{
+            creators::creators::empty_typed_map,
+            types::types::{Funds, Transfer, User},
+        },
     };
 
     #[test]
     fn transfer() {
-        let db: TxMap<User, Funds> = crate::tests::creators::creators::empty_typed_map();
+        let db: TxMap<User, Funds> = empty_typed_map();
         let bob = User {
             first_name: "Bob".into(),
             last_name: "Bobson".into(),

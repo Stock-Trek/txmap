@@ -3,7 +3,10 @@ mod tests {
     use crate::{
         builders::builder_traits::{IntoTransaction, TxOpBuilder, TxResultBuilder},
         result::TxResult,
-        tests::{creators::creators::map_alice, data::data::ALICE},
+        tests::{
+            creators::creators::{map_alice, map_alice_bob},
+            data::data::{ALICE, BOB},
+        },
     };
 
     #[test]
@@ -37,5 +40,20 @@ mod tests {
             .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(2)));
+    }
+
+    #[test]
+    fn update_peek_modifies_based_on_peek() {
+        let map = map_alice_bob(10, 5);
+        let tx = map
+            .transaction()
+            .update_peek(
+                ALICE.into(),
+                |_k, v, [p]| v.map(|x| x + p.unwrap_or(&0)),
+                [BOB.into()],
+            )
+            .get_copied(ALICE.into())
+            .into_transaction();
+        assert_eq!(tx.execute(), TxResult::Completed(Some(15)));
     }
 }
