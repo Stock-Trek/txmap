@@ -69,6 +69,24 @@ where
         };
         builder.insert_default(key)
     }
+    fn insert_default_if_absent(self, key: K) -> impl TxParamBuildable<'txmap, K, V, P>
+    where
+        K: Clone,
+        V: Default,
+    {
+        let Self {
+            indexer,
+            custodian,
+            guards,
+        } = self;
+        let builder = TxParamBuildableImpl {
+            indexer,
+            custodian,
+            guards,
+            ops: Vec::new(),
+        };
+        builder.insert_default_if_absent(key)
+    }
     fn insert_with<G>(self, key: K, value_generator: G) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         G: Fn(&K, &P) -> V + 'static,
@@ -86,6 +104,28 @@ where
             ops: Vec::new(),
         };
         builder.insert_with(key, value_generator)
+    }
+    fn insert_with_if_absent<G>(
+        self,
+        key: K,
+        value_generator: G,
+    ) -> impl TxParamBuildable<'txmap, K, V, P>
+    where
+        G: Fn(&K, &P) -> V + 'static,
+        K: Clone,
+    {
+        let Self {
+            indexer,
+            custodian,
+            guards,
+        } = self;
+        let builder = TxParamBuildableImpl {
+            indexer,
+            custodian,
+            guards,
+            ops: Vec::new(),
+        };
+        builder.insert_with_if_absent(key, value_generator)
     }
     fn modify<M>(self, key: K, mutate: M) -> impl TxParamBuildable<'txmap, K, V, P>
     where
@@ -126,98 +166,6 @@ where
             ops: Vec::new(),
         };
         builder.modify_peek(key, peek_keys, mutate)
-    }
-    fn modify_or_insert_with<M, G>(
-        self,
-        key: K,
-        mutate: M,
-        value_generator: G,
-    ) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        M: Fn(&K, &mut V, &P) + 'static,
-        G: Fn(&K, &P) -> V + 'static,
-        K: Clone,
-    {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
-        let builder = TxParamBuildableImpl {
-            indexer,
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.modify_or_insert_with(key, mutate, value_generator)
-    }
-    fn modify_peek_or_insert_with<const N: usize, M, G>(
-        self,
-        key: K,
-        peek_keys: [K; N],
-        mutate: M,
-        value_generator: G,
-    ) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
-        G: Fn(&K, &P) -> V + 'static,
-        K: Clone,
-    {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
-        let builder = TxParamBuildableImpl {
-            indexer,
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.modify_peek_or_insert_with(key, peek_keys, mutate, value_generator)
-    }
-    fn modify_or_default<M>(self, key: K, mutate: M) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        M: Fn(&K, &mut V, &P) + 'static,
-        K: Clone,
-        V: Default,
-    {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
-        let builder = TxParamBuildableImpl {
-            indexer,
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.modify_or_default(key, mutate)
-    }
-    fn modify_peek_or_default<const N: usize, M>(
-        self,
-        key: K,
-        peek_keys: [K; N],
-        mutate: M,
-    ) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
-        K: Clone,
-        V: Default,
-    {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
-        let builder = TxParamBuildableImpl {
-            indexer,
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.modify_peek_or_default(key, peek_keys, mutate)
     }
     fn update<T>(self, key: K, transform: T) -> impl TxParamBuildable<'txmap, K, V, P>
     where

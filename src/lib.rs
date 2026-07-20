@@ -7,6 +7,7 @@ pub mod indexer;
 pub mod ops;
 pub mod result;
 pub mod shard_count;
+pub mod tests;
 pub mod transaction;
 pub mod tx_map;
 

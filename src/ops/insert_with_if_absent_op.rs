@@ -4,23 +4,20 @@ use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct ModifyOrInsertWithOp<K, V, P = ()> {
+pub(crate) struct InsertWithIfAbsentOp<K, V, P = ()> {
     guards_bitmask: u128,
     key_index: u8,
     key: K,
     #[allow(clippy::type_complexity)]
-    mutate: Box<dyn Fn(&K, &mut V, &P)>,
-    #[allow(clippy::type_complexity)]
     value_generator: Box<dyn Fn(&K, &P) -> V>,
 }
 
-impl<K, V, P> ModifyOrInsertWithOp<K, V, P>
+impl<K, V, P> InsertWithIfAbsentOp<K, V, P>
 where
     K: Hash,
 {
-    pub fn new_with_params<M, G>(indexer: &Indexer, key: K, mutate: M, value_generator: G) -> Self
+    pub fn new_with_params<G>(indexer: &Indexer, key: K, value_generator: G) -> Self
     where
-        M: Fn(&K, &mut V, &P) + 'static,
         G: Fn(&K, &P) -> V + 'static,
     {
         let key_index = indexer.index(&key);
@@ -28,31 +25,24 @@ where
             guards_bitmask: 1 << key_index,
             key_index,
             key,
-            mutate: Box::new(mutate),
             value_generator: Box::new(value_generator),
         }
     }
 }
 
-impl<K, V> ModifyOrInsertWithOp<K, V, ()>
+impl<K, V> InsertWithIfAbsentOp<K, V, ()>
 where
     K: Hash,
 {
-    pub fn new<M, G>(indexer: &Indexer, key: K, mutate: M, value_generator: G) -> Self
+    pub fn new<G>(indexer: &Indexer, key: K, value_generator: G) -> Self
     where
-        M: Fn(&K, &mut V) + 'static,
         G: Fn(&K) -> V + 'static,
     {
-        Self::new_with_params(
-            indexer,
-            key,
-            move |k, v, _| mutate(k, v),
-            move |k, _| value_generator(k),
-        )
+        Self::new_with_params(indexer, key, move |k, _| value_generator(k))
     }
 }
 
-impl<K, V, P> OpTrait<K, V, P> for ModifyOrInsertWithOp<K, V, P>
+impl<K, V, P> OpTrait<K, V, P> for InsertWithIfAbsentOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
@@ -63,11 +53,8 @@ where
         let mutex_guard = mutex_guards
             .get_mut(self.key_index)
             .expect(MISSING_MUTEX_GUARD_ERROR);
-        if let Some((key, value)) = mutex_guard.get_key_value_mut(&self.key) {
-            (self.mutate)(key, value, params);
-        } else {
-            let new_value = (self.value_generator)(&self.key, params);
-            mutex_guard.insert(self.key.clone(), new_value);
-        }
+        mutex_guard
+            .entry(self.key.clone())
+            .or_insert_with(|| (self.value_generator)(&self.key, params));
     }
 }

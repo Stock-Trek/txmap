@@ -85,7 +85,15 @@ where
     where
         K: Clone,
         V: Default;
+    fn insert_default_if_absent(self, key: K) -> impl TxBuildable<'txmap, K, V>
+    where
+        K: Clone,
+        V: Default;
     fn insert_with<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
+    where
+        G: Fn(&K) -> V + 'static,
+        K: Clone;
+    fn insert_with_if_absent<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
     where
         G: Fn(&K) -> V + 'static,
         K: Clone;
@@ -101,42 +109,6 @@ where
     where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
         K: Clone;
-    fn modify_or_insert_with<M, G>(
-        self,
-        key: K,
-        mutate: M,
-        value_generator: G,
-    ) -> impl TxBuildable<'txmap, K, V>
-    where
-        M: Fn(&K, &mut V) + 'static,
-        G: Fn(&K) -> V + 'static,
-        K: Clone;
-    fn modify_peek_or_insert_with<const N: usize, M, G>(
-        self,
-        key: K,
-        peek_keys: [K; N],
-        mutate: M,
-        value_generator: G,
-    ) -> impl TxBuildable<'txmap, K, V>
-    where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
-        G: Fn(&K) -> V + 'static,
-        K: Clone;
-    fn modify_or_default<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
-    where
-        M: Fn(&K, &mut V) + 'static,
-        K: Clone,
-        V: Default;
-    fn modify_peek_or_default<const N: usize, M>(
-        self,
-        key: K,
-        peek_keys: [K; N],
-        mutate: M,
-    ) -> impl TxBuildable<'txmap, K, V>
-    where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
-        K: Clone,
-        V: Default;
     fn update<T>(self, key: K, transform: T) -> impl TxBuildable<'txmap, K, V>
     where
         T: Fn(&K, Option<&V>) -> Option<V> + 'static,
@@ -190,14 +162,26 @@ where
     K: Hash + Eq,
 {
     // single key ops
-    fn insert_with<G>(self, key: K, value_generator: G) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        G: Fn(&K, &P) -> V + 'static,
-        K: Clone;
     fn insert_default(self, key: K) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         K: Clone,
         V: Default;
+    fn insert_default_if_absent(self, key: K) -> impl TxParamBuildable<'txmap, K, V, P>
+    where
+        K: Clone,
+        V: Default;
+    fn insert_with<G>(self, key: K, value_generator: G) -> impl TxParamBuildable<'txmap, K, V, P>
+    where
+        G: Fn(&K, &P) -> V + 'static,
+        K: Clone;
+    fn insert_with_if_absent<G>(
+        self,
+        key: K,
+        value_generator: G,
+    ) -> impl TxParamBuildable<'txmap, K, V, P>
+    where
+        G: Fn(&K, &P) -> V + 'static,
+        K: Clone;
     fn modify<M>(self, key: K, mutate: M) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         M: Fn(&K, &mut V, &P) + 'static;
@@ -210,42 +194,6 @@ where
     where
         M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
         K: Clone;
-    fn modify_or_insert_with<M, G>(
-        self,
-        key: K,
-        mutate: M,
-        value_generator: G,
-    ) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        M: Fn(&K, &mut V, &P) + 'static,
-        G: Fn(&K, &P) -> V + 'static,
-        K: Clone;
-    fn modify_peek_or_insert_with<const N: usize, M, G>(
-        self,
-        key: K,
-        peek_keys: [K; N],
-        mutate: M,
-        value_generator: G,
-    ) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
-        G: Fn(&K, &P) -> V + 'static,
-        K: Clone;
-    fn modify_or_default<M>(self, key: K, mutate: M) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        M: Fn(&K, &mut V, &P) + 'static,
-        K: Clone,
-        V: Default;
-    fn modify_peek_or_default<const N: usize, M>(
-        self,
-        key: K,
-        peek_keys: [K; N],
-        mutate: M,
-    ) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
-        K: Clone,
-        V: Default;
     fn update<T>(self, key: K, transform: T) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         T: Fn(&K, Option<&V>, &P) -> Option<V> + 'static,
@@ -261,10 +209,10 @@ where
         K: Clone;
 
     // multi key ops
-    fn swap_value(self, a: K, b: K) -> impl TxParamBuildable<'txmap, K, V, P>
+    fn move_value(self, from: K, to: K) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         K: Clone;
-    fn move_value(self, from: K, to: K) -> impl TxParamBuildable<'txmap, K, V, P>
+    fn swap_value(self, a: K, b: K) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         K: Clone;
 

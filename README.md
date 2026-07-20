@@ -220,13 +220,11 @@ assert_eq!(result2, TxResult::Completed([Some(120), Some(80)]));
 | Builder method               | Description                                                                       | Additional required bounds |
 |------------------------------|-----------------------------------------------------------------------------------|----------------------------|
 | `insert_default`             | Insert `V::default()` for the key.                                                | `K: Clone` `V: Default`    |
-| `insert_with`                | Insert a value, generated from the key.                                           | `K: Clone`                 |
+| `insert_default_if_absent`   | Insert `V::default()` for the key, only if the key is absent.                     | `K: Clone` `V: Default`    |
+| `insert_with`                | Insert a value generated from the key.                                            | `K: Clone`                 |
+| `insert_with_if_absent`      | Insert a value generated from the key, only if the key is absent.                 | `K: Clone`                 |
 | `modify`                     | Mutate an existing value in-place. Does nothing if key absent.                    | `V: Default`               |
 | `modify_peek`                | Like `modify` while peeking at other values.                                      | `K: Clone`                 |
-| `modify_or_insert_with`      | Finds the value or creates one via a generator if key absent, then mutates it.    | `K: Clone`                 |
-| `modify_peek_or_insert_with` | Like `modify_or_insert_with` while peeking at other values.                       | `K: Clone`                 |
-| `modify_or_default`          | Finds the value or creates one via `V::default()` if key absent, then mutates it. | `K: Clone` `V: Default`    |
-| `modify_peek_or_default`     | Like `modify_or_default` while peeking at other values.                           | `K: Clone` `V: Default`    |
 | `update`                     | Update a single entry. Return `Some(v)` to insert/replace, `None` to delete.      | `K: Clone`                 |
 | `update_peek`                | Like `update` while peeking at other values.                                      | `K: Clone`                 |
 |                              |                                                                                   |                            |
@@ -273,13 +271,11 @@ pub enum TxResult<T> {
 | Operation                                                                                      |
 |------------------------------------------------------------------------------------------------|
 | `insert_default(key)`                                                                          |
+| `insert_default_if_absent(key)`                                                                |
 | `insert_with(key, \|k[, params]\| { new_value } )`                                             |
+| `insert_with_if_absent(key, \|k[, params]\| { new_value } )`                                   |
 | `modify(key, \|k, mut v[, params]\|)`                                                          |
 | `modify_peek(key, peek_keys, \|k, mut v, pks[, params]\|)`                                     |
-| `modify_or_insert_with(key, \|k, mut v[, params]\|, \|k\| { new_value })`                      |
-| `modify_peek_or_insert_with(key, peek_keys, \|k, mut v, pks[, params]\|, \|k\| { new_value })` |
-| `modify_or_default(key, \|k, mut v[, params]\|)`                                               |
-| `modify_peek_or_default(key, peek_keys, \|k, mut v, pks[, params]\|)`                          |
 | `update(key, \|k, v_opt[, params]\| { new_value_opt })`                                        |
 | `update_peek(key, peek_keys, \|k, v_opt, pks[, params]\| { new_value_opt })`                   |
 |                                                                                                |

@@ -86,6 +86,20 @@ where
         };
         builder.insert_default(key)
     }
+    fn insert_default_if_absent(self, key: K) -> impl TxBuildable<'txmap, K, V>
+    where
+        K: Clone,
+        V: Default,
+    {
+        let Self { indexer, custodian } = self;
+        let builder = TxBuildableImpl {
+            indexer,
+            custodian,
+            guards: Vec::new(),
+            ops: Vec::new(),
+        };
+        builder.insert_default_if_absent(key)
+    }
     fn insert_with<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
     where
         G: Fn(&K) -> V + 'static,
@@ -99,6 +113,20 @@ where
             ops: Vec::new(),
         };
         builder.insert_with(key, value_generator)
+    }
+    fn insert_with_if_absent<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
+    where
+        G: Fn(&K) -> V + 'static,
+        K: Clone,
+    {
+        let Self { indexer, custodian } = self;
+        let builder = TxBuildableImpl {
+            indexer,
+            custodian,
+            guards: Vec::new(),
+            ops: Vec::new(),
+        };
+        builder.insert_with_if_absent(key, value_generator)
     }
     fn modify<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
     where
@@ -131,82 +159,6 @@ where
             ops: Vec::new(),
         };
         builder.modify_peek(key, peek_keys, mutate)
-    }
-    fn modify_or_insert_with<M, G>(
-        self,
-        key: K,
-        mutate: M,
-        value_generator: G,
-    ) -> impl TxBuildable<'txmap, K, V>
-    where
-        M: Fn(&K, &mut V) + 'static,
-        G: Fn(&K) -> V + 'static,
-        K: Clone,
-    {
-        let Self { indexer, custodian } = self;
-        let builder = TxBuildableImpl {
-            indexer,
-            custodian,
-            guards: Vec::new(),
-            ops: Vec::new(),
-        };
-        builder.modify_or_insert_with(key, mutate, value_generator)
-    }
-    fn modify_peek_or_insert_with<const N: usize, M, G>(
-        self,
-        key: K,
-        peek_keys: [K; N],
-        mutate: M,
-        value_generator: G,
-    ) -> impl TxBuildable<'txmap, K, V>
-    where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
-        G: Fn(&K) -> V + 'static,
-        K: Clone,
-    {
-        let Self { indexer, custodian } = self;
-        let builder = TxBuildableImpl {
-            indexer,
-            custodian,
-            guards: Vec::new(),
-            ops: Vec::new(),
-        };
-        builder.modify_peek_or_insert_with(key, peek_keys, mutate, value_generator)
-    }
-    fn modify_or_default<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
-    where
-        M: Fn(&K, &mut V) + 'static,
-        K: Clone,
-        V: Default,
-    {
-        let Self { indexer, custodian } = self;
-        let builder = TxBuildableImpl {
-            indexer,
-            custodian,
-            guards: Vec::new(),
-            ops: Vec::new(),
-        };
-        builder.modify_or_default(key, mutate)
-    }
-    fn modify_peek_or_default<const N: usize, M>(
-        self,
-        key: K,
-        peek_keys: [K; N],
-        mutate: M,
-    ) -> impl TxBuildable<'txmap, K, V>
-    where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
-        K: Clone,
-        V: Default,
-    {
-        let Self { indexer, custodian } = self;
-        let builder = TxBuildableImpl {
-            indexer,
-            custodian,
-            guards: Vec::new(),
-            ops: Vec::new(),
-        };
-        builder.modify_peek_or_default(key, peek_keys, mutate)
     }
     fn update<T>(self, key: K, transform: T) -> impl TxBuildable<'txmap, K, V>
     where

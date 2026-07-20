@@ -1,0 +1,43 @@
+use crate::{indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR};
+use hashbrown::HashMap;
+use intmap::IntMap;
+use parking_lot::MutexGuard;
+use std::{hash::Hash, marker::PhantomData};
+
+pub(crate) struct InsertDefaultIfAbsentOp<K, V> {
+    guards_bitmask: u128,
+    key_index: u8,
+    key: K,
+    _phantom: PhantomData<V>,
+}
+
+impl<K, V> InsertDefaultIfAbsentOp<K, V>
+where
+    K: Hash,
+{
+    pub fn new(indexer: &Indexer, key: K) -> Self {
+        let key_index = indexer.index(&key);
+        Self {
+            guards_bitmask: 1 << key_index,
+            key_index,
+            key,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<K, V, P> OpTrait<K, V, P> for InsertDefaultIfAbsentOp<K, V>
+where
+    K: Clone + Hash + Eq,
+    V: Default,
+{
+    fn guards_bitmask(&self) -> u128 {
+        self.guards_bitmask
+    }
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, _: &P) {
+        let mutex_guard = mutex_guards
+            .get_mut(self.key_index)
+            .expect(MISSING_MUTEX_GUARD_ERROR);
+        mutex_guard.entry(self.key.clone()).or_default();
+    }
+}

@@ -11,15 +11,13 @@ use crate::{
     guard::Guard,
     indexer::Indexer,
     ops::{
-        clear_op::ClearOp, insert_default_op::InsertDefaultOp, insert_with_op::InsertWithOp,
-        modify_op::ModifyOp, modify_or_default_op::ModifyOrDefaultOp,
-        modify_or_insert_with_op::ModifyOrInsertWithOp, modify_peek_op::ModifyPeekOp,
-        modify_peek_or_default_op::ModifyPeekOrDefaultOp,
-        modify_peek_or_insert_with_op::ModifyPeekOrInsertWithOp, move_value_op::MoveValueOp,
-        op_trait::OpTrait, remove_if_op::RemoveIfOp, remove_op::RemoveOp,
-        remove_where_op::RemoveWhereOp, retain_only_op::RetainOnlyOp, retain_op::RetainOp,
-        retain_where_op::RetainWhereOp, swap_value_op::SwapValueOp, update_op::UpdateOp,
-        update_peek_op::UpdatePeekOp,
+        clear_op::ClearOp, insert_default_if_absent_op::InsertDefaultIfAbsentOp,
+        insert_default_op::InsertDefaultOp, insert_with_if_absent_op::InsertWithIfAbsentOp,
+        insert_with_op::InsertWithOp, modify_op::ModifyOp, modify_peek_op::ModifyPeekOp,
+        move_value_op::MoveValueOp, op_trait::OpTrait, remove_if_op::RemoveIfOp,
+        remove_op::RemoveOp, remove_where_op::RemoveWhereOp, retain_only_op::RetainOnlyOp,
+        retain_op::RetainOp, retain_where_op::RetainWhereOp, swap_value_op::SwapValueOp,
+        update_op::UpdateOp, update_peek_op::UpdatePeekOp,
     },
     transaction::{Transaction, TransactionBase},
 };
@@ -54,12 +52,34 @@ where
         self.ops.push(Box::new(op));
         self
     }
+    fn insert_default_if_absent(mut self, key: K) -> impl TxBuildable<'txmap, K, V>
+    where
+        K: Clone,
+        V: Default,
+    {
+        let op = InsertDefaultIfAbsentOp::new(&self.indexer, key);
+        self.ops.push(Box::new(op));
+        self
+    }
     fn insert_with<G>(mut self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
     where
         G: Fn(&K) -> V + 'static,
         K: Clone,
     {
         let op = InsertWithOp::new(&self.indexer, key, value_generator);
+        self.ops.push(Box::new(op));
+        self
+    }
+    fn insert_with_if_absent<G>(
+        mut self,
+        key: K,
+        value_generator: G,
+    ) -> impl TxBuildable<'txmap, K, V>
+    where
+        G: Fn(&K) -> V + 'static,
+        K: Clone,
+    {
+        let op = InsertWithIfAbsentOp::new(&self.indexer, key, value_generator);
         self.ops.push(Box::new(op));
         self
     }
@@ -82,63 +102,6 @@ where
         K: Clone,
     {
         let op = ModifyPeekOp::new(&self.indexer, key, peek_keys, mutate);
-        self.ops.push(Box::new(op));
-        self
-    }
-    fn modify_or_insert_with<M, G>(
-        mut self,
-        key: K,
-        mutate: M,
-        value_generator: G,
-    ) -> impl TxBuildable<'txmap, K, V>
-    where
-        M: Fn(&K, &mut V) + 'static,
-        G: Fn(&K) -> V + 'static,
-        K: Clone,
-    {
-        let op = ModifyOrInsertWithOp::new(&self.indexer, key, mutate, value_generator);
-        self.ops.push(Box::new(op));
-        self
-    }
-    fn modify_peek_or_insert_with<const N: usize, M, G>(
-        mut self,
-        key: K,
-        peek_keys: [K; N],
-        mutate: M,
-        value_generator: G,
-    ) -> impl TxBuildable<'txmap, K, V>
-    where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
-        G: Fn(&K) -> V + 'static,
-        K: Clone,
-    {
-        let op =
-            ModifyPeekOrInsertWithOp::new(&self.indexer, key, peek_keys, mutate, value_generator);
-        self.ops.push(Box::new(op));
-        self
-    }
-    fn modify_or_default<M>(mut self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
-    where
-        M: Fn(&K, &mut V) + 'static,
-        K: Clone,
-        V: Default,
-    {
-        let op = ModifyOrDefaultOp::new(&self.indexer, key, mutate);
-        self.ops.push(Box::new(op));
-        self
-    }
-    fn modify_peek_or_default<const N: usize, M>(
-        mut self,
-        key: K,
-        peek_keys: [K; N],
-        mutate: M,
-    ) -> impl TxBuildable<'txmap, K, V>
-    where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
-        K: Clone,
-        V: Default,
-    {
-        let op = ModifyPeekOrDefaultOp::new(&self.indexer, key, peek_keys, mutate);
         self.ops.push(Box::new(op));
         self
     }
