@@ -12,7 +12,7 @@ mod tests {
         let tx = map
             .transaction()
             .update(ALICE.into(), |_k, _v| Some(42))
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(42)));
     }
@@ -23,7 +23,7 @@ mod tests {
         let tx = map
             .transaction()
             .update(ALICE.into(), |_k, _v| None)
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(None));
     }
@@ -34,7 +34,7 @@ mod tests {
         let tx = map
             .transaction()
             .update(ALICE.into(), |_k, v| v.map(|x| x * 2))
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(2)));
     }

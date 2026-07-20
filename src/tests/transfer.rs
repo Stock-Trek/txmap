@@ -7,7 +7,7 @@ mod tests {
 
     #[test]
     fn transfer() {
-        let db: TxMap<User, Funds> = TxMap::new(ShardCount::_8);
+        let db: TxMap<User, Funds> = crate::tests::creators::creators::empty_typed_map();
         let bob = User {
             first_name: "Bob".into(),
             last_name: "Bobson".into(),

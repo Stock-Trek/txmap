@@ -14,7 +14,7 @@ mod tests {
         let tx = map
             .transaction()
             .move_value(ALICE.into(), BOB.into())
-            .get_all([ALICE.into(), BOB.into()], |_k, v| *v)
+            .get_all_copied([ALICE.into(), BOB.into()])
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(vec![None, Some(1)]));
     }
@@ -25,19 +25,19 @@ mod tests {
         let tx = map
             .transaction()
             .move_value(ALICE.into(), BOB.into())
-            .get_all([ALICE.into(), BOB.into()], |_k, v| *v)
+            .get_all_copied([ALICE.into(), BOB.into()])
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(vec![None, Some(1)]));
     }
 
     #[test]
-    fn move_none_removes_existing() {
+    fn move_none_keeps_existing() {
         let map = map_alice(1);
         let tx = map
             .transaction()
             .move_value(BOB.into(), ALICE.into())
             .get_all_copied([BOB.into(), ALICE.into()])
             .into_transaction();
-        assert_eq!(tx.execute(), TxResult::Completed(vec![None, None]));
+        assert_eq!(tx.execute(), TxResult::Completed(vec![None, Some(1)]));
     }
 }
