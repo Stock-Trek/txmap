@@ -103,19 +103,20 @@ where
         self.guards_bitmask
     }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, params: &P) {
-        if let Some(mut value) = self.remove_value(mutex_guards) {
-            let mut peek_values = Vec::with_capacity(self.indexed_peek_keys.indexed.len());
-            for (shard_index, peek_key) in &self.indexed_peek_keys.indexed {
-                let peek_guard = mutex_guards.get(*shard_index);
-                let peek_shard = peek_guard.expect(MISSING_MUTEX_GUARD_ERROR);
-                let peek_value = peek_shard.get(peek_key);
-                peek_values.push(peek_value);
-            }
-            (self.mutate)(&self.key, &mut value, peek_values.as_slice(), params);
-            self.insert_value(value, mutex_guards);
-        } else {
-            let new_value = (self.value_generator)(&self.key, params);
-            self.insert_value(new_value, mutex_guards);
+        let old_value = self.remove_value(mutex_guards);
+        let mut peek_values = Vec::with_capacity(self.indexed_peek_keys.indexed.len());
+        for (shard_index, peek_key) in &self.indexed_peek_keys.indexed {
+            let peek_guard = mutex_guards.get(*shard_index);
+            let peek_shard = peek_guard.expect(MISSING_MUTEX_GUARD_ERROR);
+            let peek_value = peek_shard.get(peek_key);
+            peek_values.push(peek_value);
         }
+        let mut value = if let Some(v) = old_value {
+            v
+        } else {
+            (self.value_generator)(&self.key, params)
+        };
+        (self.mutate)(&self.key, &mut value, peek_values.as_slice(), params);
+        self.insert_value(value, mutex_guards);
     }
 }

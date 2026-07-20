@@ -1012,19 +1012,19 @@ mod tests {
     }
 
     #[test]
-    fn modify_peek_or_insert_with_inserts_when_missing() {
+    fn modify_peek_or_insert_with_inserts_then_modifies_when_missing() {
         let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
         let tx = map
             .transaction()
             .modify_peek_or_insert_with(
                 "k".into(),
                 [],
-                |_k, v, []: [Option<&u64>; 0]| *v = 99,
+                |_k, v, []: [Option<&u64>; 0]| *v += 8,
                 |_k| 42,
             )
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(()));
-        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(42));
+        assert_eq!(map.get_with(&"k".into(), |v| *v), Some(50));
     }
 
     #[test]
