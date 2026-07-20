@@ -343,15 +343,15 @@ assert_eq!(map.len(), 2);
 
 Up to one of these is called before `.into_transaction()` to define what the transaction should return.
 
-| Method                                      | Description                                              | Transaction result type    |
-|---------------------------------------------|----------------------------------------------------------|----------------------------|
-| *(none - default)*                          | Execute with no return value.                            | `TxResult<()>`             |
-| `get_copied(key)`                           | Copy a single value. Requires `V: Copy`                  | `TxResult<Option<V>>`      |
-| `get_all_copied(keys)`                      | Copy an array of values. Requires `V: Copy`              | `TxResult<Vec<Option<V>>>` |
-| `get_cloned(key)`                           | Clone a single value. Requires `V: Clone`                | `TxResult<Option<V>>`      |
-| `get_all_cloned(keys)`                      | Clone an array of values. Requires `V: Clone`            | `TxResult<Vec<Option<V>>>` |
-| `get(key, \|k, v[, params]\| { ... })`      | Read a single value and apply a transformation to it.    | `TxResult<Option<R>>`      |
-| `get_all(keys, \|k, v[, params]\| { ... })` | Read multiple values and apply a transformation to them. | `TxResult<Vec<Option<R>>>` |
+| Method                                      | Description                                              | Transaction result type    | Required bound |
+|---------------------------------------------|----------------------------------------------------------|----------------------------|----------------|
+| *(none - default)*                          | Execute with no return value.                            | `TxResult<()>`             |                |
+| `get_copied(key)`                           | Copy a single value.                                     | `TxResult<Option<V>>`      | `V: Copy`      |
+| `get_all_copied(keys)`                      | Copy an array of values.                                 | `TxResult<Vec<Option<V>>>` | `V: Copy`      |
+| `get_cloned(key)`                           | Clone a single value.                                    | `TxResult<Option<V>>`      | `V: Clone`     |
+| `get_all_cloned(keys)`                      | Clone an array of values.                                | `TxResult<Vec<Option<V>>>` | `V: Clone`     |
+| `get(key, \|k, v[, params]\| { ... })`      | Read a single value and apply a transformation to it.    | `TxResult<Option<R>>`      |                |
+| `get_all(keys, \|k, v[, params]\| { ... })` | Read multiple values and apply a transformation to them. | `TxResult<Vec<Option<R>>>` |                |
 
 To create the final transaction call `into_transaction()`. This will produce a re-useable transaction that can be executed as many times as you want within the lifetime of its `TxMap`.
 
