@@ -90,6 +90,26 @@ where
     }
 }
 
+impl<K, V> TxMap<K, V>
+where
+    K: Hash + Eq,
+    V: Copy,
+{
+    pub fn get_copied(&self, key: &K) -> Option<V> {
+        self.get_with(key, |v| *v)
+    }
+}
+
+impl<K, V> TxMap<K, V>
+where
+    K: Hash + Eq,
+    V: Clone,
+{
+    pub fn get_cloned(&self, key: &K) -> Option<V> {
+        self.get_with(key, |v| v.clone())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{indexer::Indexer, prelude::*};

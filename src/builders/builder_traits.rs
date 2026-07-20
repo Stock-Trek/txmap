@@ -1,6 +1,7 @@
 use crate::{
     finishers::{
-        finisher_trait::FinisherTrait, none_finisher::NoneFinisher, value_finisher::ValueFinisher,
+        clone_finisher::CloneFinisher, copy_finisher::CopyFinisher, finisher_trait::FinisherTrait,
+        none_finisher::NoneFinisher, value_finisher::ValueFinisher,
         values_finisher::ValuesFinisher,
     },
     transaction::{ParameterizedTransaction, Transaction},
@@ -246,6 +247,12 @@ pub trait TxResultBuilder<'txmap, K, V>
 where
     K: Hash + Eq,
 {
+    fn get_copied(self, key: K) -> impl IntoTransaction<'txmap, K, V, CopyFinisher<K, V>>
+    where
+        V: Copy;
+    fn get_cloned(self, key: K) -> impl IntoTransaction<'txmap, K, V, CloneFinisher<K, V>>
+    where
+        V: Clone;
     fn get<T, R>(
         self,
         key: K,
@@ -267,6 +274,12 @@ pub trait TxResultParamBuilder<'txmap, K, V, P>
 where
     K: Hash + Eq,
 {
+    fn get_copied(self, key: K) -> impl IntoParamTransaction<'txmap, K, V, P, CopyFinisher<K, V>>
+    where
+        V: Copy;
+    fn get_cloned(self, key: K) -> impl IntoParamTransaction<'txmap, K, V, P, CloneFinisher<K, V>>
+    where
+        V: Clone;
     fn get<T, R>(
         self,
         key: K,

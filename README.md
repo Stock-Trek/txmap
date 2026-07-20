@@ -247,6 +247,8 @@ Up to one of these is called before `into_transaction()` in the builder chain to
 | Method                                      | Description                                              | Transaction result type    |
 |---------------------------------------------|----------------------------------------------------------|----------------------------|
 | *(none - default)*                          | Execute with no return value.                            | `TxResult<()>`             |
+| `get_copied(key)`                           | Copy a single value. Requires `V: Copy`                  | `TxResult<Option<V>>`      |
+| `get_cloned(key)`                           | Clone a single value. Requires `V: Clone`                | `TxResult<Option<V>>`      |
 | `get(key, \|k, v[, params]\| { ... })`      | Read a single value and apply a transformation to it.    | `TxResult<Option<R>>`      |
 | `get_all(keys, \|k, v[, params]\| { ... })` | Read multiple values and apply a transformation to them. | `TxResult<Vec<Option<R>>>` |
 

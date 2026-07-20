@@ -8,7 +8,8 @@ use crate::{
     custodian::Custodian,
     finisher::Finisher,
     finishers::{
-        none_finisher::NoneFinisher, value_finisher::ValueFinisher, values_finisher::ValuesFinisher,
+        clone_finisher::CloneFinisher, copy_finisher::CopyFinisher, none_finisher::NoneFinisher,
+        value_finisher::ValueFinisher, values_finisher::ValuesFinisher,
     },
     guard::Guard,
     indexer::Indexer,
@@ -220,6 +221,46 @@ impl<'txmap, K, V, P> TxResultParamBuilder<'txmap, K, V, P>
 where
     K: Hash + Eq,
 {
+    fn get_copied(self, key: K) -> impl IntoParamTransaction<'txmap, K, V, P, CopyFinisher<K, V>>
+    where
+        V: Copy,
+    {
+        let Self {
+            indexer,
+            custodian,
+            guards,
+            ops,
+            ..
+        } = self;
+        let copy_finisher = CopyFinisher::new(indexer, key);
+        let finisher = Finisher::new(copy_finisher);
+        TxParamFinishableImpl {
+            custodian,
+            finisher,
+            guards,
+            ops,
+        }
+    }
+    fn get_cloned(self, key: K) -> impl IntoParamTransaction<'txmap, K, V, P, CloneFinisher<K, V>>
+    where
+        V: Clone,
+    {
+        let Self {
+            indexer,
+            custodian,
+            guards,
+            ops,
+            ..
+        } = self;
+        let clone_finisher = CloneFinisher::new(indexer, key);
+        let finisher = Finisher::new(clone_finisher);
+        TxParamFinishableImpl {
+            custodian,
+            finisher,
+            guards,
+            ops,
+        }
+    }
     fn get<T, R>(
         self,
         key: K,
