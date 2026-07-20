@@ -6,8 +6,10 @@ use crate::{
     custodian::Custodian,
     finisher::Finisher,
     finishers::{
-        clone_finisher::CloneFinisher, copy_finisher::CopyFinisher, none_finisher::NoneFinisher,
-        value_finisher::ValueFinisher, values_finisher::ValuesFinisher,
+        clone_all_finisher::CloneAllFinisher, clone_finisher::CloneFinisher,
+        copy_all_finisher::CopyAllFinisher, copy_finisher::CopyFinisher,
+        none_finisher::NoneFinisher, value_finisher::ValueFinisher,
+        values_finisher::ValuesFinisher,
     },
     guard::Guard,
     indexer::Indexer,
@@ -232,6 +234,27 @@ where
             ops,
         }
     }
+    fn get_all_copied<I>(self, keys: I) -> impl IntoTransaction<'txmap, K, V, CopyAllFinisher<K, V>>
+    where
+        I: IntoIterator<Item = K>,
+        V: Copy,
+    {
+        let Self {
+            indexer,
+            custodian,
+            guards,
+            ops,
+            ..
+        } = self;
+        let copy_finisher = CopyAllFinisher::new(indexer, keys);
+        let finisher = Finisher::new(copy_finisher);
+        TxFinishableImpl {
+            custodian,
+            finisher,
+            guards,
+            ops,
+        }
+    }
     fn get_cloned(self, key: K) -> impl IntoTransaction<'txmap, K, V, CloneFinisher<K, V>>
     where
         V: Clone,
@@ -245,6 +268,30 @@ where
         } = self;
         let clone_finisher = CloneFinisher::new(indexer, key);
         let finisher = Finisher::new(clone_finisher);
+        TxFinishableImpl {
+            custodian,
+            finisher,
+            guards,
+            ops,
+        }
+    }
+    fn get_all_cloned<I>(
+        self,
+        keys: I,
+    ) -> impl IntoTransaction<'txmap, K, V, CloneAllFinisher<K, V>>
+    where
+        I: IntoIterator<Item = K>,
+        V: Clone,
+    {
+        let Self {
+            indexer,
+            custodian,
+            guards,
+            ops,
+            ..
+        } = self;
+        let clone_all_finisher = CloneAllFinisher::new(indexer, keys);
+        let finisher = Finisher::new(clone_all_finisher);
         TxFinishableImpl {
             custodian,
             finisher,

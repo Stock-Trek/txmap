@@ -4,7 +4,7 @@ mod move_value {
         prelude::*,
         tests::{
             creators::creators::{map_alice, map_alice_bob},
-            data::{ALICE, BOB},
+            data::data::{ALICE, BOB},
         },
     };
 

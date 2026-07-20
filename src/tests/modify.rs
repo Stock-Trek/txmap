@@ -5,7 +5,7 @@ mod modify {
         result::TxResult,
         tests::{
             creators::creators::{empty_map, map_alice, map_alice_bob},
-            data::{ALICE, BOB},
+            data::data::{ALICE, BOB},
         },
     };
 
@@ -15,7 +15,7 @@ mod modify {
         let tx = map
             .transaction()
             .modify(ALICE.into(), |_k, v| *v += 5)
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(6)));
     }
@@ -26,7 +26,7 @@ mod modify {
         let tx = map
             .transaction()
             .modify(ALICE.into(), |_k, v| *v = 42)
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(None));
     }
@@ -37,7 +37,7 @@ mod modify {
         let tx = map
             .transaction()
             .modify_peek(ALICE.into(), [BOB.into()], |_k, v, [_bob]| *v += 5)
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(6)));
     }
@@ -48,7 +48,7 @@ mod modify {
         let tx = map
             .transaction()
             .modify_peek(ALICE.into(), [BOB.into()], |_k, v, [_bob]| *v = 42)
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(None));
     }
@@ -61,7 +61,7 @@ mod modify {
             .modify_peek(ALICE.into(), [BOB.into()], |_k, v, [bob]| {
                 *v += *bob.unwrap()
             })
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(3)));
     }

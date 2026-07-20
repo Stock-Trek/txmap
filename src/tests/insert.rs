@@ -5,7 +5,7 @@ mod insert {
         result::TxResult,
         tests::{
             creators::creators::{empty_map, map_alice},
-            data::ALICE,
+            data::data::ALICE,
         },
     };
 
@@ -15,7 +15,7 @@ mod insert {
         let tx = map
             .transaction()
             .insert_with(ALICE.into(), |_key| 42)
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(42)));
     }
@@ -26,7 +26,7 @@ mod insert {
         let tx = map
             .transaction()
             .insert_with(ALICE.into(), |_key| 42)
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(42)));
     }
@@ -37,7 +37,7 @@ mod insert {
         let tx = map
             .transaction()
             .insert_with_if_absent(ALICE.into(), |_key| 42)
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(42)));
     }
@@ -48,7 +48,7 @@ mod insert {
         let tx = map
             .transaction()
             .insert_with_if_absent(ALICE.into(), |_key| 42)
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(1)));
     }
@@ -59,7 +59,7 @@ mod insert {
         let tx = map
             .transaction()
             .insert_default(ALICE.into())
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(0)));
     }
@@ -70,7 +70,7 @@ mod insert {
         let tx = map
             .transaction()
             .insert_default(ALICE.into())
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(0)));
     }
@@ -81,7 +81,7 @@ mod insert {
         let tx = map
             .transaction()
             .insert_default_if_absent(ALICE.into())
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(0)));
     }
@@ -92,7 +92,7 @@ mod insert {
         let tx = map
             .transaction()
             .insert_default_if_absent(ALICE.into())
-            .get(ALICE.into(), |_, v| *v)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(), TxResult::Completed(Some(1)));
     }

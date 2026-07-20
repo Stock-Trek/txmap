@@ -6,35 +6,35 @@ use crate::{
 use hashbrown::HashMap;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
-use std::hash::Hash;
+use std::{hash::Hash, marker::PhantomData};
 
-pub struct ValuesFinisher<K, V, R> {
+pub struct CopyAllFinisher<K, V> {
     indexed_keys: IndexedData<K>,
-    #[allow(clippy::type_complexity)]
-    transform: Box<dyn Fn(&K, Option<&V>) -> Option<R>>,
+    _phantom: PhantomData<V>,
 }
 
-impl<K, V, R> ValuesFinisher<K, V, R>
+impl<K, V> CopyAllFinisher<K, V>
 where
     K: Hash,
+    V: Copy,
 {
-    pub fn new<I, T>(indexer: Indexer, keys: I, transform: T) -> Self
+    pub fn new<I>(indexer: Indexer, keys: I) -> Self
     where
         I: IntoIterator<Item = K>,
-        T: Fn(&K, &V) -> R + 'static,
     {
         Self {
             indexed_keys: indexer.indexes(keys, |k| k),
-            transform: Box::new(move |key, value_opt| value_opt.map(|value| transform(key, value))),
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<K, V, R> FinisherTrait<K, V> for ValuesFinisher<K, V, R>
+impl<K, V> FinisherTrait<K, V> for CopyAllFinisher<K, V>
 where
     K: Hash + Eq,
+    V: Copy,
 {
-    type Output = Vec<Option<R>>;
+    type Output = Vec<Option<V>>;
 
     fn guards_bitmask(&self) -> u128 {
         self.indexed_keys.bitmask
@@ -42,15 +42,14 @@ where
     fn to_result(
         &self,
         mutex_guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
-    ) -> Vec<Option<R>> {
+    ) -> Vec<Option<V>> {
         let mut result = Vec::with_capacity(self.indexed_keys.indexed.len());
         for (key_index, key) in &self.indexed_keys.indexed {
             let mutex_guard = mutex_guards
                 .get(*key_index)
                 .expect(MISSING_MUTEX_GUARD_ERROR);
-            let value = mutex_guard.get(key);
-            let result_value = (self.transform)(key, value);
-            result.push(result_value);
+            let value = mutex_guard.get(key).copied();
+            result.push(value);
         }
         result
     }

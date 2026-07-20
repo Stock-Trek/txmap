@@ -24,6 +24,9 @@ where
             _phantom_v: PhantomData,
         }
     }
+    pub fn guards_bitmask(&self) -> u128 {
+        self.finisher.guards_bitmask()
+    }
     pub fn finish(&self, mutex_guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) -> F::Output {
         self.finisher.to_result(mutex_guards)
     }

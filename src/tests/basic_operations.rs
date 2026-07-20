@@ -2,7 +2,7 @@
 mod basic_operations {
     use crate::tests::{
         creators::creators::{empty_map, map_alice, map_alice_bob, map_alice_bob_chuck},
-        data::{ALICE, BOB},
+        data::data::{ALICE, BOB},
     };
 
     #[test]

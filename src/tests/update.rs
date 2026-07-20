@@ -3,7 +3,7 @@ mod insert {
     use crate::{
         builders::builder_traits::{IntoTransaction, TxOpBuilder, TxResultBuilder},
         result::TxResult,
-        tests::{creators::creators::map_alice, data::ALICE},
+        tests::{creators::creators::map_alice, data::data::ALICE},
     };
 
     #[test]

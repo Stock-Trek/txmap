@@ -1,7 +1,8 @@
 use crate::{
     finishers::{
-        clone_finisher::CloneFinisher, copy_finisher::CopyFinisher, finisher_trait::FinisherTrait,
-        none_finisher::NoneFinisher, value_finisher::ValueFinisher,
+        clone_all_finisher::CloneAllFinisher, clone_finisher::CloneFinisher,
+        copy_all_finisher::CopyAllFinisher, copy_finisher::CopyFinisher,
+        finisher_trait::FinisherTrait, none_finisher::NoneFinisher, value_finisher::ValueFinisher,
         values_finisher::ValuesFinisher,
     },
     transaction::{ParameterizedTransaction, Transaction},
@@ -250,8 +251,22 @@ where
     fn get_copied(self, key: K) -> impl IntoTransaction<'txmap, K, V, CopyFinisher<K, V>>
     where
         V: Copy;
+    fn get_all_copied<I>(
+        self,
+        keys: I,
+    ) -> impl IntoTransaction<'txmap, K, V, CopyAllFinisher<K, V>>
+    where
+        I: IntoIterator<Item = K>,
+        V: Copy;
     fn get_cloned(self, key: K) -> impl IntoTransaction<'txmap, K, V, CloneFinisher<K, V>>
     where
+        V: Clone;
+    fn get_all_cloned<I>(
+        self,
+        keys: I,
+    ) -> impl IntoTransaction<'txmap, K, V, CloneAllFinisher<K, V>>
+    where
+        I: IntoIterator<Item = K>,
         V: Clone;
     fn get<T, R>(
         self,
@@ -277,8 +292,22 @@ where
     fn get_copied(self, key: K) -> impl IntoParamTransaction<'txmap, K, V, P, CopyFinisher<K, V>>
     where
         V: Copy;
+    fn get_all_copied<I>(
+        self,
+        keys: I,
+    ) -> impl IntoParamTransaction<'txmap, K, V, P, CopyAllFinisher<K, V>>
+    where
+        I: IntoIterator<Item = K>,
+        V: Copy;
     fn get_cloned(self, key: K) -> impl IntoParamTransaction<'txmap, K, V, P, CloneFinisher<K, V>>
     where
+        V: Clone;
+    fn get_all_cloned<I>(
+        self,
+        keys: I,
+    ) -> impl IntoParamTransaction<'txmap, K, V, P, CloneAllFinisher<K, V>>
+    where
+        I: IntoIterator<Item = K>,
         V: Clone;
     fn get<T, R>(
         self,

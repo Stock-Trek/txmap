@@ -4,7 +4,7 @@ mod guards {
         prelude::*,
         tests::{
             creators::creators::{empty_map, map_alice, map_alice_bob},
-            data::{ALICE, BOB},
+            data::data::{ALICE, BOB},
         },
     };
 

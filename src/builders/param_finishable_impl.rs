@@ -38,6 +38,7 @@ where
         for op in &ops {
             guards_bitmask |= op.guards_bitmask();
         }
+        guards_bitmask |= finisher.guards_bitmask();
         let base = TransactionBase {
             custodian,
             guards_bitmask,

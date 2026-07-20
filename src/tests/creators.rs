@@ -2,7 +2,7 @@
 pub(crate) mod creators {
     use crate::{
         shard_count::ShardCount,
-        tests::data::{ALICE, BOB, CHUCK, DAVE},
+        tests::data::data::{ALICE, BOB, CHUCK, DAVE},
         tx_map::TxMap,
     };
     use rand::seq::SliceRandom;

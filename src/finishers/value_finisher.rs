@@ -35,6 +35,9 @@ where
 {
     type Output = Option<R>;
 
+    fn guards_bitmask(&self) -> u128 {
+        1 << self.key_index
+    }
     fn to_result(&self, mutex_guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) -> Option<R> {
         let mutex_guard = mutex_guards
             .get(self.key_index)
