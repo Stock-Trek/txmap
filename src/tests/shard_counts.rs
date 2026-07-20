@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod shard_counts {
+mod tests {
     use crate::{prelude::*, shard_count::all_guards_bitmask};
 
     #[test]

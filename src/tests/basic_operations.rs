@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod basic_operations {
+mod tests {
     use crate::tests::{
         creators::creators::{empty_map, map_alice, map_alice_bob, map_alice_bob_chuck},
         data::data::{ALICE, BOB},

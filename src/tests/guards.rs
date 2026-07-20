@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod guards {
+mod tests {
     use crate::{
         prelude::*,
         tests::{

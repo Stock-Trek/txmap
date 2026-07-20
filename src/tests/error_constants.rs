@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod error_constants {
+mod tests {
     use crate::result::{
         INCORRECT_GUARD_VALUES_LENGTH, INCORRECT_PEEK_VALUES_LENGTH, MISSING_MUTEX_GUARD_ERROR,
         TxResult,

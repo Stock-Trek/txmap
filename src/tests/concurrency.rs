@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod concurrency {
+mod tests {
     use crate::{
         builders::builder_traits::{IntoTransaction, TxOpBuilder},
         tests::creators::creators::{empty_typed_map, map_alice_bob_chuck_dave, random_names},

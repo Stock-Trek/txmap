@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod move_value {
+mod tests {
     use crate::{
         prelude::*,
         tests::{

@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod insert {
+mod tests {
     use crate::{
         builders::builder_traits::{IntoTransaction, TxOpBuilder, TxResultBuilder},
         result::TxResult,
