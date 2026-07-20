@@ -1,16 +1,18 @@
 #[cfg(test)]
 mod tests {
-    use crate::prelude::*;
+    use crate::{
+        prelude::*,
+        tests::{creators::creators::map_alice, data::data::ALICE},
+    };
 
     #[test]
     fn param_transaction_basic() {
-        let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+        let map = map_alice(0);
         let tx = map
             .transaction()
             .with_param::<u64>()
-            .insert_default("k".into())
-            .modify("k".into(), |_k, v, param| *v += param)
-            .get("k".into(), |_k, v| *v)
+            .modify(ALICE.into(), |_k, v, param| *v += param)
+            .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(&50), TxResult::Completed(Some(50)));
         assert_eq!(tx.execute(&30), TxResult::Completed(Some(80)));

@@ -3,7 +3,7 @@ mod tests {
     use crate::{
         prelude::*,
         tests::{
-            creators::creators::{empty_map, map_alice, map_alice_bob},
+            creators::creators::{empty_map, empty_typed_map, map_alice, map_alice_bob},
             data::data::{ALICE, BOB},
         },
     };
@@ -53,17 +53,21 @@ mod tests {
     }
 
     #[test]
-    fn all_keys_in_same_shard() {
-        // TODO wait till hasher can be injected
-        assert_eq!(1, 2);
-
-        let map: TxMap<u64, u64> = TxMap::new(ShardCount::_8);
-        map.insert(0, 10);
-        map.insert(8, 20);
+    fn keys_in_same_shard() {
+        let map = empty_typed_map::<u64, u64>();
+        for i in 0..100 {
+            map.insert(i, i);
+        }
+        let keys = std::array::from_fn::<u64, 100, _>(|i| i as u64);
         let tx = map
             .transaction()
-            .require("sum", [0, 8], |[a, b]| {
-                a.copied().unwrap_or(0) + b.copied().unwrap_or(0) == 30
+            .require("sum", keys, |values| {
+                for i in 0..100 {
+                    if values[i].is_none_or(|v| *v != i as u64) {
+                        return false;
+                    }
+                }
+                true
             })
             .modify(0, |_k, v| *v += 0)
             .into_transaction();

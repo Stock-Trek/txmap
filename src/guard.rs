@@ -68,9 +68,9 @@ where
             let shard = mutex_guard.expect(MISSING_MUTEX_GUARD_ERROR);
             let value = shard.get(key);
             values.push(value);
-            if !(self.is_condition_met)(&values, params) {
-                return false;
-            }
+        }
+        if !(self.is_condition_met)(&values, params) {
+            return false;
         }
         true
     }
