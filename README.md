@@ -4,9 +4,9 @@
 [![docs.rs](https://img.shields.io/docsrs/txmap)](https://docs.rs/txmap)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A concurrent transactional hash map for Rust with fine-grained locking and internal mutability.
+A concurrent transactional hash map for Rust with fine-grained locking, internal mutability and composable transactions.
 
-`TxMap` partitions stored key-value pairs across multiple shards, each protected by its own `parking_lot::Mutex` and backed by its own `hashbrown::HashMap`. Read and write operations acquire locks only on the shards they need, maximizing concurrency. Transactional operations group multiple operations into atomic units, and support parameterized closures.
+`TxMap` partitions stored key-value pairs across multiple shards, each protected by its own `parking_lot::Mutex` and backed by its own `hashbrown::HashMap`. Read and write operations acquire locks only on the shards they need. Transactional operations group multiple operations into atomic units, and support parameterized closures.
 
 ## Features
 
