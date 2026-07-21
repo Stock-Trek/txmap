@@ -41,4 +41,7 @@ impl<K, V> Custodian<K, V> {
         }
         guards
     }
+    pub fn guard_at(&self, index: u8) -> MutexGuard<'_, HashMap<K, V>> {
+        self.shards[index as usize].lock()
+    }
 }

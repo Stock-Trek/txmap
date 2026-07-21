@@ -1,6 +1,6 @@
 use crate::{
     builders::stem_builder::TxStemBuilder, custodian::Custodian, indexer::Indexer,
-    result::MISSING_MUTEX_GUARD_ERROR, shard_count::ShardCount,
+    shard_count::ShardCount,
 };
 use std::hash::{DefaultHasher, Hash};
 
@@ -48,18 +48,12 @@ where
     }
     pub fn insert(&self, key: K, value: V) -> Option<V> {
         let shard_index = self.indexer.index(&key);
-        let mut mutex_guards = self.custodian.guards(1 << shard_index);
-        let mutex_guard = mutex_guards
-            .get_mut(shard_index)
-            .expect(MISSING_MUTEX_GUARD_ERROR);
+        let mut mutex_guard = self.custodian.guard_at(shard_index);
         mutex_guard.insert(key, value)
     }
     pub fn remove(&self, key: &K) -> Option<V> {
         let shard_index = self.indexer.index(key);
-        let mut mutex_guards = self.custodian.guards(1 << shard_index);
-        let mutex_guard = mutex_guards
-            .get_mut(shard_index)
-            .expect(MISSING_MUTEX_GUARD_ERROR);
+        let mut mutex_guard = self.custodian.guard_at(shard_index);
         mutex_guard.remove(key)
     }
     #[must_use]
@@ -68,10 +62,7 @@ where
         T: FnOnce(&V) -> R,
     {
         let shard_index = self.indexer.index(key);
-        let mutex_guards = self.custodian.guards(1 << shard_index);
-        let mutex_guard = mutex_guards
-            .get(shard_index)
-            .expect(MISSING_MUTEX_GUARD_ERROR);
+        let mutex_guard = self.custodian.guard_at(shard_index);
         mutex_guard.get(key).map(transform)
     }
     #[must_use]
