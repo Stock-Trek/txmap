@@ -4,7 +4,7 @@ use hashbrown::HashMap;
 use std::{sync::Arc, thread};
 use txmap::prelude::*;
 
-fn bench_insert(c: &mut Criterion) {
+fn insert(c: &mut Criterion) {
     let dashmap = DashMap::<String, i32>::new();
     let mut hashbrownmap = HashMap::<String, i32>::new();
     let txmap = TxMap::new(ShardCount::_8);
@@ -29,7 +29,7 @@ fn bench_insert(c: &mut Criterion) {
     });
 }
 
-fn bench_concurrent_insert(c: &mut Criterion) {
+fn concurrent_insert(c: &mut Criterion) {
     let num_threads = 8;
     let ops_per_thread = 1_000;
     let dashmap = Arc::new(DashMap::<String, i32>::new());
@@ -82,5 +82,5 @@ fn bench_concurrent_insert(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_insert, bench_concurrent_insert);
+criterion_group!(benches, insert, concurrent_insert);
 criterion_main!(benches);

@@ -1,14 +1,29 @@
 #[cfg(test)]
 mod tests {
-    use crate::{prelude::*, shard_count::all_guards_bitmask};
+    use crate::prelude::*;
 
     #[test]
     fn bitmasks() {
-        assert_eq!(all_guards_bitmask(u8::from(ShardCount::_8)), !0u8 as u128);
-        assert_eq!(all_guards_bitmask(u8::from(ShardCount::_16)), !0u16 as u128);
-        assert_eq!(all_guards_bitmask(u8::from(ShardCount::_32)), !0u32 as u128);
-        assert_eq!(all_guards_bitmask(u8::from(ShardCount::_64)), !0u64 as u128);
-        assert_eq!(all_guards_bitmask(u8::from(ShardCount::_128)), !0u128);
+        assert_eq!(
+            ShardCount::all_guards_bitmask(u8::from(ShardCount::_8)),
+            !0u8 as u128
+        );
+        assert_eq!(
+            ShardCount::all_guards_bitmask(u8::from(ShardCount::_16)),
+            !0u16 as u128
+        );
+        assert_eq!(
+            ShardCount::all_guards_bitmask(u8::from(ShardCount::_32)),
+            !0u32 as u128
+        );
+        assert_eq!(
+            ShardCount::all_guards_bitmask(u8::from(ShardCount::_64)),
+            !0u64 as u128
+        );
+        assert_eq!(
+            ShardCount::all_guards_bitmask(u8::from(ShardCount::_128)),
+            !0u128
+        );
     }
 
     #[test]
