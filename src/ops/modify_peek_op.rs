@@ -1,28 +1,28 @@
 use crate::{
-    indexer::{IndexedData, Indexer},
-    ops::op_trait::OpTrait,
-    result::{INCORRECT_PEEK_VALUES_LENGTH, MISSING_MUTEX_GUARD_ERROR},
+    indexed_key::IndexedKey, indexed_keys::IndexedKeys, new_types::BitMask, ops::op_trait::OpTrait,
+    result::INCORRECT_PEEK_VALUES_LENGTH, shard_count::ShardCount,
 };
-use hashbrown::HashMap;
+use hashbrown::HashTable;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct ModifyPeekOp<K, V, P = ()> {
-    guards_bitmask: u128,
-    key_index: u8,
-    key: K,
-    indexed_peek_keys: IndexedData<K>,
+pub(crate) struct ModifyPeekOp<K, V, P = ()>
+where
+    K: Hash + Eq,
+{
+    indexed_key: IndexedKey<K>,
+    indexed_peek_keys: IndexedKeys<K>,
     #[allow(clippy::type_complexity)]
     mutate: Box<dyn Fn(&K, &mut V, &[Option<&V>], &P)>,
 }
 
 impl<K, V, P> ModifyPeekOp<K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Hash + Eq,
 {
     pub fn new_with_params<const N: usize, M>(
-        indexer: &Indexer,
+        shard_count: u8,
         key: K,
         peek_keys: [K; N],
         mutate: M,
@@ -30,13 +30,9 @@ where
     where
         M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
     {
-        let key_index = indexer.index(&key);
-        let indexed_peek_keys = indexer.indexes(peek_keys, |k| k);
         Self {
-            guards_bitmask: (1 << key_index) | indexed_peek_keys.bitmask,
-            key_index,
-            key,
-            indexed_peek_keys,
+            indexed_key: ShardCount::indexed_key(shard_count, key),
+            indexed_peek_keys: ShardCount::indexes(shard_count, peek_keys, |k| k),
             mutate: Box::new(move |key, value, peek_values, params| {
                 let peek_array: [Option<&V>; N] =
                     peek_values.try_into().expect(INCORRECT_PEEK_VALUES_LENGTH);
@@ -44,36 +40,17 @@ where
             }),
         }
     }
-    fn remove_value(
-        &self,
-        mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
-    ) -> Option<V> {
-        let mutex_guard = mutex_guards
-            .get_mut(self.key_index)
-            .expect(MISSING_MUTEX_GUARD_ERROR);
-        mutex_guard.remove(&self.key)
-    }
-    fn insert_value(
-        &self,
-        value: V,
-        mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
-    ) -> Option<V> {
-        let mutex_guard = mutex_guards
-            .get_mut(self.key_index)
-            .expect(MISSING_MUTEX_GUARD_ERROR);
-        mutex_guard.insert(self.key.clone(), value)
-    }
 }
 
 impl<K, V> ModifyPeekOp<K, V, ()>
 where
-    K: Clone + Hash + Eq,
+    K: Hash + Eq,
 {
-    pub fn new<const N: usize, M>(indexer: &Indexer, key: K, peek_keys: [K; N], mutate: M) -> Self
+    pub fn new<const N: usize, M>(shard_count: u8, key: K, peek_keys: [K; N], mutate: M) -> Self
     where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
     {
-        Self::new_with_params(indexer, key, peek_keys, move |k, v, pks, _| {
+        Self::new_with_params(shard_count, key, peek_keys, move |k, v, pks, _| {
             mutate(k, v, pks)
         })
     }
@@ -81,29 +58,28 @@ where
 
 impl<K, V, P> OpTrait<K, V, P> for ModifyPeekOp<K, V, P>
 where
-    K: Clone + Hash + Eq,
+    K: Hash + Eq,
 {
-    fn guards_bitmask(&self) -> u128 {
-        self.guards_bitmask
+    fn guards_bitmask(&self) -> BitMask {
+        self.indexed_key.2
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, params: &P) {
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>, params: &P) {
         // It's not possible to read peeked values while modifying the key value in place
         // Therefore we:
         // 1 .Remove the value
         // 2. Get the read-only peeked values
         // 3. Allow the user to modify the removed value
         // 4. Re-insert the modified value
-        // This is why ModifyPeekOp requires K:Clone while ModifyOp doesn't
-        if let Some(mut value) = self.remove_value(mutex_guards) {
-            let mut peek_values = Vec::with_capacity(self.indexed_peek_keys.indexed.len());
-            for (shard_index, peek_key) in &self.indexed_peek_keys.indexed {
-                let peek_guard = mutex_guards.get(*shard_index);
-                let peek_shard = peek_guard.expect(MISSING_MUTEX_GUARD_ERROR);
-                let peek_value = peek_shard.get(peek_key);
-                peek_values.push(peek_value);
-            }
-            (self.mutate)(&self.key, &mut value, peek_values.as_slice(), params);
-            self.insert_value(value, mutex_guards);
+        if let Some((duplicate_key, mut value)) = self.indexed_key.remove_entry(mutex_guards) {
+            let peek_values = self.indexed_peek_keys.values(mutex_guards);
+            (self.mutate)(
+                &self.indexed_key.3,
+                &mut value,
+                peek_values.as_slice(),
+                params,
+            );
+            self.indexed_key
+                .insert_with_duplicate_key(mutex_guards, duplicate_key, value);
         }
     }
 }

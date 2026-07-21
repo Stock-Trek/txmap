@@ -6,7 +6,7 @@
 
 A concurrent transactional hash map for Rust with fine-grained locking, internal mutability and composable transactions.
 
-`TxMap` partitions stored key-value pairs across multiple shards, each protected by its own `parking_lot::Mutex` and backed by its own `hashbrown::HashMap`. Read and write operations acquire locks only on the shards they need. Transactional operations group multiple operations into atomic units, and support parameterized closures.
+`TxMap` partitions stored key-value pairs across multiple shards, each protected by its own `parking_lot::Mutex` and backed by its own `hashbrown::HashTable`. Read and write operations acquire locks only on the shards they need. Transactional operations group multiple operations into atomic units, and support parameterized closures.
 
 ## Features
 
@@ -283,7 +283,7 @@ assert_eq!(map.len(), 2);
 | `insert_with`                | Insert a value generated from the key.                                            | `K: Clone`                 |
 | `insert_with_if_absent`      | Insert a value generated from the key, only if the key is absent.                 | `K: Clone`                 |
 | `modify`                     | Mutate an existing value in-place. Does nothing if key absent.                    |                            |
-| `modify_peek`                | Like `modify` while peeking at other values.                                      | `K: Clone`                 |
+| `modify_peek`                | Like `modify` while peeking at other values.                                      |                            |
 | `update`                     | Update a single entry. Return `Some(v)` to insert/replace, `None` to delete.      | `K: Clone`                 |
 | `update_peek`                | Like `update` while peeking at other values.                                      | `K: Clone`                 |
 |                              |                                                                                   |                            |

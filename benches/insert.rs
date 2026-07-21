@@ -1,6 +1,6 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use dashmap::DashMap;
-use hashbrown::HashMap;
+use hashbrown::HashTable;
 use std::{sync::Arc, thread};
 use txmap::prelude::*;
 

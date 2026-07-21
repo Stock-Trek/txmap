@@ -8,12 +8,13 @@ use crate::{
     },
     custodian::Custodian,
     guard::Guard,
-    indexer::Indexer,
 };
 use std::hash::Hash;
 
-pub struct TxBuilderImpl<'txmap, K, V> {
-    pub(crate) indexer: Indexer,
+pub struct TxBuilderImpl<'txmap, K, V>
+where
+    K: Hash + Eq,
+{
     pub(crate) custodian: &'txmap Custodian<K, V>,
     pub(crate) guards: Vec<Guard<K, V>>,
 }
@@ -34,13 +35,10 @@ where
     where
         P: 'static,
     {
-        let Self {
-            indexer, custodian, ..
-        } = self;
+        let Self { custodian, .. } = self;
         TxParamBuilderImpl {
             custodian,
             guards: Vec::new(),
-            indexer,
         }
     }
 }
@@ -59,7 +57,12 @@ where
     where
         C: Fn([Option<&V>; N]) -> bool + 'static,
     {
-        let guard = Guard::new(self.indexer, name.as_ref().into(), keys, condition);
+        let guard = Guard::new(
+            self.custodian.shard_count,
+            name.as_ref().into(),
+            keys,
+            condition,
+        );
         self.guards.push(guard);
         self
     }
@@ -76,13 +79,8 @@ where
         K: Clone,
         V: Default,
     {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
+        let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
-            indexer,
             custodian,
             guards,
             ops: Vec::new(),
@@ -94,13 +92,8 @@ where
         K: Clone,
         V: Default,
     {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
+        let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
-            indexer,
             custodian,
             guards,
             ops: Vec::new(),
@@ -112,13 +105,8 @@ where
         G: Fn(&K) -> V + 'static,
         K: Clone,
     {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
+        let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
-            indexer,
             custodian,
             guards,
             ops: Vec::new(),
@@ -130,13 +118,8 @@ where
         G: Fn(&K) -> V + 'static,
         K: Clone,
     {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
+        let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
-            indexer,
             custodian,
             guards,
             ops: Vec::new(),
@@ -147,13 +130,8 @@ where
     where
         M: Fn(&K, &mut V) + 'static,
     {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
+        let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
-            indexer,
             custodian,
             guards,
             ops: Vec::new(),
@@ -170,13 +148,8 @@ where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
         K: Clone,
     {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
+        let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
-            indexer,
             custodian,
             guards,
             ops: Vec::new(),
@@ -188,13 +161,8 @@ where
         T: Fn(&K, Option<&V>) -> Option<V> + 'static,
         K: Clone,
     {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
+        let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
-            indexer,
             custodian,
             guards,
             ops: Vec::new(),
@@ -211,13 +179,8 @@ where
         T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
         K: Clone,
     {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
+        let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
-            indexer,
             custodian,
             guards,
             ops: Vec::new(),
@@ -230,13 +193,8 @@ where
     where
         K: Clone,
     {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
+        let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
-            indexer,
             custodian,
             guards,
             ops: Vec::new(),
@@ -247,13 +205,8 @@ where
     where
         K: Clone,
     {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
+        let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
-            indexer,
             custodian,
             guards,
             ops: Vec::new(),
@@ -266,13 +219,8 @@ where
     where
         I: IntoIterator<Item = K>,
     {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
+        let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
-            indexer,
             custodian,
             guards,
             ops: Vec::new(),
@@ -284,102 +232,12 @@ where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,
     {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
+        let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
-            indexer,
             custodian,
             guards,
             ops: Vec::new(),
         };
         builder.remove_where(keys, condition)
-    }
-    fn retain_only<I>(self, keys: I) -> impl TxBuildable<'txmap, K, V>
-    where
-        I: IntoIterator<Item = K>,
-    {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
-        let builder = TxBuildableImpl {
-            indexer,
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.retain_only(keys)
-    }
-    fn retain_where<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
-    where
-        I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool + 'static,
-    {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
-        let builder = TxBuildableImpl {
-            indexer,
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.retain_where(keys, condition)
-    }
-
-    // global ops
-    fn clear(self) -> impl TxBuildable<'txmap, K, V> {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
-        let builder = TxBuildableImpl {
-            indexer,
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.clear()
-    }
-    fn remove_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
-    where
-        C: Fn(&K, &V) -> bool + 'static,
-    {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
-        let builder = TxBuildableImpl {
-            indexer,
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.remove_if(condition)
-    }
-    fn retain<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
-    where
-        C: Fn(&K, &V) -> bool + 'static,
-    {
-        let Self {
-            indexer,
-            custodian,
-            guards,
-        } = self;
-        let builder = TxBuildableImpl {
-            indexer,
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.retain(condition)
     }
 }

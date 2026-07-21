@@ -4,12 +4,15 @@ use crate::{
     finisher::Finisher,
     finishers::finisher_trait::FinisherTrait,
     guard::Guard,
+    new_types::BitMask,
     ops::op_trait::OpTrait,
     transaction::{Transaction, TransactionBase},
 };
+use std::hash::Hash;
 
 pub struct TxFinishableImpl<'txmap, K, V, F>
 where
+    K: Hash + Eq,
     F: FinisherTrait<K, V>,
 {
     pub(crate) custodian: &'txmap Custodian<K, V>,
@@ -20,6 +23,7 @@ where
 
 impl<'txmap, K, V, F> IntoTransaction<'txmap, K, V, F> for TxFinishableImpl<'txmap, K, V, F>
 where
+    K: Hash + Eq,
     F: FinisherTrait<K, V>,
 {
     fn into_transaction(self) -> Transaction<'txmap, K, V, F> {
@@ -30,7 +34,7 @@ where
             finisher,
             ..
         } = self;
-        let mut guards_bitmask: u128 = 0;
+        let mut guards_bitmask = BitMask::default();
         for guard in &guards {
             guards_bitmask |= guard.guards_bitmask;
         }

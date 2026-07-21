@@ -1,5 +1,5 @@
-use crate::finishers::finisher_trait::FinisherTrait;
-use hashbrown::HashMap;
+use crate::{finishers::finisher_trait::FinisherTrait, new_types::BitMask};
+use hashbrown::HashTable;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::marker::PhantomData;
@@ -24,10 +24,10 @@ where
             _phantom_v: PhantomData,
         }
     }
-    pub fn guards_bitmask(&self) -> u128 {
+    pub fn guards_bitmask(&self) -> BitMask {
         self.finisher.guards_bitmask()
     }
-    pub fn finish(&self, mutex_guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) -> F::Output {
+    pub fn finish(&self, mutex_guards: &IntMap<u8, MutexGuard<HashTable<(K, V)>>>) -> F::Output {
         self.finisher.to_result(mutex_guards)
     }
 }

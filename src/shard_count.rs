@@ -1,3 +1,11 @@
+use crate::{
+    indexed_key::IndexedKey,
+    indexed_keys::IndexedKeys,
+    new_types::{BitMask, HashCode, ShardIndex},
+};
+use rapidhash::fast::RapidHasher;
+use std::hash::{Hash, Hasher};
+
 #[derive(Debug, Clone, Copy)]
 pub enum ShardCount {
     _8,
@@ -19,6 +27,51 @@ impl From<ShardCount> for u8 {
     }
 }
 
+impl ShardCount {
+    pub(crate) fn indexes<KI, E, K>(
+        shard_count: u8,
+        keys: KI,
+        element_to_key: fn(E) -> K,
+    ) -> IndexedKeys<K>
+    where
+        KI: IntoIterator<Item = E>,
+        K: Hash + Eq,
+    {
+        let mut bitmask = BitMask::default();
+        let iter = keys.into_iter();
+        let mut indexed = Vec::with_capacity(iter.size_hint().0);
+        for element in iter {
+            let key = element_to_key(element);
+            let hash_code = Self::hash(&key);
+            let shard_index = Self::shard_index(shard_count, hash_code);
+            let shard_bitmask = shard_index.bitmask();
+            bitmask |= shard_bitmask;
+            indexed.push(IndexedKey(hash_code, shard_index, shard_bitmask, key));
+        }
+        IndexedKeys { bitmask, indexed }
+    }
+    pub(crate) fn indexed_key<K>(shard_count: u8, key: K) -> IndexedKey<K>
+    where
+        K: Hash + Eq,
+    {
+        let hash_code = Self::hash(&key);
+        let shard_index = Self::shard_index(shard_count, hash_code);
+        let bitmask = shard_index.bitmask();
+        IndexedKey(hash_code, shard_index, bitmask, key)
+    }
+    pub(crate) fn shard_index(shard_count: u8, hash_code: HashCode) -> ShardIndex {
+        ShardIndex((hash_code.0 & (shard_count as u64 - 1)) as u8)
+    }
+    pub(crate) fn hash<K>(key: &K) -> HashCode
+    where
+        K: Hash,
+    {
+        let mut state = RapidHasher::default();
+        key.hash(&mut state);
+        HashCode(state.finish())
+    }
+}
+
 impl std::fmt::Display for ShardCount {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -27,25 +80,6 @@ impl std::fmt::Display for ShardCount {
             Self::_32 => write!(f, "ShardCount::_32"),
             Self::_64 => write!(f, "ShardCount::_64"),
             Self::_128 => write!(f, "ShardCount::_128"),
-        }
-    }
-}
-
-impl ShardCount {
-    pub fn all() -> Vec<ShardCount> {
-        vec![
-            ShardCount::_8,
-            ShardCount::_16,
-            ShardCount::_32,
-            ShardCount::_64,
-            ShardCount::_128,
-        ]
-    }
-    pub fn all_guards_bitmask(shard_count: u8) -> u128 {
-        if shard_count == 128 {
-            !0u128
-        } else {
-            (1 << shard_count) - 1
         }
     }
 }

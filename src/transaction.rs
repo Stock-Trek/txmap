@@ -1,11 +1,12 @@
 use crate::{
     custodian::Custodian, finisher::Finisher, finishers::finisher_trait::FinisherTrait,
-    guard::Guard, ops::op_trait::OpTrait, result::TxResult,
+    guard::Guard, new_types::BitMask, ops::op_trait::OpTrait, result::TxResult,
 };
 use std::hash::Hash;
 
 pub struct Transaction<'txmap, K, V, F>
 where
+    K: Hash + Eq,
     F: FinisherTrait<K, V>,
 {
     pub(crate) base: TransactionBase<'txmap, K, V, (), F>,
@@ -24,6 +25,7 @@ where
 
 pub struct ParameterizedTransaction<'txmap, K, V, P, F>
 where
+    K: Hash + Eq,
     F: FinisherTrait<K, V>,
 {
     pub(crate) base: TransactionBase<'txmap, K, V, P, F>,
@@ -42,10 +44,11 @@ where
 
 pub(crate) struct TransactionBase<'txmap, K, V, P, F>
 where
+    K: Hash + Eq,
     F: FinisherTrait<K, V>,
 {
     pub(crate) custodian: &'txmap Custodian<K, V>,
-    pub(crate) guards_bitmask: u128,
+    pub(crate) guards_bitmask: BitMask,
     pub(crate) guards: Vec<Guard<K, V, P>>,
     pub(crate) ops: Vec<Box<dyn OpTrait<K, V, P>>>,
     pub(crate) finisher: Finisher<K, V, F>,

@@ -1,18 +1,18 @@
 use crate::{
-    indexer::{IndexedData, Indexer},
-    ops::op_trait::OpTrait,
-    result::{INCORRECT_PEEK_VALUES_LENGTH, MISSING_MUTEX_GUARD_ERROR},
+    indexed_key::IndexedKey, indexed_keys::IndexedKeys, new_types::BitMask, ops::op_trait::OpTrait,
+    result::INCORRECT_PEEK_VALUES_LENGTH, shard_count::ShardCount,
 };
-use hashbrown::HashMap;
+use hashbrown::HashTable;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct UpdatePeekOp<K, V, P = ()> {
-    guards_bitmask: u128,
-    key_index: u8,
-    key: K,
-    indexed_peek_keys: IndexedData<K>,
+pub(crate) struct UpdatePeekOp<K, V, P = ()>
+where
+    K: Hash + Eq,
+{
+    indexed_key: IndexedKey<K>,
+    indexed_peek_keys: IndexedKeys<K>,
     #[allow(clippy::type_complexity)]
     transform: Box<dyn Fn(&K, Option<&V>, &[Option<&V>], &P) -> Option<V>>,
 }
@@ -22,7 +22,7 @@ where
     K: Hash + Eq,
 {
     pub fn new_with_params<const N: usize, T>(
-        indexer: &Indexer,
+        shard_count: u8,
         key: K,
         peek_keys: [K; N],
         transform: T,
@@ -30,13 +30,9 @@ where
     where
         T: Fn(&K, Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
     {
-        let key_index = indexer.index(&key);
-        let indexed_peek_keys = indexer.indexes(peek_keys, |k| k);
         Self {
-            guards_bitmask: (1 << key_index) | indexed_peek_keys.bitmask,
-            key_index,
-            key,
-            indexed_peek_keys,
+            indexed_key: ShardCount::indexed_key(shard_count, key),
+            indexed_peek_keys: ShardCount::indexes(shard_count, peek_keys, |k| k),
             transform: Box::new(move |key, value, peek_values, params| {
                 let peek_array: [Option<&V>; N] =
                     peek_values.try_into().expect(INCORRECT_PEEK_VALUES_LENGTH);
@@ -44,39 +40,17 @@ where
             }),
         }
     }
-    fn mapped_value(
-        &self,
-        mutex_guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
-        params: &P,
-    ) -> Option<V> {
-        let mut peek_values = Vec::with_capacity(self.indexed_peek_keys.indexed.len());
-        for (shard_index, peek_key) in &self.indexed_peek_keys.indexed {
-            let peek_guard = mutex_guards.get(*shard_index);
-            let peek_shard = peek_guard.expect(MISSING_MUTEX_GUARD_ERROR);
-            let peek_value = peek_shard.get(peek_key);
-            peek_values.push(peek_value);
-        }
-        let key_guard = mutex_guards.get(self.key_index);
-        let key_shard = key_guard.expect(MISSING_MUTEX_GUARD_ERROR);
-        let key_value = key_shard.get(&self.key);
-        (self.transform)(&self.key, key_value, peek_values.as_slice(), params)
-    }
 }
 
 impl<K, V> UpdatePeekOp<K, V, ()>
 where
     K: Hash + Eq,
 {
-    pub fn new<const N: usize, T>(
-        indexer: &Indexer,
-        key: K,
-        peek_keys: [K; N],
-        transform: T,
-    ) -> Self
+    pub fn new<const N: usize, T>(shard_count: u8, key: K, peek_keys: [K; N], transform: T) -> Self
     where
         T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
     {
-        Self::new_with_params(indexer, key, peek_keys, move |k, v, pks, _| {
+        Self::new_with_params(shard_count, key, peek_keys, move |k, v, pks, _| {
             transform(k, v, pks)
         })
     }
@@ -86,16 +60,19 @@ impl<K, V, P> OpTrait<K, V, P> for UpdatePeekOp<K, V, P>
 where
     K: Clone + Hash + Eq,
 {
-    fn guards_bitmask(&self) -> u128 {
-        self.guards_bitmask
+    fn guards_bitmask(&self) -> BitMask {
+        self.indexed_key.2
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, params: &P) {
-        let new_value = self.mapped_value(mutex_guards, params);
-        let guard = mutex_guards.get_mut(self.key_index);
-        let shard = guard.expect(MISSING_MUTEX_GUARD_ERROR);
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>, params: &P) {
+        let peek_values = self.indexed_peek_keys.values(mutex_guards);
+        let value_ref = self.indexed_key.value_ref(mutex_guards);
+        let new_value = (self.transform)(&self.indexed_key.3, value_ref, &peek_values, params);
         match new_value {
-            Some(v) => shard.insert(self.key.clone(), v),
-            None => shard.remove(&self.key),
+            Some(v) => self.indexed_key.insert(mutex_guards, v),
+            None => {
+                self.indexed_key.remove_entry(mutex_guards);
+                ()
+            }
         };
     }
 }

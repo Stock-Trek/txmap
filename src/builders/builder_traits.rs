@@ -141,22 +141,6 @@ where
     where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static;
-    fn retain_only<I>(self, keys: I) -> impl TxBuildable<'txmap, K, V>
-    where
-        I: IntoIterator<Item = K>;
-    fn retain_where<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
-    where
-        I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool + 'static;
-
-    // global ops
-    fn clear(self) -> impl TxBuildable<'txmap, K, V>;
-    fn remove_if<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
-    where
-        C: Fn(&K, &V) -> bool + 'static;
-    fn retain<C>(self, condition: C) -> impl TxBuildable<'txmap, K, V>
-    where
-        C: Fn(&K, &V) -> bool + 'static;
 }
 
 pub trait TxOpParamBuilder<'txmap, K, V, P>
@@ -225,22 +209,6 @@ where
     fn remove_where<I, C>(self, keys: I, condition: C) -> impl TxParamBuildable<'txmap, K, V, P>
     where
         I: IntoIterator<Item = K>,
-        C: Fn(&K, &V, &P) -> bool + 'static;
-    fn retain_only<I>(self, keys: I) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        I: IntoIterator<Item = K>;
-    fn retain_where<I, C>(self, keys: I, condition: C) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        I: IntoIterator<Item = K>,
-        C: Fn(&K, &V, &P) -> bool + 'static;
-
-    // global ops
-    fn clear(self) -> impl TxParamBuildable<'txmap, K, V, P>;
-    fn remove_if<C>(self, condition: C) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
-        C: Fn(&K, &V, &P) -> bool + 'static;
-    fn retain<C>(self, condition: C) -> impl TxParamBuildable<'txmap, K, V, P>
-    where
         C: Fn(&K, &V, &P) -> bool + 'static;
 }
 
@@ -328,6 +296,7 @@ where
 
 pub trait IntoTransaction<'txmap, K, V, F>
 where
+    K: Hash + Eq,
     F: FinisherTrait<K, V>,
 {
     #[must_use]
@@ -336,6 +305,7 @@ where
 
 pub trait IntoParamTransaction<'txmap, K, V, P, F>
 where
+    K: Hash + Eq,
     F: FinisherTrait<K, V>,
 {
     #[must_use]
