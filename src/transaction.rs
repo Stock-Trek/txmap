@@ -16,6 +16,7 @@ where
     K: Hash + Eq,
     F: FinisherTrait<K, V>,
 {
+    #[must_use]
     pub fn execute(&self) -> TxResult<F::Output> {
         self.base.execute_with_params(&())
     }
@@ -33,6 +34,7 @@ where
     K: Hash + Eq,
     F: FinisherTrait<K, V>,
 {
+    #[must_use]
     pub fn execute(&self, params: &P) -> TxResult<F::Output> {
         self.base.execute_with_params(params)
     }

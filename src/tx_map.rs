@@ -16,6 +16,7 @@ impl<K, V> TxMap<K, V>
 where
     K: Hash + Eq,
 {
+    #[must_use]
     pub fn new(shard_count: ShardCount) -> Self {
         let indexer = Indexer {
             shard_count: u8::from(shard_count),
@@ -32,6 +33,7 @@ where
             mutex_guard.1.clear();
         }
     }
+    #[must_use]
     pub fn len(&self) -> usize {
         let mut total_length = 0;
         let all_guards = self.custodian.all_guards();
@@ -40,6 +42,7 @@ where
         }
         total_length
     }
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -59,17 +62,19 @@ where
             .expect(MISSING_MUTEX_GUARD_ERROR);
         mutex_guard.remove(key)
     }
+    #[must_use]
     pub fn get_with<T, R>(&self, key: &K, transform: T) -> Option<R>
     where
         T: FnOnce(&V) -> R,
     {
         let shard_index = self.indexer.index(key);
-        let mut mutex_guards = self.custodian.guards(1 << shard_index);
+        let mutex_guards = self.custodian.guards(1 << shard_index);
         let mutex_guard = mutex_guards
-            .get_mut(shard_index)
+            .get(shard_index)
             .expect(MISSING_MUTEX_GUARD_ERROR);
         mutex_guard.get(key).map(transform)
     }
+    #[must_use]
     pub fn fold<T, R, C, A>(&self, initial: R, convert: C, accumulate: A) -> R
     where
         C: Fn(&K, &V) -> Option<T>,
@@ -82,6 +87,7 @@ where
             .filter_map(|(key, value)| convert(key, value))
             .fold(initial, accumulate)
     }
+    #[must_use]
     pub fn transaction<'txmap>(&'txmap self) -> TxStemBuilder<'txmap, K, V> {
         TxStemBuilder {
             indexer: self.indexer,
@@ -95,6 +101,7 @@ where
     K: Hash + Eq,
     V: Copy,
 {
+    #[must_use]
     pub fn get_copied(&self, key: &K) -> Option<V> {
         self.get_with(key, |v| *v)
     }
@@ -105,6 +112,7 @@ where
     K: Hash + Eq,
     V: Clone,
 {
+    #[must_use]
     pub fn get_cloned(&self, key: &K) -> Option<V> {
         self.get_with(key, |v| v.clone())
     }

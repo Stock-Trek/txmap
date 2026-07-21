@@ -330,6 +330,7 @@ pub trait IntoTransaction<'txmap, K, V, F>
 where
     F: FinisherTrait<K, V>,
 {
+    #[must_use]
     fn into_transaction(self) -> Transaction<'txmap, K, V, F>;
 }
 
@@ -337,5 +338,6 @@ pub trait IntoParamTransaction<'txmap, K, V, P, F>
 where
     F: FinisherTrait<K, V>,
 {
+    #[must_use]
     fn into_transaction(self) -> ParameterizedTransaction<'txmap, K, V, P, F>;
 }

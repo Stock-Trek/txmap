@@ -23,7 +23,8 @@ mod tests {
             first_name: "Pam".into(),
             last_name: "Pamson".into(),
         };
-        db.transaction()
+        let _ = db
+            .transaction()
             .update(tim.clone(), |_t, _f| {
                 Some(Funds {
                     usd_and_cents: 150,
