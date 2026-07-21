@@ -340,7 +340,7 @@ pub enum TxResult<T> {
 | `modify(key, \|k, mut v[, params]\|)`                                                          |
 | `modify_peek(key, peek_keys, \|k, mut v, pks[, params]\|)`                                     |
 | `update(key, \|k, v_opt[, params]\| { new_value_opt })`                                        |
-| `update_peek(key, peek_keys,\|k, v_opt[, params]\| { new_value_opt })`                         |
+| `update_peek(key, peek_keys, \|k, v_opt[, params]\| { new_value_opt })`                        |
 |                                                                                                |
 | `move_value(from, to)`                                                                         |
 | `swap_value(a, b)`                                                                             |

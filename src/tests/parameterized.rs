@@ -166,11 +166,9 @@ mod tests {
         let tx = map
             .transaction()
             .with_param::<u64>()
-            .update_peek(
-                ALICE.into(),
-                |_k, v, [bob], mult| v.map(|x| (x + bob.unwrap_or(&0)) * mult),
-                [BOB.into()],
-            )
+            .update_peek(ALICE.into(), [BOB.into()], |_k, v, [bob], mult| {
+                v.map(|x| (x + bob.unwrap_or(&0)) * mult)
+            })
             .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(&2), TxResult::Completed(Some(30)));
