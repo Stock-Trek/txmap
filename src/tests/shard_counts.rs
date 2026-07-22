@@ -1,28 +1,34 @@
 #[cfg(test)]
 mod tests {
-    use crate::prelude::*;
+    use crate::{new_types::ShardIndex, prelude::*};
+
+    #[test]
+    fn shard_indexes() {
+        assert_eq!(u8::from(ShardCount::_8), 8);
+        assert_eq!(u8::from(ShardCount::_16), 16);
+        assert_eq!(u8::from(ShardCount::_32), 32);
+        assert_eq!(u8::from(ShardCount::_64), 64);
+        assert_eq!(u8::from(ShardCount::_128), 128);
+    }
 
     #[test]
     fn bitmasks() {
+        assert_eq!(ShardIndex(u8::from(ShardCount::_8) - 1).bitmask().0, 1 << 7);
         assert_eq!(
-            ShardCount::all_guards_bitmask(u8::from(ShardCount::_8)),
-            !0u8 as u128
+            ShardIndex(u8::from(ShardCount::_16) - 1).bitmask().0,
+            1 << 15
         );
         assert_eq!(
-            ShardCount::all_guards_bitmask(u8::from(ShardCount::_16)),
-            !0u16 as u128
+            ShardIndex(u8::from(ShardCount::_32) - 1).bitmask().0,
+            1 << 31
         );
         assert_eq!(
-            ShardCount::all_guards_bitmask(u8::from(ShardCount::_32)),
-            !0u32 as u128
+            ShardIndex(u8::from(ShardCount::_64) - 1).bitmask().0,
+            1 << 63
         );
         assert_eq!(
-            ShardCount::all_guards_bitmask(u8::from(ShardCount::_64)),
-            !0u64 as u128
-        );
-        assert_eq!(
-            ShardCount::all_guards_bitmask(u8::from(ShardCount::_128)),
-            !0u128
+            ShardIndex(u8::from(ShardCount::_128) - 1).bitmask().0,
+            1 << 127
         );
     }
 

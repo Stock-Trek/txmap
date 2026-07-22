@@ -12,22 +12,22 @@ use crate::{
         values_finisher::ValuesFinisher,
     },
     guard::Guard,
-    indexer::Indexer,
+    new_types::BitMask,
     ops::{
-        clear_op::ClearOp, insert_default_if_absent_op::InsertDefaultIfAbsentOp,
-        insert_default_op::InsertDefaultOp, insert_with_if_absent_op::InsertWithIfAbsentOp,
-        insert_with_op::InsertWithOp, modify_op::ModifyOp, modify_peek_op::ModifyPeekOp,
-        move_value_op::MoveValueOp, op_trait::OpTrait, remove_if_op::RemoveIfOp,
-        remove_op::RemoveOp, remove_where_op::RemoveWhereOp, retain_only_op::RetainOnlyOp,
-        retain_op::RetainOp, retain_where_op::RetainWhereOp, swap_value_op::SwapValueOp,
-        update_op::UpdateOp, update_peek_op::UpdatePeekOp,
+        insert_default_if_absent_op::InsertDefaultIfAbsentOp, insert_default_op::InsertDefaultOp,
+        insert_with_if_absent_op::InsertWithIfAbsentOp, insert_with_op::InsertWithOp,
+        modify_op::ModifyOp, modify_peek_op::ModifyPeekOp, move_value_op::MoveValueOp,
+        op_trait::OpTrait, remove_op::RemoveOp, remove_where_op::RemoveWhereOp,
+        swap_value_op::SwapValueOp, update_op::UpdateOp, update_peek_op::UpdatePeekOp,
     },
     transaction::{Transaction, TransactionBase},
 };
 use std::hash::Hash;
 
-pub struct TxBuildableImpl<'txmap, K, V> {
-    pub(crate) indexer: Indexer,
+pub struct TxBuildableImpl<'txmap, K, V>
+where
+    K: Hash + Eq,
+{
     pub(crate) custodian: &'txmap Custodian<K, V>,
     pub(crate) guards: Vec<Guard<K, V>>,
     pub(crate) ops: Vec<Box<dyn OpTrait<K, V, ()>>>,
@@ -51,7 +51,7 @@ where
         K: Clone,
         V: Default,
     {
-        let op = InsertDefaultOp::new(&self.indexer, key);
+        let op = InsertDefaultOp::new(self.custodian.shard_count, key);
         self.ops.push(Box::new(op));
         self
     }
@@ -60,7 +60,7 @@ where
         K: Clone,
         V: Default,
     {
-        let op = InsertDefaultIfAbsentOp::new(&self.indexer, key);
+        let op = InsertDefaultIfAbsentOp::new(self.custodian.shard_count, key);
         self.ops.push(Box::new(op));
         self
     }
@@ -69,7 +69,7 @@ where
         G: Fn(&K) -> V + 'static,
         K: Clone,
     {
-        let op = InsertWithOp::new(&self.indexer, key, value_generator);
+        let op = InsertWithOp::new(self.custodian.shard_count, key, value_generator);
         self.ops.push(Box::new(op));
         self
     }
@@ -82,7 +82,7 @@ where
         G: Fn(&K) -> V + 'static,
         K: Clone,
     {
-        let op = InsertWithIfAbsentOp::new(&self.indexer, key, value_generator);
+        let op = InsertWithIfAbsentOp::new(self.custodian.shard_count, key, value_generator);
         self.ops.push(Box::new(op));
         self
     }
@@ -90,7 +90,7 @@ where
     where
         M: Fn(&K, &mut V) + 'static,
     {
-        let op = ModifyOp::new(&self.indexer, key, mutate);
+        let op = ModifyOp::new(self.custodian.shard_count, key, mutate);
         self.ops.push(Box::new(op));
         self
     }
@@ -104,7 +104,7 @@ where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
         K: Clone,
     {
-        let op = ModifyPeekOp::new(&self.indexer, key, peek_keys, mutate);
+        let op = ModifyPeekOp::new(self.custodian.shard_count, key, peek_keys, mutate);
         self.ops.push(Box::new(op));
         self
     }
@@ -113,7 +113,7 @@ where
         T: Fn(&K, Option<&V>) -> Option<V> + 'static,
         K: Clone,
     {
-        let op = UpdateOp::new(&self.indexer, key, transform);
+        let op = UpdateOp::new(self.custodian.shard_count, key, transform);
         self.ops.push(Box::new(op));
         self
     }
@@ -127,7 +127,7 @@ where
         T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
         K: Clone,
     {
-        let op = UpdatePeekOp::new(&self.indexer, key, peek_keys, transform);
+        let op = UpdatePeekOp::new(self.custodian.shard_count, key, peek_keys, transform);
         self.ops.push(Box::new(op));
         self
     }
@@ -137,7 +137,7 @@ where
     where
         K: Clone,
     {
-        let op = MoveValueOp::new(&self.indexer, from, to);
+        let op = MoveValueOp::new(self.custodian.shard_count, from, to);
         self.ops.push(Box::new(op));
         self
     }
@@ -145,7 +145,7 @@ where
     where
         K: Clone,
     {
-        let op = SwapValueOp::new(&self.indexer, a, b);
+        let op = SwapValueOp::new(self.custodian.shard_count, a, b);
         self.ops.push(Box::new(op));
         self
     }
@@ -155,7 +155,7 @@ where
     where
         I: IntoIterator<Item = K>,
     {
-        let op = RemoveOp::new(&self.indexer, keys);
+        let op = RemoveOp::new(self.custodian.shard_count, keys);
         self.ops.push(Box::new(op));
         self
     }
@@ -164,47 +164,7 @@ where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,
     {
-        let op = RemoveWhereOp::new(&self.indexer, keys, condition);
-        self.ops.push(Box::new(op));
-        self
-    }
-    fn retain_only<I>(mut self, keys: I) -> impl TxBuildable<'txmap, K, V>
-    where
-        I: IntoIterator<Item = K>,
-    {
-        let op = RetainOnlyOp::new(&self.indexer, keys);
-        self.ops.push(Box::new(op));
-        self
-    }
-    fn retain_where<I, C>(mut self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
-    where
-        I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool + 'static,
-    {
-        let op = RetainWhereOp::new(&self.indexer, keys, condition);
-        self.ops.push(Box::new(op));
-        self
-    }
-
-    // global ops
-    fn clear(mut self) -> impl TxBuildable<'txmap, K, V> {
-        let op = ClearOp::new(&self.indexer);
-        self.ops.push(Box::new(op));
-        self
-    }
-    fn remove_if<C>(mut self, condition: C) -> impl TxBuildable<'txmap, K, V>
-    where
-        C: Fn(&K, &V) -> bool + 'static,
-    {
-        let op = RemoveIfOp::new(&self.indexer, condition);
-        self.ops.push(Box::new(op));
-        self
-    }
-    fn retain<C>(mut self, condition: C) -> impl TxBuildable<'txmap, K, V>
-    where
-        C: Fn(&K, &V) -> bool + 'static,
-    {
-        let op = RetainOp::new(&self.indexer, condition);
+        let op = RemoveWhereOp::new(self.custodian.shard_count, keys, condition);
         self.ops.push(Box::new(op));
         self
     }
@@ -219,13 +179,12 @@ where
         V: Copy,
     {
         let Self {
-            indexer,
             custodian,
             guards,
             ops,
             ..
         } = self;
-        let copy_finisher = CopyFinisher::new(indexer, key);
+        let copy_finisher = CopyFinisher::new(self.custodian.shard_count, key);
         let finisher = Finisher::new(copy_finisher);
         TxFinishableImpl {
             custodian,
@@ -240,13 +199,12 @@ where
         V: Copy,
     {
         let Self {
-            indexer,
             custodian,
             guards,
             ops,
             ..
         } = self;
-        let copy_finisher = CopyAllFinisher::new(indexer, keys);
+        let copy_finisher = CopyAllFinisher::new(self.custodian.shard_count, keys);
         let finisher = Finisher::new(copy_finisher);
         TxFinishableImpl {
             custodian,
@@ -260,13 +218,12 @@ where
         V: Clone,
     {
         let Self {
-            indexer,
             custodian,
             guards,
             ops,
             ..
         } = self;
-        let clone_finisher = CloneFinisher::new(indexer, key);
+        let clone_finisher = CloneFinisher::new(self.custodian.shard_count, key);
         let finisher = Finisher::new(clone_finisher);
         TxFinishableImpl {
             custodian,
@@ -284,13 +241,12 @@ where
         V: Clone,
     {
         let Self {
-            indexer,
             custodian,
             guards,
             ops,
             ..
         } = self;
-        let clone_all_finisher = CloneAllFinisher::new(indexer, keys);
+        let clone_all_finisher = CloneAllFinisher::new(self.custodian.shard_count, keys);
         let finisher = Finisher::new(clone_all_finisher);
         TxFinishableImpl {
             custodian,
@@ -299,7 +255,7 @@ where
             ops,
         }
     }
-    fn get<T, R>(
+    fn get_with<T, R>(
         self,
         key: K,
         transform: T,
@@ -308,13 +264,12 @@ where
         T: Fn(&K, &V) -> R + 'static,
     {
         let Self {
-            indexer,
             custodian,
             guards,
             ops,
             ..
         } = self;
-        let value_finisher = ValueFinisher::new(indexer, key, transform);
+        let value_finisher = ValueFinisher::new(self.custodian.shard_count, key, transform);
         let finisher = Finisher::new(value_finisher);
         TxFinishableImpl {
             custodian,
@@ -323,7 +278,7 @@ where
             ops,
         }
     }
-    fn get_all<I, T, R>(
+    fn get_all_with<I, T, R>(
         self,
         keys: I,
         transform: T,
@@ -338,7 +293,7 @@ where
             ops,
             ..
         } = self;
-        let values_finisher = ValuesFinisher::new(self.indexer, keys, transform);
+        let values_finisher = ValuesFinisher::new(self.custodian.shard_count, keys, transform);
         let finisher = Finisher::new(values_finisher);
         TxFinishableImpl {
             custodian,
@@ -349,7 +304,10 @@ where
     }
 }
 
-impl<'txmap, K, V> IntoTransaction<'txmap, K, V, NoneFinisher> for TxBuildableImpl<'txmap, K, V> {
+impl<'txmap, K, V> IntoTransaction<'txmap, K, V, NoneFinisher> for TxBuildableImpl<'txmap, K, V>
+where
+    K: Hash + Eq,
+{
     fn into_transaction(self) -> Transaction<'txmap, K, V, NoneFinisher> {
         let Self {
             custodian,
@@ -357,7 +315,7 @@ impl<'txmap, K, V> IntoTransaction<'txmap, K, V, NoneFinisher> for TxBuildableIm
             ops,
             ..
         } = self;
-        let mut guards_bitmask: u128 = 0;
+        let mut guards_bitmask = BitMask::default();
         for guard in &guards {
             guards_bitmask |= guard.guards_bitmask;
         }

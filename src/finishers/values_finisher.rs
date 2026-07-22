@@ -1,30 +1,32 @@
 use crate::{
-    finishers::finisher_trait::FinisherTrait,
-    indexer::{IndexedData, Indexer},
-    result::MISSING_MUTEX_GUARD_ERROR,
+    finishers::finisher_trait::FinisherTrait, indexed_keys::IndexedKeys, new_types::BitMask,
+    shard_count::ShardCount,
 };
-use hashbrown::HashMap;
+use hashbrown::HashTable;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub struct ValuesFinisher<K, V, R> {
-    indexed_keys: IndexedData<K>,
+pub struct ValuesFinisher<K, V, R>
+where
+    K: Hash + Eq,
+{
+    indexed_keys: IndexedKeys<K>,
     #[allow(clippy::type_complexity)]
     transform: Box<dyn Fn(&K, Option<&V>) -> Option<R>>,
 }
 
 impl<K, V, R> ValuesFinisher<K, V, R>
 where
-    K: Hash,
+    K: Hash + Eq,
 {
-    pub fn new<I, T>(indexer: Indexer, keys: I, transform: T) -> Self
+    pub fn new<I, T>(shard_count: u8, keys: I, transform: T) -> Self
     where
         I: IntoIterator<Item = K>,
         T: Fn(&K, &V) -> R + 'static,
     {
         Self {
-            indexed_keys: indexer.indexes(keys, |k| k),
+            indexed_keys: ShardCount::indexes(shard_count, keys, |k| k),
             transform: Box::new(move |key, value_opt| value_opt.map(|value| transform(key, value))),
         }
     }
@@ -36,20 +38,17 @@ where
 {
     type Output = Vec<Option<R>>;
 
-    fn guards_bitmask(&self) -> u128 {
+    fn guards_bitmask(&self) -> BitMask {
         self.indexed_keys.bitmask
     }
     fn to_result(
         &self,
-        mutex_guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
+        mutex_guards: &IntMap<u8, MutexGuard<HashTable<(K, V)>>>,
     ) -> Vec<Option<R>> {
         let mut result = Vec::with_capacity(self.indexed_keys.indexed.len());
-        for (key_index, key) in &self.indexed_keys.indexed {
-            let mutex_guard = mutex_guards
-                .get(*key_index)
-                .expect(MISSING_MUTEX_GUARD_ERROR);
-            let value = mutex_guard.get(key);
-            let result_value = (self.transform)(key, value);
+        for indexed_key in &self.indexed_keys.indexed {
+            let value_ref = indexed_key.value_ref(mutex_guards);
+            let result_value = (self.transform)(&indexed_key.3, value_ref);
             result.push(result_value);
         }
         result

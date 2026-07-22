@@ -1,28 +1,30 @@
 use crate::{
-    indexer::{IndexedData, Indexer},
-    ops::op_trait::OpTrait,
+    indexed_keys::IndexedKeys, new_types::BitMask, ops::op_trait::OpTrait, shard_count::ShardCount,
 };
-use hashbrown::HashMap;
+use hashbrown::HashTable;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub(crate) struct RemoveWhereOp<K, V, P = ()> {
-    indexed_keys: IndexedData<K>,
+pub(crate) struct RemoveWhereOp<K, V, P = ()>
+where
+    K: Hash + Eq,
+{
+    indexed_keys: IndexedKeys<K>,
     #[allow(clippy::type_complexity)]
     condition: Box<dyn Fn(&K, &V, &P) -> bool>,
 }
 
 impl<K, V, P> RemoveWhereOp<K, V, P>
 where
-    K: Hash,
+    K: Hash + Eq,
 {
-    pub fn new_with_params<I, C>(indexer: &Indexer, keys: I, condition: C) -> Self
+    pub fn new_with_params<I, C>(shard_count: u8, keys: I, condition: C) -> Self
     where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V, &P) -> bool + 'static,
     {
-        let indexed_keys = indexer.indexes(keys, |k| k);
+        let indexed_keys = ShardCount::indexes(shard_count, keys, |k| k);
         Self {
             indexed_keys,
             condition: Box::new(condition),
@@ -32,14 +34,14 @@ where
 
 impl<K, V> RemoveWhereOp<K, V, ()>
 where
-    K: Hash,
+    K: Hash + Eq,
 {
-    pub fn new<I, C>(indexer: &Indexer, keys: I, condition: C) -> Self
+    pub fn new<I, C>(shard_count: u8, keys: I, condition: C) -> Self
     where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,
     {
-        Self::new_with_params(indexer, keys, move |k, v, _| condition(k, v))
+        Self::new_with_params(shard_count, keys, move |k, v, _| condition(k, v))
     }
 }
 
@@ -47,16 +49,16 @@ impl<K, V, P> OpTrait<K, V, P> for RemoveWhereOp<K, V, P>
 where
     K: Hash + Eq,
 {
-    fn guards_bitmask(&self) -> u128 {
+    fn guards_bitmask(&self) -> BitMask {
         self.indexed_keys.bitmask
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, params: &P) {
-        for (key_index, key) in &self.indexed_keys.indexed {
-            if let Some(guard) = mutex_guards.get_mut(*key_index)
-                && let Some(value) = guard.get(key)
-                && (self.condition)(key, value, params)
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>, params: &P) {
+        for indexed_key in &self.indexed_keys.indexed {
+            let value_ref = indexed_key.value_ref(mutex_guards);
+            if let Some(v) = value_ref
+                && (self.condition)(&indexed_key.3, v, params)
             {
-                guard.remove(key);
+                indexed_key.remove_entry(mutex_guards);
             }
         }
     }

@@ -1,80 +1,56 @@
-use crate::{indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR};
-use hashbrown::HashMap;
+use crate::{
+    indexed_key::IndexedKey, new_types::BitMask, ops::op_trait::OpTrait, shard_count::ShardCount,
+};
+use hashbrown::HashTable;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
-use std::{hash::Hash, marker::PhantomData};
+use std::hash::Hash;
 
-pub(crate) struct SwapValueOp<K, V> {
-    guards_bitmask: u128,
-    a_index: u8,
-    b_index: u8,
-    a: K,
-    b: K,
-    _phantom: PhantomData<V>,
+pub(crate) struct SwapValueOp<K>
+where
+    K: Hash + Eq,
+{
+    indexed_key_a: IndexedKey<K>,
+    indexed_key_b: IndexedKey<K>,
 }
 
-impl<K, V> SwapValueOp<K, V>
+impl<K> SwapValueOp<K>
 where
-    K: Hash,
+    K: Hash + Eq,
 {
-    pub fn new(indexer: &Indexer, a: K, b: K) -> Self {
-        let a_index = indexer.index(&a);
-        let b_index = indexer.index(&b);
+    pub fn new(shard_count: u8, a: K, b: K) -> Self {
         Self {
-            guards_bitmask: (1 << a_index) | (1 << b_index),
-            a_index,
-            b_index,
-            a,
-            b,
-            _phantom: PhantomData,
+            indexed_key_a: ShardCount::indexed_key(shard_count, a),
+            indexed_key_b: ShardCount::indexed_key(shard_count, b),
         }
     }
 }
 
-impl<K, V, P> OpTrait<K, V, P> for SwapValueOp<K, V>
+impl<K, V, P> OpTrait<K, V, P> for SwapValueOp<K>
 where
     K: Clone + Hash + Eq,
 {
-    fn guards_bitmask(&self) -> u128 {
-        self.guards_bitmask
+    fn guards_bitmask(&self) -> BitMask {
+        self.indexed_key_a.2 | self.indexed_key_b.2
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, _: &P) {
-        let (a_value, b_value) = {
-            let a_guard = mutex_guards
-                .get_mut(self.a_index)
-                .expect(MISSING_MUTEX_GUARD_ERROR);
-            let a_value = a_guard.remove(&self.a);
-            let b_guard = mutex_guards
-                .get_mut(self.b_index)
-                .expect(MISSING_MUTEX_GUARD_ERROR);
-            let b_value = b_guard.remove(&self.b);
-            (a_value, b_value)
-        };
-        if self.a_index == self.b_index {
-            let guard = mutex_guards
-                .get_mut(self.a_index)
-                .expect(MISSING_MUTEX_GUARD_ERROR);
-            if let Some(v) = b_value {
-                guard.insert(self.a.clone(), v);
-            }
-            if let Some(v) = a_value {
-                guard.insert(self.b.clone(), v);
-            }
-        } else {
-            {
-                let a_guard = mutex_guards
-                    .get_mut(self.a_index)
-                    .expect(MISSING_MUTEX_GUARD_ERROR);
-                if let Some(v) = b_value {
-                    a_guard.insert(self.a.clone(), v);
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>, _: &P) {
+        let a = self.indexed_key_a.remove_entry(mutex_guards);
+        let b = self.indexed_key_b.remove_entry(mutex_guards);
+        match a {
+            Some((a_key, a_value)) => match b {
+                Some((b_key, b_value)) => {
+                    self.indexed_key_a
+                        .insert_with_duplicate_key(mutex_guards, a_key, b_value);
+                    self.indexed_key_b
+                        .insert_with_duplicate_key(mutex_guards, b_key, a_value);
                 }
-            }
-            {
-                let b_guard = mutex_guards
-                    .get_mut(self.b_index)
-                    .expect(MISSING_MUTEX_GUARD_ERROR);
-                if let Some(v) = a_value {
-                    b_guard.insert(self.b.clone(), v);
+                None => {
+                    self.indexed_key_b.insert(mutex_guards, a_value);
+                }
+            },
+            None => {
+                if let Some((_, b_value)) = b {
+                    self.indexed_key_a.insert(mutex_guards, b_value);
                 }
             }
         }

@@ -1,45 +1,41 @@
 use crate::{
-    indexer::{IndexedData, Indexer},
-    ops::op_trait::OpTrait,
+    indexed_keys::IndexedKeys, new_types::BitMask, ops::op_trait::OpTrait, shard_count::ShardCount,
 };
-use hashbrown::HashMap;
+use hashbrown::HashTable;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
-use std::{hash::Hash, marker::PhantomData};
+use std::hash::Hash;
 
-pub(crate) struct RemoveOp<K, V> {
-    indexed_keys: IndexedData<K>,
-    _phantom: PhantomData<V>,
-}
-
-impl<K, V> RemoveOp<K, V>
-where
-    K: Hash,
-{
-    pub fn new<I>(indexer: &Indexer, keys: I) -> Self
-    where
-        I: IntoIterator<Item = K>,
-    {
-        let indexed_keys = indexer.indexes(keys, |k| k);
-        Self {
-            indexed_keys,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<K, V, P> OpTrait<K, V, P> for RemoveOp<K, V>
+pub(crate) struct RemoveOp<K>
 where
     K: Hash + Eq,
 {
-    fn guards_bitmask(&self) -> u128 {
+    indexed_keys: IndexedKeys<K>,
+}
+
+impl<K> RemoveOp<K>
+where
+    K: Hash + Eq,
+{
+    pub fn new<I>(shard_count: u8, keys: I) -> Self
+    where
+        I: IntoIterator<Item = K>,
+    {
+        let indexed_keys = ShardCount::indexes(shard_count, keys, |k| k);
+        Self { indexed_keys }
+    }
+}
+
+impl<K, V, P> OpTrait<K, V, P> for RemoveOp<K>
+where
+    K: Hash + Eq,
+{
+    fn guards_bitmask(&self) -> BitMask {
         self.indexed_keys.bitmask
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, _: &P) {
-        for (key_index, key) in &self.indexed_keys.indexed {
-            if let Some(guard) = mutex_guards.get_mut(*key_index) {
-                guard.remove(key);
-            }
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>, _: &P) {
+        for indexed_key in &self.indexed_keys.indexed {
+            indexed_key.remove_entry(mutex_guards);
         }
     }
 }

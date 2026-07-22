@@ -1,4 +1,3 @@
-pub mod clear_op;
 pub mod insert_default_if_absent_op;
 pub mod insert_default_op;
 pub mod insert_with_if_absent_op;
@@ -7,12 +6,8 @@ pub mod modify_op;
 pub mod modify_peek_op;
 pub mod move_value_op;
 pub mod op_trait;
-pub mod remove_if_op;
 pub mod remove_op;
 pub mod remove_where_op;
-pub mod retain_only_op;
-pub mod retain_op;
-pub mod retain_where_op;
 pub mod swap_value_op;
 pub mod update_op;
 pub mod update_peek_op;

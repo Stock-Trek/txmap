@@ -3,7 +3,13 @@ use std::{sync::Arc, thread};
 use txmap::prelude::*;
 
 fn shards(c: &mut Criterion) {
-    for sc in ShardCount::all() {
+    for sc in vec![
+        ShardCount::_8,
+        ShardCount::_16,
+        ShardCount::_32,
+        ShardCount::_64,
+        ShardCount::_128,
+    ] {
         let txmap = TxMap::new(sc);
         c.bench_function(&format!("txmap_insert_shards_{}", sc), |b| {
             b.iter(|| {
@@ -18,7 +24,13 @@ fn concurrent_shards(c: &mut Criterion) {
     let num_threads = 8;
     let ops_per_thread = 1_000;
 
-    for sc in ShardCount::all() {
+    for sc in vec![
+        ShardCount::_8,
+        ShardCount::_16,
+        ShardCount::_32,
+        ShardCount::_64,
+        ShardCount::_128,
+    ] {
         let map = Arc::new(TxMap::new(sc));
         c.bench_function(&format!("txmap_concurrent_insert_shards_{}", sc), |b| {
             b.iter(|| {

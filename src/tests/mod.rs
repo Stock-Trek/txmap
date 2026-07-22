@@ -5,6 +5,7 @@ pub mod creators;
 pub mod data;
 pub mod error_constants;
 pub mod finishers;
+pub mod global;
 pub mod guards;
 pub mod indexer;
 pub mod insert;

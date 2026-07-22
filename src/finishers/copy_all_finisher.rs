@@ -1,29 +1,31 @@
 use crate::{
-    finishers::finisher_trait::FinisherTrait,
-    indexer::{IndexedData, Indexer},
-    result::MISSING_MUTEX_GUARD_ERROR,
+    finishers::finisher_trait::FinisherTrait, indexed_keys::IndexedKeys, new_types::BitMask,
+    shard_count::ShardCount,
 };
-use hashbrown::HashMap;
+use hashbrown::HashTable;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::{hash::Hash, marker::PhantomData};
 
-pub struct CopyAllFinisher<K, V> {
-    indexed_keys: IndexedData<K>,
+pub struct CopyAllFinisher<K, V>
+where
+    K: Hash + Eq,
+{
+    indexed_keys: IndexedKeys<K>,
     _phantom: PhantomData<V>,
 }
 
 impl<K, V> CopyAllFinisher<K, V>
 where
-    K: Hash,
+    K: Hash + Eq,
     V: Copy,
 {
-    pub fn new<I>(indexer: Indexer, keys: I) -> Self
+    pub fn new<I>(shard_count: u8, keys: I) -> Self
     where
         I: IntoIterator<Item = K>,
     {
         Self {
-            indexed_keys: indexer.indexes(keys, |k| k),
+            indexed_keys: ShardCount::indexes(shard_count, keys, |k| k),
             _phantom: PhantomData,
         }
     }
@@ -36,20 +38,17 @@ where
 {
     type Output = Vec<Option<V>>;
 
-    fn guards_bitmask(&self) -> u128 {
+    fn guards_bitmask(&self) -> BitMask {
         self.indexed_keys.bitmask
     }
     fn to_result(
         &self,
-        mutex_guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>,
+        mutex_guards: &IntMap<u8, MutexGuard<HashTable<(K, V)>>>,
     ) -> Vec<Option<V>> {
         let mut result = Vec::with_capacity(self.indexed_keys.indexed.len());
-        for (key_index, key) in &self.indexed_keys.indexed {
-            let mutex_guard = mutex_guards
-                .get(*key_index)
-                .expect(MISSING_MUTEX_GUARD_ERROR);
-            let value = mutex_guard.get(key).copied();
-            result.push(value);
+        for indexed_key in &self.indexed_keys.indexed {
+            let value_ref = indexed_key.value_ref(mutex_guards);
+            result.push(value_ref.copied());
         }
         result
     }

@@ -1,29 +1,31 @@
 use crate::{
-    finishers::finisher_trait::FinisherTrait, indexer::Indexer, result::MISSING_MUTEX_GUARD_ERROR,
+    finishers::finisher_trait::FinisherTrait, indexed_key::IndexedKey, new_types::BitMask,
+    shard_count::ShardCount,
 };
-use hashbrown::HashMap;
+use hashbrown::HashTable;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::hash::Hash;
 
-pub struct ValueFinisher<K, V, R> {
-    key_index: u8,
-    key: K,
+pub struct ValueFinisher<K, V, R>
+where
+    K: Hash + Eq,
+{
+    indexed_key: IndexedKey<K>,
     #[allow(clippy::type_complexity)]
     transform: Box<dyn Fn(&K, Option<&V>) -> Option<R>>,
 }
 
 impl<K, V, R> ValueFinisher<K, V, R>
 where
-    K: Hash,
+    K: Hash + Eq,
 {
-    pub fn new<T>(indexer: Indexer, key: K, transform: T) -> Self
+    pub fn new<T>(shard_count: u8, key: K, transform: T) -> Self
     where
         T: Fn(&K, &V) -> R + 'static,
     {
         Self {
-            key_index: indexer.index(&key),
-            key,
+            indexed_key: ShardCount::indexed_key(shard_count, key),
             transform: Box::new(move |key, value_opt| value_opt.map(|value| transform(key, value))),
         }
     }
@@ -35,14 +37,11 @@ where
 {
     type Output = Option<R>;
 
-    fn guards_bitmask(&self) -> u128 {
-        1 << self.key_index
+    fn guards_bitmask(&self) -> BitMask {
+        self.indexed_key.2
     }
-    fn to_result(&self, mutex_guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) -> Option<R> {
-        let mutex_guard = mutex_guards
-            .get(self.key_index)
-            .expect(MISSING_MUTEX_GUARD_ERROR);
-        let value = mutex_guard.get(&self.key);
-        (self.transform)(&self.key, value)
+    fn to_result(&self, mutex_guards: &IntMap<u8, MutexGuard<HashTable<(K, V)>>>) -> Option<R> {
+        let value_ref = self.indexed_key.value_ref(mutex_guards);
+        (self.transform)(&self.indexed_key.3, value_ref)
     }
 }

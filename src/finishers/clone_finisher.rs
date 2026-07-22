@@ -1,26 +1,28 @@
 use crate::{
-    finishers::finisher_trait::FinisherTrait, indexer::Indexer, result::MISSING_MUTEX_GUARD_ERROR,
+    finishers::finisher_trait::FinisherTrait, indexed_key::IndexedKey, new_types::BitMask,
+    shard_count::ShardCount,
 };
-use hashbrown::HashMap;
+use hashbrown::HashTable;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
 use std::{hash::Hash, marker::PhantomData};
 
-pub struct CloneFinisher<K, V> {
-    key_index: u8,
-    key: K,
+pub struct CloneFinisher<K, V>
+where
+    K: Hash + Eq,
+{
+    indexed_key: IndexedKey<K>,
     _phantom: PhantomData<V>,
 }
 
 impl<K, V> CloneFinisher<K, V>
 where
-    K: Hash,
+    K: Hash + Eq,
     V: Clone,
 {
-    pub fn new(indexer: Indexer, key: K) -> Self {
+    pub fn new(shard_count: u8, key: K) -> Self {
         Self {
-            key_index: indexer.index(&key),
-            key,
+            indexed_key: ShardCount::indexed_key(shard_count, key),
             _phantom: PhantomData,
         }
     }
@@ -33,14 +35,11 @@ where
 {
     type Output = Option<V>;
 
-    fn guards_bitmask(&self) -> u128 {
-        1 << self.key_index
+    fn guards_bitmask(&self) -> BitMask {
+        self.indexed_key.2
     }
-    fn to_result(&self, mutex_guards: &IntMap<u8, MutexGuard<'_, HashMap<K, V>>>) -> Option<V> {
-        let mutex_guard = mutex_guards
-            .get(self.key_index)
-            .expect(MISSING_MUTEX_GUARD_ERROR);
-        let value = mutex_guard.get(&self.key);
-        value.cloned()
+    fn to_result(&self, mutex_guards: &IntMap<u8, MutexGuard<HashTable<(K, V)>>>) -> Option<V> {
+        let value_ref = self.indexed_key.value_ref(mutex_guards);
+        value_ref.cloned()
     }
 }

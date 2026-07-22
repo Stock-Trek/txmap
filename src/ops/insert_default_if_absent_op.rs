@@ -1,43 +1,39 @@
-use crate::{indexer::Indexer, ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR};
-use hashbrown::HashMap;
+use crate::{
+    indexed_key::IndexedKey, new_types::BitMask, ops::op_trait::OpTrait, shard_count::ShardCount,
+};
+use hashbrown::HashTable;
 use intmap::IntMap;
 use parking_lot::MutexGuard;
-use std::{hash::Hash, marker::PhantomData};
+use std::hash::Hash;
 
-pub(crate) struct InsertDefaultIfAbsentOp<K, V> {
-    guards_bitmask: u128,
-    key_index: u8,
-    key: K,
-    _phantom: PhantomData<V>,
+pub(crate) struct InsertDefaultIfAbsentOp<K>
+where
+    K: Hash + Eq,
+{
+    indexed_key: IndexedKey<K>,
 }
 
-impl<K, V> InsertDefaultIfAbsentOp<K, V>
+impl<K> InsertDefaultIfAbsentOp<K>
 where
-    K: Hash,
+    K: Hash + Eq,
 {
-    pub fn new(indexer: &Indexer, key: K) -> Self {
-        let key_index = indexer.index(&key);
+    pub fn new(shard_count: u8, key: K) -> Self {
         Self {
-            guards_bitmask: 1 << key_index,
-            key_index,
-            key,
-            _phantom: PhantomData,
+            indexed_key: ShardCount::indexed_key(shard_count, key),
         }
     }
 }
 
-impl<K, V, P> OpTrait<K, V, P> for InsertDefaultIfAbsentOp<K, V>
+impl<K, V, P> OpTrait<K, V, P> for InsertDefaultIfAbsentOp<K>
 where
     K: Clone + Hash + Eq,
     V: Default,
 {
-    fn guards_bitmask(&self) -> u128 {
-        self.guards_bitmask
+    fn guards_bitmask(&self) -> BitMask {
+        self.indexed_key.2
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<'_, HashMap<K, V>>>, _: &P) {
-        let mutex_guard = mutex_guards
-            .get_mut(self.key_index)
-            .expect(MISSING_MUTEX_GUARD_ERROR);
-        mutex_guard.entry(self.key.clone()).or_default();
+    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>, _: &P) {
+        self.indexed_key
+            .insert_if_absent(mutex_guards, || V::default());
     }
 }
