@@ -40,7 +40,7 @@ let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
 
 The lock policy can be set using the `with_lock_policy` constructor.
 Two policies are provided: [MutexLockPolicy](./src/locks/mutex_policy.rs) and [RwLockPolicy](./src/locks/rwlock_policy.rs). The default is MutexLockPolicy.
-You can also implement your own policy by implementing [`LockPolicy`](./src/locks/lock_policy.rs).
+You can also implement your own policy by implementing [LockPolicy](./src/locks/lock_policy.rs).
 
 ```rust
 // Creating a TxMap with a lock policy
