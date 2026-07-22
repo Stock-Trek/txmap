@@ -135,7 +135,7 @@ match result {
 
 #### Transaction returning a value
 
-As seen already, a completed transaction can optionally return a final value. There are 6 functions like this that can be used
+As seen already, a completed transaction can optionally return a final value in the result. There are 6 functions like this that can be used
 
 | Final function                           | Description                | Additional bounds required |
 |------------------------------------------|----------------------------|----------------------------|
