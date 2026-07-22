@@ -29,12 +29,12 @@ where
         }
     }
     #[must_use]
-    pub fn with_lock_policy<L>(shard_count: ShardCount) -> Self
+    pub fn with_lock_policy<L>(shard_count: ShardCount) -> TxMap<K, V, L>
     where
         L: LockPolicy,
     {
         let shard_count = u8::from(shard_count);
-        Self {
+        TxMap::<K, V, L> {
             shard_count,
             custodian: Custodian::new(shard_count),
         }
@@ -214,5 +214,29 @@ where
     #[must_use]
     pub fn get_all_cloned(&self, keys: impl IntoIterator<Item = K>) -> Vec<Option<V>> {
         self.get_all_with(keys, |_k, v| v.clone())
+    }
+}
+
+impl<K, V, L> Clone for TxMap<K, V, L>
+where
+    K: Clone + Hash + Eq,
+    V: Clone,
+    L: LockPolicy,
+{
+    fn clone(&self) -> Self {
+        let shard_count = self.shard_count;
+        let mut shards = Vec::with_capacity(self.shard_count as usize);
+        for (_, shard) in self.custodian.all_guards() {
+            let cloned_shard = shard.clone();
+            shards.push(L::new(cloned_shard));
+        }
+        let custodian = Custodian {
+            shard_count,
+            shards,
+        };
+        TxMap {
+            shard_count,
+            custodian,
+        }
     }
 }

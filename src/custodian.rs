@@ -10,7 +10,7 @@ where
     L: LockPolicy,
 {
     pub(crate) shard_count: u8,
-    shards: Vec<L::Lock<Shard<K, V>>>,
+    pub(crate) shards: Vec<L::Lock<Shard<K, V>>>,
 }
 
 type Shard<K, V> = HashTable<(K, V)>;
