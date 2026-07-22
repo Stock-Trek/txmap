@@ -61,7 +61,7 @@ where
     K: Clone + Hash + Eq,
 {
     fn guards_bitmask(&self) -> BitMask {
-        self.indexed_key.2
+        self.indexed_key.2 | self.indexed_peek_keys.bitmask
     }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>, params: &P) {
         let peek_values = self.indexed_peek_keys.values(mutex_guards);

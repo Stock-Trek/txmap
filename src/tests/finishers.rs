@@ -16,7 +16,7 @@ mod tests {
         let result = map
             .transaction()
             .modify(ALICE.into(), |_k, v| *v += 3)
-            .get(ALICE.into(), |_k, v| *v * 2)
+            .get_with(ALICE.into(), |_k, v| *v * 2)
             .into_transaction()
             .execute();
         assert_eq!(result, TxResult::Completed(Some(20)));

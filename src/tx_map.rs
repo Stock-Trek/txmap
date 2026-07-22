@@ -61,10 +61,7 @@ where
         }
     }
     #[must_use]
-    pub fn get_with<T, R>(&self, key: &K, transform: T) -> Option<R>
-    where
-        T: FnOnce(&V) -> R,
-    {
+    pub fn get_with<R>(&self, key: &K, transform: impl FnOnce(&V) -> R) -> Option<R> {
         let hash_code = ShardCount::hash(&key);
         let shard_index = ShardCount::shard_index(self.shard_count, hash_code);
         let mut mutex_guard = self.custodian.guard_at(shard_index);
@@ -79,11 +76,31 @@ where
         }
     }
     #[must_use]
-    pub fn fold<T, R, C, A>(&self, initial: R, convert: C, accumulate: A) -> R
-    where
-        C: Fn(&K, &V) -> Option<T>,
-        A: Fn(R, T) -> R,
-    {
+    pub fn get_all_with<R>(
+        &self,
+        keys: impl IntoIterator<Item = K>,
+        transform: impl Fn(&K, &V) -> R,
+    ) -> Vec<Option<R>> {
+        let indexed_keys = ShardCount::indexes(self.shard_count, keys, |k| k);
+        let mutex_guards = self.custodian.guards(indexed_keys.bitmask);
+        let mut result = Vec::with_capacity(indexed_keys.indexed.len());
+        for indexed_key in &indexed_keys.indexed {
+            let value_ref = indexed_key.value_ref(&mutex_guards);
+            let result_value = match value_ref {
+                None => None,
+                Some(v) => Some(transform(&indexed_key.3, v)),
+            };
+            result.push(result_value);
+        }
+        result
+    }
+    #[must_use]
+    pub fn fold<T, R>(
+        &self,
+        initial: R,
+        convert: impl Fn(&K, &V) -> Option<T>,
+        accumulate: impl Fn(R, T) -> R,
+    ) -> R {
         self.custodian
             .all_guards()
             .iter()
@@ -120,17 +137,14 @@ where
             mutex_guard.retain(|entry| condition(&entry.0, &entry.1))
         }
     }
-    pub fn retain_only<I>(&self, keys: impl IntoIterator<Item = K>)
-    where
-        I: IntoIterator<Item = K>,
-    {
+    pub fn retain_only(&self, keys: impl IntoIterator<Item = K>) {
         let keys: Vec<K> = keys.into_iter().collect();
         let mutex_guards = self.custodian.all_guards();
         for (_, mut mutex_guard) in mutex_guards {
             mutex_guard.retain(|entry| keys.contains(&entry.0));
         }
     }
-    pub fn retain_where<I, C>(
+    pub fn retain_where(
         &self,
         keys: impl IntoIterator<Item = K>,
         condition: impl Fn(&K, &V) -> bool,
@@ -159,6 +173,10 @@ where
     pub fn get_copied(&self, key: &K) -> Option<V> {
         self.get_with(key, |v| *v)
     }
+    #[must_use]
+    pub fn get_all_copied(&self, keys: impl IntoIterator<Item = K>) -> Vec<Option<V>> {
+        self.get_all_with(keys, |_k, v| *v)
+    }
 }
 
 impl<K, V> TxMap<K, V>
@@ -169,5 +187,9 @@ where
     #[must_use]
     pub fn get_cloned(&self, key: &K) -> Option<V> {
         self.get_with(key, |v| v.clone())
+    }
+    #[must_use]
+    pub fn get_all_cloned(&self, keys: impl IntoIterator<Item = K>) -> Vec<Option<V>> {
+        self.get_all_with(keys, |_k, v| v.clone())
     }
 }

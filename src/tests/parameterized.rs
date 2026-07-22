@@ -47,7 +47,7 @@ mod tests {
             .transaction()
             .with_param::<String>()
             .insert_with(ALICE.into(), |_k, param| param.clone())
-            .get(ALICE.into(), |_k, v| v.clone())
+            .get_with(ALICE.into(), |_k, v| v.clone())
             .into_transaction();
         assert_eq!(
             tx.execute(&"hello".into()),
@@ -79,21 +79,6 @@ mod tests {
             .get_copied(ALICE.into())
             .into_transaction();
         assert_eq!(tx.execute(&10), TxResult::Completed(Some(5)));
-        assert_eq!(map.len(), 1);
-    }
-
-    #[test]
-    fn param_retain_where() {
-        let map = map_alice_bob(5, 15);
-        let tx = map
-            .transaction()
-            .with_param::<u64>()
-            .retain_where([ALICE.into(), BOB.into()], |_k, v, threshold| {
-                *v >= *threshold
-            })
-            .get_copied(BOB.into())
-            .into_transaction();
-        assert_eq!(tx.execute(&10), TxResult::Completed(Some(15)));
         assert_eq!(map.len(), 1);
     }
 

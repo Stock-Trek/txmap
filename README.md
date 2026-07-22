@@ -276,42 +276,36 @@ assert_eq!(map.len(), 2);
 
 ### Operation reference
 
-| Builder method               | Description                                                                       | Additional required bounds |
-|------------------------------|-----------------------------------------------------------------------------------|----------------------------|
-| `insert_default`             | Insert `V::default()` for the key.                                                | `K: Clone` `V: Default`    |
-| `insert_default_if_absent`   | Insert `V::default()` for the key, only if the key is absent.                     | `K: Clone` `V: Default`    |
-| `insert_with`                | Insert a value generated from the key.                                            | `K: Clone`                 |
-| `insert_with_if_absent`      | Insert a value generated from the key, only if the key is absent.                 | `K: Clone`                 |
-| `modify`                     | Mutate an existing value in-place. Does nothing if key absent.                    |                            |
-| `modify_peek`                | Like `modify` while peeking at other values.                                      |                            |
-| `update`                     | Update a single entry. Return `Some(v)` to insert/replace, `None` to delete.      | `K: Clone`                 |
-| `update_peek`                | Like `update` while peeking at other values.                                      | `K: Clone`                 |
-|                              |                                                                                   |                            |
-| `move_value`                 | Remove a value from one key and insert it with another key.                       | `K: Clone`                 |
-| `swap_value`                 | Swap the values of two keys.                                                      | `K: Clone`                 |
-|                              |                                                                                   |                            |
-| `remove`                     | Remove the given keys.                                                            |                            |
-| `remove_where`               | Remove the given keys which also satisfy a condition.                             |                            |
-| `retain_only`                | Retain only the given keys.                                                       |                            |
-| `retain_where`               | Retain only the given keys which also satisfy a condition.                        |                            |
-|                              |                                                                                   |                            |
-| `clear`                      | Remove all entries.                                                               |                            |
-| `remove_if`                  | Remove any entries which satisfy a condition.                                     |                            |
-| `retain`                     | Retain only the entries which satisfy a condition.                                |                            |
+| Builder method             | Description                                                                  | Additional required bounds |
+|----------------------------|------------------------------------------------------------------------------|----------------------------|
+| `insert_default`           | Insert `V::default()` for the key.                                           | `K: Clone` `V: Default`    |
+| `insert_default_if_absent` | Insert `V::default()` for the key, only if the key is absent.                | `K: Clone` `V: Default`    |
+| `insert_with`              | Insert a value generated from the key.                                       | `K: Clone`                 |
+| `insert_with_if_absent`    | Insert a value generated from the key, only if the key is absent.            | `K: Clone`                 |
+| `modify`                   | Mutate an existing value in-place. Does nothing if key absent.               |                            |
+| `modify_peek`              | Like `modify` while peeking at other values.                                 |                            |
+| `update`                   | Update a single entry. Return `Some(v)` to insert/replace, `None` to delete. | `K: Clone`                 |
+| `update_peek`              | Like `update` while peeking at other values.                                 | `K: Clone`                 |
+|                            |                                                                              |                            |
+| `move_value`               | Remove a value from one key and insert it with another key.                  | `K: Clone`                 |
+| `swap_value`               | Swap the values of two keys.                                                 | `K: Clone`                 |
+|                            |                                                                              |                            |
+| `remove`                   | Remove the given keys.                                                       |                            |
+| `remove_where`             | Remove the given keys which also satisfy a condition.                        |                            |
 
 ### Finisher methods
 
 Up to one of these is called before `.into_transaction()` to define what the transaction should return.
 
-| Method                                      | Description                                              | Transaction result type    | Required bound |
-|---------------------------------------------|----------------------------------------------------------|----------------------------|----------------|
-| *(none - default)*                          | Execute with no return value.                            | `TxResult<()>`             |                |
-| `get_copied(key)`                           | Copy a single value.                                     | `TxResult<Option<V>>`      | `V: Copy`      |
-| `get_all_copied(keys)`                      | Copy an array of values.                                 | `TxResult<Vec<Option<V>>>` | `V: Copy`      |
-| `get_cloned(key)`                           | Clone a single value.                                    | `TxResult<Option<V>>`      | `V: Clone`     |
-| `get_all_cloned(keys)`                      | Clone an array of values.                                | `TxResult<Vec<Option<V>>>` | `V: Clone`     |
-| `get(key, \|k, v[, params]\| { ... })`      | Read a single value and apply a transformation to it.    | `TxResult<Option<R>>`      |                |
-| `get_all(keys, \|k, v[, params]\| { ... })` | Read multiple values and apply a transformation to them. | `TxResult<Vec<Option<R>>>` |                |
+| Method                                           | Description                                         | Transaction result type    | Required bound |
+|--------------------------------------------------|-----------------------------------------------------|----------------------------|----------------|
+| *(none - default)*                               | Execute with no return value.                       | `TxResult<()>`             |                |
+| `get_copied(key)`                                | Copy a single value.                                | `TxResult<Option<V>>`      | `V: Copy`      |
+| `get_all_copied(keys)`                           | Copy an array of values.                            | `TxResult<Vec<Option<V>>>` | `V: Copy`      |
+| `get_cloned(key)`                                | Clone a single value.                               | `TxResult<Option<V>>`      | `V: Clone`     |
+| `get_all_cloned(keys)`                           | Clone an array of values.                           | `TxResult<Vec<Option<V>>>` | `V: Clone`     |
+| `get_with(key, \|k, v[, params]\| { ... })`      | Read a value and apply a transformation to it.      | `TxResult<Option<R>>`      |                |
+| `get_all_with(keys, \|k, v[, params]\| { ... })` | Read all values and apply a transformation to them. | `TxResult<Vec<Option<R>>>` |                |
 
 To create the final transaction call `into_transaction()`. This will produce a re-useable transaction that can be executed as many times as you want within the lifetime of its `TxMap`.
 
@@ -331,25 +325,34 @@ pub enum TxResult<T> {
 
 ## Operation appendix
 
-| Operation                                                                                      |
-|------------------------------------------------------------------------------------------------|
-| `insert_default(key)`                                                                          |
-| `insert_default_if_absent(key)`                                                                |
-| `insert_with(key, \|k[, params]\| { new_value } )`                                             |
-| `insert_with_if_absent(key, \|k[, params]\| { new_value } )`                                   |
-| `modify(key, \|k, mut v[, params]\|)`                                                          |
-| `modify_peek(key, peek_keys, \|k, mut v, pks[, params]\|)`                                     |
-| `update(key, \|k, v_opt[, params]\| { new_value_opt })`                                        |
-| `update_peek(key, peek_keys, \|k, v_opt[, params]\| { new_value_opt })`                        |
-|                                                                                                |
-| `move_value(from, to)`                                                                         |
-| `swap_value(a, b)`                                                                             |
-|                                                                                                |
-| `remove(keys)`                                                                                 |
-| `remove_where(keys, \|k, v[, params]\| { remove })`                                            |
-| `retain_only(keys)`                                                                            |
-| `retain_where(keys, \|k, v[, params]\| { remove })`                                            |
-|                                                                                                |
-| `clear()`                                                                                      |
-| `remove_if(\|k, v[, params]\| { remove })`                                                     |
-| `retain(\|k, v[, params]\| { remove })`                                                        |
+Most functions are available on both the TxMap and from within a transaction. However some functions operate on the entire map and would defeat the purpose of being in a transaction, so are therefore only available on TxMap.
+
+| TxMap/Transaction | Operation                                                               |
+|-------------------|-------------------------------------------------------------------------|
+| TxMap/Transaction | `insert_default(key)`                                                   |
+| TxMap/Transaction | `insert_default_if_absent(key)`                                         |
+| TxMap/Transaction | `insert_with(key, \|k[, params]\| { new_value } )`                      |
+| TxMap/Transaction | `insert_with_if_absent(key, \|k[, params]\| { new_value } )`            |
+| TxMap/Transaction | `modify(key, \|k, mut v[, params]\|)`                                   |
+| TxMap/Transaction | `modify_peek(key, peek_keys, \|k, mut v, pks[, params]\|)`              |
+| TxMap/Transaction | `update(key, \|k, v_opt[, params]\| { new_value_opt })`                 |
+| TxMap/Transaction | `update_peek(key, peek_keys, \|k, v_opt[, params]\| { new_value_opt })` |
+|                   |                                                                         |
+| TxMap/Transaction | `move_value(from, to)`                                                  |
+| TxMap/Transaction | `swap_value(a, b)`                                                      |
+|                   |                                                                         |
+| TxMap/Transaction | `remove(keys)`                                                          |
+| TxMap/Transaction | `remove_where(keys, \|k, v[, params]\| { remove })`                     |
+|                   |                                                                         |
+| TxMap             | `clear()`                                                               |
+| TxMap             | `remove_if(\|k, v[, params]\| { remove })`                              |
+| TxMap             | `retain_only(keys)`                                                     |
+| TxMap             | `retain_where(keys, \|k, v[, params]\| { remove })`                     |
+| TxMap             | `retain(\|k, v[, params]\| { remove })`                                 |
+|                   |                                                                         |
+| TxMap/Transaction | `get_copied(key)`                                                       |
+| TxMap/Transaction | `get_all_copied(keys)`                                                  |
+| TxMap/Transaction | `get_cloned(key)`                                                       |
+| TxMap/Transaction | `get_all_cloned(keys)`                                                  |
+| TxMap/Transaction | `get_with(key, \|k, v[, params]\| { ... })`                             |
+| TxMap/Transaction | `get_all_with(keys, \|k, v[, params]\| { ... })`                        |

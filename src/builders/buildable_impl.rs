@@ -255,7 +255,7 @@ where
             ops,
         }
     }
-    fn get<T, R>(
+    fn get_with<T, R>(
         self,
         key: K,
         transform: T,
@@ -278,7 +278,7 @@ where
             ops,
         }
     }
-    fn get_all<I, T, R>(
+    fn get_all_with<I, T, R>(
         self,
         keys: I,
         transform: T,

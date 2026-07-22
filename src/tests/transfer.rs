@@ -83,7 +83,7 @@ mod tests {
             .modify(tim.clone(), |_tim, funds, params| {
                 funds.usd_and_cents += params.usd_and_cents
             })
-            .get_all([bob.clone(), tim.clone()], |_user, funds| {
+            .get_all_with([bob.clone(), tim.clone()], |_user, funds| {
                 funds.usd_and_cents
             })
             .into_transaction();
@@ -117,7 +117,7 @@ mod tests {
             .modify(pam.clone(), |_p, pam_funds| {
                 pam_funds.usd_and_cents += 123;
             })
-            .get(pam.clone(), |_user, funds| funds.usd_and_cents)
+            .get_with(pam.clone(), |_user, funds| funds.usd_and_cents)
             .into_transaction();
         assert_eq!(add_123_to_pam.execute(), TxResult::Completed(Some(123)));
         assert_eq!(add_123_to_pam.execute(), TxResult::Completed(Some(246)));

@@ -61,7 +61,7 @@ where
     K: Hash + Eq,
 {
     fn guards_bitmask(&self) -> BitMask {
-        self.indexed_key.2
+        self.indexed_key.2 | self.indexed_peek_keys.bitmask
     }
     fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>, params: &P) {
         // It's not possible to read peeked values while modifying the key value in place

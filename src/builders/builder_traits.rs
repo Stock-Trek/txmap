@@ -236,14 +236,14 @@ where
     where
         I: IntoIterator<Item = K>,
         V: Clone;
-    fn get<T, R>(
+    fn get_with<T, R>(
         self,
         key: K,
         transform: T,
     ) -> impl IntoTransaction<'txmap, K, V, ValueFinisher<K, V, R>>
     where
         T: Fn(&K, &V) -> R + 'static;
-    fn get_all<I, T, R>(
+    fn get_all_with<I, T, R>(
         self,
         keys: I,
         transform: T,
@@ -277,14 +277,14 @@ where
     where
         I: IntoIterator<Item = K>,
         V: Clone;
-    fn get<T, R>(
+    fn get_with<T, R>(
         self,
         key: K,
         transform: T,
     ) -> impl IntoParamTransaction<'txmap, K, V, P, ValueFinisher<K, V, R>>
     where
         T: Fn(&K, &V) -> R + 'static;
-    fn get_all<I, T, R>(
+    fn get_all_with<I, T, R>(
         self,
         keys: I,
         transform: T,
