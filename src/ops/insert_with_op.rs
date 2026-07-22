@@ -1,9 +1,9 @@
 use crate::{
-    indexed_key::IndexedKey, new_types::BitMask, ops::op_trait::OpTrait, shard_count::ShardCount,
+    indexed_key::IndexedKey, locks::lock_policy::LockPolicy, new_types::BitMask,
+    ops::op_trait::OpTrait, shard_count::ShardCount,
 };
 use hashbrown::HashTable;
 use intmap::IntMap;
-use parking_lot::MutexGuard;
 use std::hash::Hash;
 
 pub(crate) struct InsertWithOp<K, V, P = ()>
@@ -42,15 +42,20 @@ where
     }
 }
 
-impl<K, V, P> OpTrait<K, V, P> for InsertWithOp<K, V, P>
+impl<L, K, V, P> OpTrait<L, K, V, P> for InsertWithOp<K, V, P>
 where
+    L: LockPolicy,
     K: Clone + Hash + Eq,
 {
     fn guards_bitmask(&self) -> BitMask {
         self.indexed_key.2
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>, params: &P) {
+    fn apply<'guards>(
+        &self,
+        mutex_guards: &'guards mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+        params: &P,
+    ) {
         let new_value = (self.value_generator)(&self.indexed_key.3, params);
-        self.indexed_key.insert(mutex_guards, new_value);
+        self.indexed_key.insert::<L, V>(mutex_guards, new_value);
     }
 }

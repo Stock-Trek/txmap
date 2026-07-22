@@ -1,11 +1,15 @@
-use crate::new_types::BitMask;
+use crate::{locks::lock_policy::LockPolicy, new_types::BitMask};
 use hashbrown::HashTable;
 use intmap::IntMap;
-use parking_lot::MutexGuard;
 
 pub trait FinisherTrait<K, V> {
     type Output;
 
     fn guards_bitmask(&self) -> BitMask;
-    fn to_result(&self, mutex_guards: &IntMap<u8, MutexGuard<HashTable<(K, V)>>>) -> Self::Output;
+    fn to_result<'guards, L>(
+        &self,
+        mutex_guards: &'guards IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+    ) -> Self::Output
+    where
+        L: LockPolicy;
 }

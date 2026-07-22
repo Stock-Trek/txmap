@@ -1,6 +1,6 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::{sync::Arc, thread};
-use txmap::prelude::*;
+use txmap::{locks::mutex_policy::MutexPolicy, prelude::*};
 
 fn shards(c: &mut Criterion) {
     for sc in vec![
@@ -10,7 +10,7 @@ fn shards(c: &mut Criterion) {
         ShardCount::_64,
         ShardCount::_128,
     ] {
-        let txmap = TxMap::new(sc);
+        let txmap = TxMap::with_lock_policy::<MutexPolicy>(sc);
         c.bench_function(&format!("txmap_insert_shards_{}", sc), |b| {
             b.iter(|| {
                 let key = std::hint::black_box("key".to_string());

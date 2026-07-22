@@ -1,9 +1,9 @@
 use crate::{
-    indexed_keys::IndexedKeys, new_types::BitMask, ops::op_trait::OpTrait, shard_count::ShardCount,
+    indexed_keys::IndexedKeys, locks::lock_policy::LockPolicy, new_types::BitMask,
+    ops::op_trait::OpTrait, shard_count::ShardCount,
 };
 use hashbrown::HashTable;
 use intmap::IntMap;
-use parking_lot::MutexGuard;
 use std::hash::Hash;
 
 pub(crate) struct RemoveOp<K>
@@ -26,16 +26,21 @@ where
     }
 }
 
-impl<K, V, P> OpTrait<K, V, P> for RemoveOp<K>
+impl<L, K, V, P> OpTrait<L, K, V, P> for RemoveOp<K>
 where
+    L: LockPolicy,
     K: Hash + Eq,
 {
     fn guards_bitmask(&self) -> BitMask {
         self.indexed_keys.bitmask
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>, _: &P) {
+    fn apply<'guards>(
+        &self,
+        mutex_guards: &'guards mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+        _: &P,
+    ) {
         for indexed_key in &self.indexed_keys.indexed {
-            indexed_key.remove_entry(mutex_guards);
+            indexed_key.remove_entry::<L, V>(mutex_guards);
         }
     }
 }

@@ -8,30 +8,34 @@ use crate::{
     },
     custodian::Custodian,
     guard::Guard,
+    locks::lock_policy::LockPolicy,
 };
 use std::hash::Hash;
 
-pub struct TxBuilderImpl<'txmap, K, V>
+pub struct TxBuilderImpl<'txmap, L, K, V>
 where
+    L: LockPolicy,
     K: Hash + Eq,
 {
-    pub(crate) custodian: &'txmap Custodian<K, V>,
+    pub(crate) custodian: &'txmap Custodian<L, K, V>,
     pub(crate) guards: Vec<Guard<K, V>>,
 }
 
-impl<'txmap, K, V> TxBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V>
+impl<'txmap, L, K, V> TxBuilder<'txmap, L, K, V> for TxBuilderImpl<'txmap, L, K, V>
 where
+    L: LockPolicy,
     K: Hash + Eq + 'static,
     V: 'static,
 {
 }
 
-impl<'txmap, K, V> TxParameterizer<'txmap, K, V> for TxBuilderImpl<'txmap, K, V>
+impl<'txmap, L, K, V> TxParameterizer<'txmap, L, K, V> for TxBuilderImpl<'txmap, L, K, V>
 where
+    L: LockPolicy,
     K: Hash + Eq + 'static,
     V: 'static,
 {
-    fn with_param<P>(self) -> impl TxParamBuilder<'txmap, K, V, P>
+    fn with_param<P>(self) -> impl TxParamBuilder<'txmap, L, K, V, P>
     where
         P: 'static,
     {
@@ -43,8 +47,9 @@ where
     }
 }
 
-impl<'txmap, K, V> TxGuardBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V>
+impl<'txmap, L, K, V> TxGuardBuilder<'txmap, L, K, V> for TxBuilderImpl<'txmap, L, K, V>
 where
+    L: LockPolicy,
     K: Hash + Eq + 'static,
     V: 'static,
 {
@@ -53,7 +58,7 @@ where
         name: impl AsRef<str>,
         keys: [K; N],
         condition: C,
-    ) -> impl TxBuilder<'txmap, K, V>
+    ) -> impl TxBuilder<'txmap, L, K, V>
     where
         C: Fn([Option<&V>; N]) -> bool + 'static,
     {
@@ -68,13 +73,14 @@ where
     }
 }
 
-impl<'txmap, K, V> TxOpBuilder<'txmap, K, V> for TxBuilderImpl<'txmap, K, V>
+impl<'txmap, L, K, V> TxOpBuilder<'txmap, L, K, V> for TxBuilderImpl<'txmap, L, K, V>
 where
+    L: LockPolicy,
     K: Hash + Eq + 'static,
     V: 'static,
 {
     // single key ops
-    fn insert_default(self, key: K) -> impl TxBuildable<'txmap, K, V>
+    fn insert_default(self, key: K) -> impl TxBuildable<'txmap, L, K, V>
     where
         K: Clone,
         V: Default,
@@ -87,7 +93,7 @@ where
         };
         builder.insert_default(key)
     }
-    fn insert_default_if_absent(self, key: K) -> impl TxBuildable<'txmap, K, V>
+    fn insert_default_if_absent(self, key: K) -> impl TxBuildable<'txmap, L, K, V>
     where
         K: Clone,
         V: Default,
@@ -100,7 +106,7 @@ where
         };
         builder.insert_default_if_absent(key)
     }
-    fn insert_with<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
+    fn insert_with<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, L, K, V>
     where
         G: Fn(&K) -> V + 'static,
         K: Clone,
@@ -113,7 +119,11 @@ where
         };
         builder.insert_with(key, value_generator)
     }
-    fn insert_with_if_absent<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
+    fn insert_with_if_absent<G>(
+        self,
+        key: K,
+        value_generator: G,
+    ) -> impl TxBuildable<'txmap, L, K, V>
     where
         G: Fn(&K) -> V + 'static,
         K: Clone,
@@ -126,7 +136,7 @@ where
         };
         builder.insert_with_if_absent(key, value_generator)
     }
-    fn modify<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
+    fn modify<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, L, K, V>
     where
         M: Fn(&K, &mut V) + 'static,
     {
@@ -143,7 +153,7 @@ where
         key: K,
         peek_keys: [K; N],
         mutate: M,
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxBuildable<'txmap, L, K, V>
     where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
         K: Clone,
@@ -156,7 +166,7 @@ where
         };
         builder.modify_peek(key, peek_keys, mutate)
     }
-    fn update<T>(self, key: K, transform: T) -> impl TxBuildable<'txmap, K, V>
+    fn update<T>(self, key: K, transform: T) -> impl TxBuildable<'txmap, L, K, V>
     where
         T: Fn(&K, Option<&V>) -> Option<V> + 'static,
         K: Clone,
@@ -174,7 +184,7 @@ where
         key: K,
         peek_keys: [K; N],
         transform: T,
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxBuildable<'txmap, L, K, V>
     where
         T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
         K: Clone,
@@ -189,7 +199,7 @@ where
     }
 
     // multi key ops
-    fn move_value(self, from: K, to: K) -> impl TxBuildable<'txmap, K, V>
+    fn move_value(self, from: K, to: K) -> impl TxBuildable<'txmap, L, K, V>
     where
         K: Clone,
     {
@@ -201,7 +211,7 @@ where
         };
         builder.move_value(from, to)
     }
-    fn swap_value(self, a: K, b: K) -> impl TxBuildable<'txmap, K, V>
+    fn swap_value(self, a: K, b: K) -> impl TxBuildable<'txmap, L, K, V>
     where
         K: Clone,
     {
@@ -215,7 +225,7 @@ where
     }
 
     // batch ops
-    fn remove<I>(self, keys: I) -> impl TxBuildable<'txmap, K, V>
+    fn remove<I>(self, keys: I) -> impl TxBuildable<'txmap, L, K, V>
     where
         I: IntoIterator<Item = K>,
     {
@@ -227,7 +237,7 @@ where
         };
         builder.remove(keys)
     }
-    fn remove_where<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn remove_where<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, L, K, V>
     where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,

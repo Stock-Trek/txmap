@@ -1,9 +1,9 @@
 use crate::{
-    indexed_key::IndexedKey, new_types::BitMask, ops::op_trait::OpTrait, shard_count::ShardCount,
+    indexed_key::IndexedKey, locks::lock_policy::LockPolicy, new_types::BitMask,
+    ops::op_trait::OpTrait, shard_count::ShardCount,
 };
 use hashbrown::HashTable;
 use intmap::IntMap;
-use parking_lot::MutexGuard;
 use std::hash::Hash;
 
 pub(crate) struct InsertDefaultIfAbsentOp<K>
@@ -24,16 +24,21 @@ where
     }
 }
 
-impl<K, V, P> OpTrait<K, V, P> for InsertDefaultIfAbsentOp<K>
+impl<L, K, V, P> OpTrait<L, K, V, P> for InsertDefaultIfAbsentOp<K>
 where
+    L: LockPolicy,
     K: Clone + Hash + Eq,
     V: Default,
 {
     fn guards_bitmask(&self) -> BitMask {
         self.indexed_key.2
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>, _: &P) {
+    fn apply<'guards>(
+        &self,
+        mutex_guards: &'guards mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+        _: &P,
+    ) {
         self.indexed_key
-            .insert_if_absent(mutex_guards, || V::default());
+            .insert_if_absent::<L, V>(mutex_guards, || V::default());
     }
 }

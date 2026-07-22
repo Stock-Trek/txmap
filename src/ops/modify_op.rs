@@ -1,10 +1,9 @@
 use crate::{
-    indexed_key::IndexedKey, new_types::BitMask, ops::op_trait::OpTrait,
-    result::MISSING_MUTEX_GUARD_ERROR, shard_count::ShardCount,
+    indexed_key::IndexedKey, locks::lock_policy::LockPolicy, new_types::BitMask,
+    ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR, shard_count::ShardCount,
 };
 use hashbrown::HashTable;
 use intmap::IntMap;
-use parking_lot::MutexGuard;
 use std::hash::Hash;
 
 pub(crate) struct ModifyOp<K, V, P = ()>
@@ -43,14 +42,19 @@ where
     }
 }
 
-impl<K, V, P> OpTrait<K, V, P> for ModifyOp<K, V, P>
+impl<L, K, V, P> OpTrait<L, K, V, P> for ModifyOp<K, V, P>
 where
+    L: LockPolicy,
     K: Hash + Eq,
 {
     fn guards_bitmask(&self) -> BitMask {
         self.indexed_key.2
     }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>, params: &P) {
+    fn apply<'guards>(
+        &self,
+        mutex_guards: &'guards mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+        params: &P,
+    ) {
         let mutex_guard = mutex_guards
             .get_mut(self.indexed_key.1.0)
             .expect(MISSING_MUTEX_GUARD_ERROR);

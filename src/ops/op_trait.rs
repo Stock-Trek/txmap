@@ -1,9 +1,13 @@
-use crate::new_types::BitMask;
+use crate::{locks::lock_policy::LockPolicy, new_types::BitMask};
 use hashbrown::HashTable;
 use intmap::IntMap;
-use parking_lot::MutexGuard;
 
-pub(crate) trait OpTrait<K, V, P> {
+pub(crate) trait OpTrait<L, K, V, P> {
     fn guards_bitmask(&self) -> BitMask;
-    fn apply(&self, mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>, params: &P);
+    fn apply<'guards>(
+        &self,
+        mutex_guards: &'guards mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+        params: &P,
+    ) where
+        L: LockPolicy;
 }

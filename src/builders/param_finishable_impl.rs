@@ -4,30 +4,33 @@ use crate::{
     finisher::Finisher,
     finishers::finisher_trait::FinisherTrait,
     guard::Guard,
+    locks::lock_policy::LockPolicy,
     new_types::BitMask,
     ops::op_trait::OpTrait,
     transaction::{ParameterizedTransaction, TransactionBase},
 };
 use std::hash::Hash;
 
-pub struct TxParamFinishableImpl<'txmap, K, V, P, F>
+pub struct TxParamFinishableImpl<'txmap, L, K, V, P, F>
 where
+    L: LockPolicy,
     K: Hash + Eq,
     F: FinisherTrait<K, V>,
 {
-    pub(crate) custodian: &'txmap Custodian<K, V>,
+    pub(crate) custodian: &'txmap Custodian<L, K, V>,
     pub(crate) guards: Vec<Guard<K, V, P>>,
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, P>>>,
+    pub(crate) ops: Vec<Box<dyn OpTrait<L, K, V, P>>>,
     pub(crate) finisher: Finisher<K, V, F>,
 }
 
-impl<'txmap, K, V, P, F> IntoParamTransaction<'txmap, K, V, P, F>
-    for TxParamFinishableImpl<'txmap, K, V, P, F>
+impl<'txmap, L, K, V, P, F> IntoParamTransaction<'txmap, L, K, V, P, F>
+    for TxParamFinishableImpl<'txmap, L, K, V, P, F>
 where
+    L: LockPolicy,
     K: Hash + Eq,
     F: FinisherTrait<K, V>,
 {
-    fn into_transaction(self) -> ParameterizedTransaction<'txmap, K, V, P, F> {
+    fn into_transaction(self) -> ParameterizedTransaction<'txmap, L, K, V, P, F> {
         let Self {
             custodian,
             guards,

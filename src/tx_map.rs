@@ -1,13 +1,19 @@
-use crate::{builders::stem_builder::TxStemBuilder, custodian::Custodian, shard_count::ShardCount};
+use crate::{
+    builders::stem_builder::TxStemBuilder,
+    custodian::Custodian,
+    locks::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
+    shard_count::ShardCount,
+};
 use hashbrown::hash_table::Entry;
 use std::hash::Hash;
 
-pub struct TxMap<K, V>
+pub struct TxMap<K, V, L = MutexPolicy>
 where
     K: Hash + Eq,
+    L: LockPolicy,
 {
     shard_count: u8,
-    custodian: Custodian<K, V>,
+    custodian: Custodian<L, K, V>,
 }
 
 impl<K, V> TxMap<K, V>
@@ -22,6 +28,24 @@ where
             custodian: Custodian::new(shard_count),
         }
     }
+    #[must_use]
+    pub fn with_lock_policy<L>(shard_count: ShardCount) -> Self
+    where
+        L: LockPolicy,
+    {
+        let shard_count = u8::from(shard_count);
+        Self {
+            shard_count,
+            custodian: Custodian::new(shard_count),
+        }
+    }
+}
+
+impl<K, V, L> TxMap<K, V, L>
+where
+    K: Hash + Eq,
+    L: LockPolicy,
+{
     pub fn clear(&self) {
         for mut mutex_guard in self.custodian.all_guards() {
             mutex_guard.1.clear();
@@ -85,7 +109,7 @@ where
         let mutex_guards = self.custodian.guards(indexed_keys.bitmask);
         let mut result = Vec::with_capacity(indexed_keys.indexed.len());
         for indexed_key in &indexed_keys.indexed {
-            let value_ref = indexed_key.value_ref(&mutex_guards);
+            let value_ref = indexed_key.value_ref::<L, V>(&mutex_guards);
             let result_value = value_ref.map(|v| transform(&indexed_key.3, v));
             result.push(result_value);
         }
@@ -154,17 +178,18 @@ where
     }
 
     #[must_use]
-    pub fn transaction<'txmap>(&'txmap self) -> TxStemBuilder<'txmap, K, V> {
+    pub fn transaction<'txmap>(&'txmap self) -> TxStemBuilder<'txmap, L, K, V> {
         TxStemBuilder {
             custodian: &self.custodian,
         }
     }
 }
 
-impl<K, V> TxMap<K, V>
+impl<K, V, L> TxMap<K, V, L>
 where
     K: Hash + Eq,
     V: Copy,
+    L: LockPolicy,
 {
     #[must_use]
     pub fn get_copied(&self, key: &K) -> Option<V> {
@@ -176,10 +201,11 @@ where
     }
 }
 
-impl<K, V> TxMap<K, V>
+impl<K, V, L> TxMap<K, V, L>
 where
     K: Hash + Eq,
     V: Clone,
+    L: LockPolicy,
 {
     #[must_use]
     pub fn get_cloned(&self, key: &K) -> Option<V> {

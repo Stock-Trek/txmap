@@ -1,11 +1,11 @@
 use crate::{
+    locks::lock_policy::LockPolicy,
     new_types::{BitMask, HashCode, ShardIndex},
     result::MISSING_MUTEX_GUARD_ERROR,
     shard_count::ShardCount,
 };
 use hashbrown::HashTable;
 use intmap::IntMap;
-use parking_lot::MutexGuard;
 use std::hash::Hash;
 
 pub(crate) struct IndexedKey<K>(pub HashCode, pub ShardIndex, pub BitMask, pub K)
@@ -16,8 +16,12 @@ impl<K> IndexedKey<K>
 where
     K: Hash + Eq,
 {
-    pub fn insert<V>(&self, mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>, value: V)
-    where
+    pub fn insert<L, V>(
+        &self,
+        mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+        value: V,
+    ) where
+        L: LockPolicy,
         K: Clone,
     {
         let mutex_guard = mutex_guards
@@ -31,11 +35,12 @@ where
             )
             .insert((self.3.clone(), value));
     }
-    pub fn insert_if_absent<V>(
+    pub fn insert_if_absent<L, V>(
         &self,
-        mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>,
+        mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
         value_gen: impl FnOnce() -> V,
     ) where
+        L: LockPolicy,
         K: Clone,
     {
         let mutex_guard = mutex_guards
@@ -49,12 +54,14 @@ where
             )
             .or_insert_with(|| (self.3.clone(), value_gen()));
     }
-    pub fn insert_with_duplicate_key<V>(
+    pub fn insert_with_duplicate_key<L, V>(
         &self,
-        mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>,
+        mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
         duplicate_key: K,
         value: V,
-    ) {
+    ) where
+        L: LockPolicy,
+    {
         assert!(duplicate_key == self.3);
         let mutex_guard = mutex_guards
             .get_mut(self.1.0)
@@ -67,10 +74,13 @@ where
             )
             .insert((duplicate_key, value));
     }
-    pub fn remove_entry<V>(
+    pub fn remove_entry<L, V>(
         &self,
-        mutex_guards: &mut IntMap<u8, MutexGuard<HashTable<(K, V)>>>,
-    ) -> Option<(K, V)> {
+        mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+    ) -> Option<(K, V)>
+    where
+        L: LockPolicy,
+    {
         let mutex_guard = mutex_guards
             .get_mut(self.1.0)
             .expect(MISSING_MUTEX_GUARD_ERROR);
@@ -79,10 +89,14 @@ where
             .ok()
             .map(|entry| entry.remove().0)
     }
-    pub fn value_ref<'guard, V>(
+    pub fn value_ref<'guards, L, V>(
         &self,
-        mutex_guards: &'guard IntMap<u8, MutexGuard<HashTable<(K, V)>>>,
-    ) -> Option<&'guard V> {
+        mutex_guards: &'guards IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+    ) -> Option<&'guards V>
+    where
+        L: LockPolicy,
+        K: 'guards,
+    {
         let mutex_guard = mutex_guards.get(self.1.0).expect(MISSING_MUTEX_GUARD_ERROR);
         mutex_guard
             .find(self.0.0, |entry| entry.0 == self.3)

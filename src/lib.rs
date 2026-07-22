@@ -5,6 +5,7 @@ pub mod finishers;
 pub mod guard;
 pub mod indexed_key;
 pub mod indexed_keys;
+pub mod locks;
 pub mod new_types;
 pub mod ops;
 pub mod result;

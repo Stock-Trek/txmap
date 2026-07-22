@@ -12,6 +12,7 @@ use crate::{
         values_finisher::ValuesFinisher,
     },
     guard::Guard,
+    locks::lock_policy::LockPolicy,
     new_types::BitMask,
     ops::{
         insert_default_if_absent_op::InsertDefaultIfAbsentOp, insert_default_op::InsertDefaultOp,
@@ -24,29 +25,32 @@ use crate::{
 };
 use std::hash::Hash;
 
-pub struct TxBuildableImpl<'txmap, K, V>
+pub struct TxBuildableImpl<'txmap, L, K, V>
 where
+    L: LockPolicy,
     K: Hash + Eq,
 {
-    pub(crate) custodian: &'txmap Custodian<K, V>,
+    pub(crate) custodian: &'txmap Custodian<L, K, V>,
     pub(crate) guards: Vec<Guard<K, V>>,
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, ()>>>,
+    pub(crate) ops: Vec<Box<dyn OpTrait<L, K, V, ()>>>,
 }
 
-impl<'txmap, K, V> TxBuildable<'txmap, K, V> for TxBuildableImpl<'txmap, K, V>
+impl<'txmap, L, K, V> TxBuildable<'txmap, L, K, V> for TxBuildableImpl<'txmap, L, K, V>
 where
+    L: LockPolicy,
     K: Hash + Eq + 'static,
     V: 'static,
 {
 }
 
-impl<'txmap, K, V> TxOpBuilder<'txmap, K, V> for TxBuildableImpl<'txmap, K, V>
+impl<'txmap, L, K, V> TxOpBuilder<'txmap, L, K, V> for TxBuildableImpl<'txmap, L, K, V>
 where
+    L: LockPolicy,
     K: Hash + Eq + 'static,
     V: 'static,
 {
     // single key ops
-    fn insert_default(mut self, key: K) -> impl TxBuildable<'txmap, K, V>
+    fn insert_default(mut self, key: K) -> impl TxBuildable<'txmap, L, K, V>
     where
         K: Clone,
         V: Default,
@@ -55,7 +59,7 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn insert_default_if_absent(mut self, key: K) -> impl TxBuildable<'txmap, K, V>
+    fn insert_default_if_absent(mut self, key: K) -> impl TxBuildable<'txmap, L, K, V>
     where
         K: Clone,
         V: Default,
@@ -64,7 +68,7 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn insert_with<G>(mut self, key: K, value_generator: G) -> impl TxBuildable<'txmap, K, V>
+    fn insert_with<G>(mut self, key: K, value_generator: G) -> impl TxBuildable<'txmap, L, K, V>
     where
         G: Fn(&K) -> V + 'static,
         K: Clone,
@@ -77,7 +81,7 @@ where
         mut self,
         key: K,
         value_generator: G,
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxBuildable<'txmap, L, K, V>
     where
         G: Fn(&K) -> V + 'static,
         K: Clone,
@@ -86,7 +90,7 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn modify<M>(mut self, key: K, mutate: M) -> impl TxBuildable<'txmap, K, V>
+    fn modify<M>(mut self, key: K, mutate: M) -> impl TxBuildable<'txmap, L, K, V>
     where
         M: Fn(&K, &mut V) + 'static,
     {
@@ -99,7 +103,7 @@ where
         key: K,
         peek_keys: [K; N],
         mutate: M,
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxBuildable<'txmap, L, K, V>
     where
         M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
         K: Clone,
@@ -108,7 +112,7 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn update<T>(mut self, key: K, transform: T) -> impl TxBuildable<'txmap, K, V>
+    fn update<T>(mut self, key: K, transform: T) -> impl TxBuildable<'txmap, L, K, V>
     where
         T: Fn(&K, Option<&V>) -> Option<V> + 'static,
         K: Clone,
@@ -122,7 +126,7 @@ where
         key: K,
         peek_keys: [K; N],
         transform: T,
-    ) -> impl TxBuildable<'txmap, K, V>
+    ) -> impl TxBuildable<'txmap, L, K, V>
     where
         T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
         K: Clone,
@@ -133,7 +137,7 @@ where
     }
 
     // multi key ops
-    fn move_value(mut self, from: K, to: K) -> impl TxBuildable<'txmap, K, V>
+    fn move_value(mut self, from: K, to: K) -> impl TxBuildable<'txmap, L, K, V>
     where
         K: Clone,
     {
@@ -141,7 +145,7 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn swap_value(mut self, a: K, b: K) -> impl TxBuildable<'txmap, K, V>
+    fn swap_value(mut self, a: K, b: K) -> impl TxBuildable<'txmap, L, K, V>
     where
         K: Clone,
     {
@@ -151,7 +155,7 @@ where
     }
 
     // batch ops
-    fn remove<I>(mut self, keys: I) -> impl TxBuildable<'txmap, K, V>
+    fn remove<I>(mut self, keys: I) -> impl TxBuildable<'txmap, L, K, V>
     where
         I: IntoIterator<Item = K>,
     {
@@ -159,7 +163,7 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn remove_where<I, C>(mut self, keys: I, condition: C) -> impl TxBuildable<'txmap, K, V>
+    fn remove_where<I, C>(mut self, keys: I, condition: C) -> impl TxBuildable<'txmap, L, K, V>
     where
         I: IntoIterator<Item = K>,
         C: Fn(&K, &V) -> bool + 'static,
@@ -170,11 +174,12 @@ where
     }
 }
 
-impl<'txmap, K, V> TxResultBuilder<'txmap, K, V> for TxBuildableImpl<'txmap, K, V>
+impl<'txmap, L, K, V> TxResultBuilder<'txmap, L, K, V> for TxBuildableImpl<'txmap, L, K, V>
 where
+    L: LockPolicy,
     K: Hash + Eq,
 {
-    fn get_copied(self, key: K) -> impl IntoTransaction<'txmap, K, V, CopyFinisher<K, V>>
+    fn get_copied(self, key: K) -> impl IntoTransaction<'txmap, L, K, V, CopyFinisher<K, V>>
     where
         V: Copy,
     {
@@ -193,7 +198,10 @@ where
             ops,
         }
     }
-    fn get_all_copied<I>(self, keys: I) -> impl IntoTransaction<'txmap, K, V, CopyAllFinisher<K, V>>
+    fn get_all_copied<I>(
+        self,
+        keys: I,
+    ) -> impl IntoTransaction<'txmap, L, K, V, CopyAllFinisher<K, V>>
     where
         I: IntoIterator<Item = K>,
         V: Copy,
@@ -213,7 +221,7 @@ where
             ops,
         }
     }
-    fn get_cloned(self, key: K) -> impl IntoTransaction<'txmap, K, V, CloneFinisher<K, V>>
+    fn get_cloned(self, key: K) -> impl IntoTransaction<'txmap, L, K, V, CloneFinisher<K, V>>
     where
         V: Clone,
     {
@@ -235,7 +243,7 @@ where
     fn get_all_cloned<I>(
         self,
         keys: I,
-    ) -> impl IntoTransaction<'txmap, K, V, CloneAllFinisher<K, V>>
+    ) -> impl IntoTransaction<'txmap, L, K, V, CloneAllFinisher<K, V>>
     where
         I: IntoIterator<Item = K>,
         V: Clone,
@@ -259,7 +267,7 @@ where
         self,
         key: K,
         transform: T,
-    ) -> impl IntoTransaction<'txmap, K, V, ValueFinisher<K, V, R>>
+    ) -> impl IntoTransaction<'txmap, L, K, V, ValueFinisher<K, V, R>>
     where
         T: Fn(&K, &V) -> R + 'static,
     {
@@ -282,7 +290,7 @@ where
         self,
         keys: I,
         transform: T,
-    ) -> impl IntoTransaction<'txmap, K, V, ValuesFinisher<K, V, R>>
+    ) -> impl IntoTransaction<'txmap, L, K, V, ValuesFinisher<K, V, R>>
     where
         I: IntoIterator<Item = K>,
         T: Fn(&K, &V) -> R + 'static,
@@ -304,11 +312,13 @@ where
     }
 }
 
-impl<'txmap, K, V> IntoTransaction<'txmap, K, V, NoneFinisher> for TxBuildableImpl<'txmap, K, V>
+impl<'txmap, L, K, V> IntoTransaction<'txmap, L, K, V, NoneFinisher>
+    for TxBuildableImpl<'txmap, L, K, V>
 where
+    L: LockPolicy,
     K: Hash + Eq,
 {
-    fn into_transaction(self) -> Transaction<'txmap, K, V, NoneFinisher> {
+    fn into_transaction(self) -> Transaction<'txmap, L, K, V, NoneFinisher> {
         let Self {
             custodian,
             guards,
@@ -322,7 +332,7 @@ where
         for op in &ops {
             guards_bitmask |= op.guards_bitmask();
         }
-        let base = TransactionBase {
+        let base = TransactionBase::<L, K, V, (), NoneFinisher> {
             custodian,
             guards_bitmask,
             guards,

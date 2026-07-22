@@ -1,10 +1,9 @@
 use crate::{
-    finishers::finisher_trait::FinisherTrait, indexed_keys::IndexedKeys, new_types::BitMask,
-    shard_count::ShardCount,
+    finishers::finisher_trait::FinisherTrait, indexed_keys::IndexedKeys,
+    locks::lock_policy::LockPolicy, new_types::BitMask, shard_count::ShardCount,
 };
 use hashbrown::HashTable;
 use intmap::IntMap;
-use parking_lot::MutexGuard;
 use std::{hash::Hash, marker::PhantomData};
 
 pub struct CopyAllFinisher<K, V>
@@ -41,13 +40,16 @@ where
     fn guards_bitmask(&self) -> BitMask {
         self.indexed_keys.bitmask
     }
-    fn to_result(
+    fn to_result<'guards, L>(
         &self,
-        mutex_guards: &IntMap<u8, MutexGuard<HashTable<(K, V)>>>,
-    ) -> Vec<Option<V>> {
+        mutex_guards: &'guards IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+    ) -> Vec<Option<V>>
+    where
+        L: LockPolicy,
+    {
         let mut result = Vec::with_capacity(self.indexed_keys.indexed.len());
         for indexed_key in &self.indexed_keys.indexed {
-            let value_ref = indexed_key.value_ref(mutex_guards);
+            let value_ref = indexed_key.value_ref::<L, V>(mutex_guards);
             result.push(value_ref.copied());
         }
         result
