@@ -10,13 +10,17 @@ A concurrent transactional hash map for Rust with fine-grained locking, internal
 
 ## Features
 
-- **Concurrent access** Fine-grained shard-level locking; operations lock only the shards they touch
-- **Transactions** Atomic, composable batches of modifications
-- **Optional parameterized transactions** Optionally define a parameter type to pass into transaction closures
-- **Guards/conditions** Declarative preconditions that must hold before a transaction runs
-- **Flexible operations** Modify, map, insert, remove, swap, move, retain, and more
-- **Builder API** Chain operations to build transactions with a fluent interface
-- **No `unsafe`** 100% safe Rust
+1. **Concurrent sharded hash map** — Fine-grained shard-level locking using `parking_lot` mutexes; operations lock only the shards they touch, enabling high concurrency without global locks.
+
+2. **Composable transactions** — Group multiple read/write operations into an atomic unit via a fluent builder API. Transactions can be built once and reused, with full rollback on guard failure.
+
+3. **Guards (declarative preconditions)** — Attach named conditions that must hold before a transaction executes. If any guard fails, the entire transaction is aborted cleanly with no partial mutations.
+
+4. **Parameterized transactions** — Define a parameter struct to pass shared state into closures, making it easy to write reusable transaction logic with different runtime values.
+
+5. **Rich set of operations** — Modify, update (map/filter), insert (default or generated), remove, swap values between keys, move values between keys, and batch-remove or retain entries — all available inside transactions.
+
+6. **100% safe Rust** — No `unsafe` code anywhere in the library. Concurrency safety is achieved entirely through the type system and `parking_lot` mutexes.
 
 ## License
 
