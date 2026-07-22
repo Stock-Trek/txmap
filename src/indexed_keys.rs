@@ -1,5 +1,6 @@
-use crate::{indexed_key::IndexedKey, locks::lock_policy::LockPolicy, new_types::BitMask};
-use hashbrown::HashTable;
+use crate::{
+    indexed_key::IndexedKey, locks::lock_policy::LockPolicy, new_types::BitMask, shard::Shard,
+};
 use intmap::IntMap;
 use std::hash::Hash;
 
@@ -17,7 +18,7 @@ where
 {
     pub fn values<'guards, L, V>(
         &self,
-        mutex_guards: &'guards IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+        mutex_guards: &'guards IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>,
     ) -> Vec<Option<&'guards V>>
     where
         L: LockPolicy,

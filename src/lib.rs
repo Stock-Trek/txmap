@@ -9,6 +9,7 @@ pub mod locks;
 pub mod new_types;
 pub mod ops;
 pub mod result;
+pub mod shard;
 pub mod shard_count;
 pub mod tests;
 pub mod transaction;

@@ -1,9 +1,8 @@
 use crate::{
     indexed_key::IndexedKey, indexed_keys::IndexedKeys, locks::lock_policy::LockPolicy,
-    new_types::BitMask, ops::op_trait::OpTrait, result::INCORRECT_PEEK_VALUES_LENGTH,
+    new_types::BitMask, ops::op_trait::OpTrait, result::INCORRECT_PEEK_VALUES_LENGTH, shard::Shard,
     shard_count::ShardCount,
 };
-use hashbrown::HashTable;
 use intmap::IntMap;
 use std::hash::Hash;
 
@@ -64,11 +63,7 @@ where
     fn guards_bitmask(&self) -> BitMask {
         self.indexed_key.2 | self.indexed_peek_keys.bitmask
     }
-    fn apply<'guards>(
-        &self,
-        mutex_guards: &'guards mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
-        params: &P,
-    ) {
+    fn apply(&self, mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>, params: &P) {
         // It's not possible to read peeked values while modifying the key value in place
         // Therefore we:
         // 1 .Remove the value

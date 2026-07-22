@@ -1,7 +1,7 @@
 use crate::{
     finishers::finisher_trait::FinisherTrait, locks::lock_policy::LockPolicy, new_types::BitMask,
+    shard::Shard,
 };
-use hashbrown::HashTable;
 use intmap::IntMap;
 use std::marker::PhantomData;
 
@@ -28,10 +28,7 @@ where
     pub fn guards_bitmask(&self) -> BitMask {
         self.finisher.guards_bitmask()
     }
-    pub fn finish<'guards, L>(
-        &self,
-        mutex_guards: &'guards IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
-    ) -> F::Output
+    pub fn finish<L>(&self, mutex_guards: &IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>) -> F::Output
     where
         L: LockPolicy,
     {

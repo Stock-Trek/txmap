@@ -1,8 +1,7 @@
 use crate::{
     indexed_keys::IndexedKeys, locks::lock_policy::LockPolicy, new_types::BitMask,
-    ops::op_trait::OpTrait, shard_count::ShardCount,
+    ops::op_trait::OpTrait, shard::Shard, shard_count::ShardCount,
 };
-use hashbrown::HashTable;
 use intmap::IntMap;
 use std::hash::Hash;
 
@@ -34,11 +33,7 @@ where
     fn guards_bitmask(&self) -> BitMask {
         self.indexed_keys.bitmask
     }
-    fn apply<'guards>(
-        &self,
-        mutex_guards: &'guards mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
-        _: &P,
-    ) {
+    fn apply(&self, mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>, _: &P) {
         for indexed_key in &self.indexed_keys.indexed {
             indexed_key.remove_entry::<L, V>(mutex_guards);
         }

@@ -2,9 +2,9 @@ use crate::{
     locks::lock_policy::LockPolicy,
     new_types::{BitMask, HashCode, ShardIndex},
     result::MISSING_MUTEX_GUARD_ERROR,
+    shard::Shard,
     shard_count::ShardCount,
 };
-use hashbrown::HashTable;
 use intmap::IntMap;
 use std::hash::Hash;
 
@@ -18,7 +18,7 @@ where
 {
     pub fn insert<L, V>(
         &self,
-        mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+        mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>,
         value: V,
     ) where
         L: LockPolicy,
@@ -37,7 +37,7 @@ where
     }
     pub fn insert_if_absent<L, V>(
         &self,
-        mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+        mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>,
         value_gen: impl FnOnce() -> V,
     ) where
         L: LockPolicy,
@@ -56,7 +56,7 @@ where
     }
     pub fn insert_with_duplicate_key<L, V>(
         &self,
-        mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+        mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>,
         duplicate_key: K,
         value: V,
     ) where
@@ -76,7 +76,7 @@ where
     }
     pub fn remove_entry<L, V>(
         &self,
-        mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+        mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>,
     ) -> Option<(K, V)>
     where
         L: LockPolicy,
@@ -91,7 +91,7 @@ where
     }
     pub fn value_ref<'guards, L, V>(
         &self,
-        mutex_guards: &'guards IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+        mutex_guards: &'guards IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>,
     ) -> Option<&'guards V>
     where
         L: LockPolicy,

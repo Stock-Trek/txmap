@@ -1,8 +1,8 @@
 use crate::{
     indexed_key::IndexedKey, locks::lock_policy::LockPolicy, new_types::BitMask,
-    ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR, shard_count::ShardCount,
+    ops::op_trait::OpTrait, result::MISSING_MUTEX_GUARD_ERROR, shard::Shard,
+    shard_count::ShardCount,
 };
-use hashbrown::HashTable;
 use intmap::IntMap;
 use std::hash::Hash;
 
@@ -50,11 +50,7 @@ where
     fn guards_bitmask(&self) -> BitMask {
         self.indexed_key.2
     }
-    fn apply<'guards>(
-        &self,
-        mutex_guards: &'guards mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
-        params: &P,
-    ) {
+    fn apply(&self, mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>, params: &P) {
         let mutex_guard = mutex_guards
             .get_mut(self.indexed_key.1.0)
             .expect(MISSING_MUTEX_GUARD_ERROR);

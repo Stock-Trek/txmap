@@ -1,9 +1,8 @@
 use crate::{
     indexed_key::IndexedKey, indexed_keys::IndexedKeys, locks::lock_policy::LockPolicy,
-    new_types::BitMask, ops::op_trait::OpTrait, result::INCORRECT_PEEK_VALUES_LENGTH,
+    new_types::BitMask, ops::op_trait::OpTrait, result::INCORRECT_PEEK_VALUES_LENGTH, shard::Shard,
     shard_count::ShardCount,
 };
-use hashbrown::HashTable;
 use intmap::IntMap;
 use std::hash::Hash;
 
@@ -64,11 +63,7 @@ where
     fn guards_bitmask(&self) -> BitMask {
         self.indexed_key.2 | self.indexed_peek_keys.bitmask
     }
-    fn apply<'guards>(
-        &self,
-        mutex_guards: &'guards mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
-        params: &P,
-    ) {
+    fn apply(&self, mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>, params: &P) {
         let peek_values = self.indexed_peek_keys.values::<L, V>(mutex_guards);
         let value_ref = self.indexed_key.value_ref::<L, V>(mutex_guards);
         let new_value = (self.transform)(&self.indexed_key.3, value_ref, &peek_values, params);

@@ -1,8 +1,7 @@
 use crate::{
     indexed_key::IndexedKey, locks::lock_policy::LockPolicy, new_types::BitMask,
-    ops::op_trait::OpTrait, shard_count::ShardCount,
+    ops::op_trait::OpTrait, shard::Shard, shard_count::ShardCount,
 };
-use hashbrown::HashTable;
 use intmap::IntMap;
 use std::hash::Hash;
 
@@ -50,11 +49,7 @@ where
     fn guards_bitmask(&self) -> BitMask {
         self.indexed_key.2
     }
-    fn apply<'guards>(
-        &self,
-        mutex_guards: &'guards mut IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
-        params: &P,
-    ) {
+    fn apply(&self, mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>, params: &P) {
         let new_value = (self.value_generator)(&self.indexed_key.3, params);
         self.indexed_key.insert::<L, V>(mutex_guards, new_value);
     }

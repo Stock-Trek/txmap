@@ -1,6 +1,7 @@
 use crate::{
     locks::lock_policy::LockPolicy,
     new_types::{BitMask, ShardIndex},
+    shard::Shard,
 };
 use hashbrown::HashTable;
 use intmap::IntMap;
@@ -12,8 +13,6 @@ where
     pub(crate) shard_count: u8,
     pub(crate) shards: Vec<L::Lock<Shard<K, V>>>,
 }
-
-type Shard<K, V> = HashTable<(K, V)>;
 
 impl<L, K, V> Custodian<L, K, V>
 where
@@ -29,7 +28,7 @@ where
             shards,
         }
     }
-    pub fn all_guards(&self) -> IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>> {
+    pub fn all_guards(&self) -> IntMap<u8, L::WriteGuard<'_, Shard<K, V>>> {
         let all_guards_bitmask = if self.shard_count == 128 {
             !0u128
         } else {
@@ -37,7 +36,7 @@ where
         };
         self.guards(BitMask(all_guards_bitmask))
     }
-    pub fn guards(&self, bitmask: BitMask) -> IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>> {
+    pub fn guards(&self, bitmask: BitMask) -> IntMap<u8, L::WriteGuard<'_, Shard<K, V>>> {
         let mut guards = IntMap::new();
         for i in 0..self.shard_count {
             let is_lock_required = ((bitmask.0 >> i) & 1) == 1;
@@ -49,7 +48,7 @@ where
         }
         guards
     }
-    pub fn guard_at(&self, shard_index: ShardIndex) -> L::WriteGuard<'_, HashTable<(K, V)>> {
+    pub fn guard_at(&self, shard_index: ShardIndex) -> L::WriteGuard<'_, Shard<K, V>> {
         let shard_lock = &self.shards[shard_index.0 as usize];
         L::write(shard_lock)
     }

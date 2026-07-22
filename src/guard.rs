@@ -1,8 +1,7 @@
 use crate::{
     indexed_keys::IndexedKeys, locks::lock_policy::LockPolicy, new_types::BitMask,
-    result::INCORRECT_GUARD_VALUES_LENGTH, shard_count::ShardCount,
+    result::INCORRECT_GUARD_VALUES_LENGTH, shard::Shard, shard_count::ShardCount,
 };
-use hashbrown::HashTable;
 use intmap::IntMap;
 use std::hash::Hash;
 
@@ -54,9 +53,9 @@ where
             condition,
         }
     }
-    pub fn is_condition_met<'guards, L>(
+    pub fn is_condition_met<L>(
         &self,
-        mutex_guards: &'guards IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
+        mutex_guards: &IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>,
         params: &P,
     ) -> bool
     where

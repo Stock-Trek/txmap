@@ -1,8 +1,7 @@
 use crate::{
     finishers::finisher_trait::FinisherTrait, indexed_key::IndexedKey,
-    locks::lock_policy::LockPolicy, new_types::BitMask, shard_count::ShardCount,
+    locks::lock_policy::LockPolicy, new_types::BitMask, shard::Shard, shard_count::ShardCount,
 };
-use hashbrown::HashTable;
 use intmap::IntMap;
 use std::hash::Hash;
 
@@ -39,10 +38,7 @@ where
     fn guards_bitmask(&self) -> BitMask {
         self.indexed_key.2
     }
-    fn to_result<'guards, L>(
-        &self,
-        mutex_guards: &'guards IntMap<u8, L::WriteGuard<'_, HashTable<(K, V)>>>,
-    ) -> Option<R>
+    fn to_result<L>(&self, mutex_guards: &IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>) -> Option<R>
     where
         L: LockPolicy,
     {
