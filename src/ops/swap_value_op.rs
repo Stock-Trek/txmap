@@ -48,12 +48,11 @@ where
                     self.indexed_key_b.insert(mutex_guards, a_value);
                 }
             },
-            None => match b {
-                Some((_, b_value)) => {
+            None => {
+                if let Some((_, b_value)) = b {
                     self.indexed_key_a.insert(mutex_guards, b_value);
                 }
-                None => {}
-            },
+            }
         }
     }
 }

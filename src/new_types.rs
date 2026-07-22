@@ -1,12 +1,12 @@
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Deref};
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 pub struct HashCode(pub u64);
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 pub struct ShardIndex(pub u8);
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 pub struct BitMask(pub u128);
 
 impl ShardIndex {
@@ -33,12 +33,6 @@ impl Deref for BitMask {
     type Target = u128;
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-impl Default for BitMask {
-    fn default() -> Self {
-        BitMask(0)
     }
 }
 

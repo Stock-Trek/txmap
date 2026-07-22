@@ -86,10 +86,7 @@ where
         let mut result = Vec::with_capacity(indexed_keys.indexed.len());
         for indexed_key in &indexed_keys.indexed {
             let value_ref = indexed_key.value_ref(&mutex_guards);
-            let result_value = match value_ref {
-                None => None,
-                Some(v) => Some(transform(&indexed_key.3, v)),
-            };
+            let result_value = value_ref.map(|v| transform(&indexed_key.3, v));
             result.push(result_value);
         }
         result

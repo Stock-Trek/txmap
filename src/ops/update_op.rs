@@ -56,7 +56,6 @@ where
             Some(v) => self.indexed_key.insert(mutex_guards, v),
             None => {
                 self.indexed_key.remove_entry(mutex_guards);
-                ()
             }
         };
     }
