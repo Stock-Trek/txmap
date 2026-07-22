@@ -74,26 +74,24 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn insert_with<G>(
+    fn insert_with(
         mut self,
         key: K,
-        value_generator: G,
+        value_generator: impl Fn(&K, &P) -> V + 'static,
     ) -> impl TxParamBuildable<'txmap, L, K, V, P>
     where
-        G: Fn(&K, &P) -> V + 'static,
         K: Clone,
     {
         let op = InsertWithOp::new_with_params(self.custodian.shard_count, key, value_generator);
         self.ops.push(Box::new(op));
         self
     }
-    fn insert_with_if_absent<G>(
+    fn insert_with_if_absent(
         mut self,
         key: K,
-        value_generator: G,
+        value_generator: impl Fn(&K, &P) -> V + 'static,
     ) -> impl TxParamBuildable<'txmap, L, K, V, P>
     where
-        G: Fn(&K, &P) -> V + 'static,
         K: Clone,
     {
         let op =
@@ -101,45 +99,47 @@ where
         self.ops.push(Box::new(op));
         self
     }
-    fn modify<M>(mut self, key: K, mutate: M) -> impl TxParamBuildable<'txmap, L, K, V, P>
-    where
-        M: Fn(&K, &mut V, &P) + 'static,
-    {
+    fn modify(
+        mut self,
+        key: K,
+        mutate: impl Fn(&K, &mut V, &P) + 'static,
+    ) -> impl TxParamBuildable<'txmap, L, K, V, P> {
         let op = ModifyOp::new_with_params(self.custodian.shard_count, key, mutate);
         self.ops.push(Box::new(op));
         self
     }
-    fn modify_peek<const N: usize, M>(
+    fn modify_peek<const N: usize>(
         mut self,
         key: K,
         peek_keys: [K; N],
-        mutate: M,
+        mutate: impl Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
     ) -> impl TxParamBuildable<'txmap, L, K, V, P>
     where
-        M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
         K: Clone,
     {
         let op = ModifyPeekOp::new_with_params(self.custodian.shard_count, key, peek_keys, mutate);
         self.ops.push(Box::new(op));
         self
     }
-    fn update<T>(mut self, key: K, transform: T) -> impl TxParamBuildable<'txmap, L, K, V, P>
+    fn update(
+        mut self,
+        key: K,
+        transform: impl Fn(&K, Option<&V>, &P) -> Option<V> + 'static,
+    ) -> impl TxParamBuildable<'txmap, L, K, V, P>
     where
-        T: Fn(&K, Option<&V>, &P) -> Option<V> + 'static,
         K: Clone,
     {
         let op = UpdateOp::new_with_params(self.custodian.shard_count, key, transform);
         self.ops.push(Box::new(op));
         self
     }
-    fn update_peek<const N: usize, T>(
+    fn update_peek<const N: usize>(
         mut self,
         key: K,
         peek_keys: [K; N],
-        transform: T,
+        transform: impl Fn(&K, Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
     ) -> impl TxParamBuildable<'txmap, L, K, V, P>
     where
-        T: Fn(&K, Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
         K: Clone,
     {
         let op =
@@ -167,23 +167,19 @@ where
     }
 
     // batch ops
-    fn remove<I>(mut self, keys: I) -> impl TxParamBuildable<'txmap, L, K, V, P>
-    where
-        I: IntoIterator<Item = K>,
-    {
+    fn remove(
+        mut self,
+        keys: impl IntoIterator<Item = K>,
+    ) -> impl TxParamBuildable<'txmap, L, K, V, P> {
         let op = RemoveOp::new(self.custodian.shard_count, keys);
         self.ops.push(Box::new(op));
         self
     }
-    fn remove_where<I, C>(
+    fn remove_where(
         mut self,
-        keys: I,
-        condition: C,
-    ) -> impl TxParamBuildable<'txmap, L, K, V, P>
-    where
-        I: IntoIterator<Item = K>,
-        C: Fn(&K, &V, &P) -> bool + 'static,
-    {
+        keys: impl IntoIterator<Item = K>,
+        condition: impl Fn(&K, &V, &P) -> bool + 'static,
+    ) -> impl TxParamBuildable<'txmap, L, K, V, P> {
         let op = RemoveWhereOp::new_with_params(self.custodian.shard_count, keys, condition);
         self.ops.push(Box::new(op));
         self
@@ -215,12 +211,11 @@ where
             ops,
         }
     }
-    fn get_all_copied<I>(
+    fn get_all_copied(
         self,
-        keys: I,
+        keys: impl IntoIterator<Item = K>,
     ) -> impl IntoParamTransaction<'txmap, L, K, V, P, CopyAllFinisher<K, V>>
     where
-        I: IntoIterator<Item = K>,
         V: Copy,
     {
         let Self {
@@ -260,12 +255,11 @@ where
             ops,
         }
     }
-    fn get_all_cloned<I>(
+    fn get_all_cloned(
         self,
-        keys: I,
+        keys: impl IntoIterator<Item = K>,
     ) -> impl IntoParamTransaction<'txmap, L, K, V, P, CloneAllFinisher<K, V>>
     where
-        I: IntoIterator<Item = K>,
         V: Clone,
     {
         let Self {
@@ -283,14 +277,11 @@ where
             ops,
         }
     }
-    fn get_with<T, R>(
+    fn get_with<R>(
         self,
         key: K,
-        transform: T,
-    ) -> impl IntoParamTransaction<'txmap, L, K, V, P, ValueFinisher<K, V, R>>
-    where
-        T: Fn(&K, &V) -> R + 'static,
-    {
+        transform: impl Fn(&K, &V) -> R + 'static,
+    ) -> impl IntoParamTransaction<'txmap, L, K, V, P, ValueFinisher<K, V, R>> {
         let Self {
             custodian,
             guards,
@@ -306,15 +297,11 @@ where
             ops,
         }
     }
-    fn get_all_with<I, T, R>(
+    fn get_all_with<R>(
         self,
-        keys: I,
-        transform: T,
-    ) -> impl IntoParamTransaction<'txmap, L, K, V, P, ValuesFinisher<K, V, R>>
-    where
-        I: IntoIterator<Item = K>,
-        T: Fn(&K, &V) -> R + 'static,
-    {
+        keys: impl IntoIterator<Item = K>,
+        transform: impl Fn(&K, &V) -> R + 'static,
+    ) -> impl IntoParamTransaction<'txmap, L, K, V, P, ValuesFinisher<K, V, R>> {
         let Self {
             custodian,
             guards,

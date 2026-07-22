@@ -18,10 +18,7 @@ where
     K: Hash + Eq,
     V: Clone,
 {
-    pub fn new<I>(shard_count: u8, keys: I) -> Self
-    where
-        I: IntoIterator<Item = K>,
-    {
+    pub fn new(shard_count: u8, keys: impl IntoIterator<Item = K>) -> Self {
         Self {
             indexed_keys: ShardCount::indexes(shard_count, keys, |k| k),
             _phantom: PhantomData,

@@ -18,11 +18,11 @@ impl<K, V, P> RemoveWhereOp<K, V, P>
 where
     K: Hash + Eq,
 {
-    pub fn new_with_params<I, C>(shard_count: u8, keys: I, condition: C) -> Self
-    where
-        I: IntoIterator<Item = K>,
-        C: Fn(&K, &V, &P) -> bool + 'static,
-    {
+    pub fn new_with_params(
+        shard_count: u8,
+        keys: impl IntoIterator<Item = K>,
+        condition: impl Fn(&K, &V, &P) -> bool + 'static,
+    ) -> Self {
         let indexed_keys = ShardCount::indexes(shard_count, keys, |k| k);
         Self {
             indexed_keys,
@@ -35,11 +35,11 @@ impl<K, V> RemoveWhereOp<K, V, ()>
 where
     K: Hash + Eq,
 {
-    pub fn new<I, C>(shard_count: u8, keys: I, condition: C) -> Self
-    where
-        I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool + 'static,
-    {
+    pub fn new(
+        shard_count: u8,
+        keys: impl IntoIterator<Item = K>,
+        condition: impl Fn(&K, &V) -> bool + 'static,
+    ) -> Self {
         Self::new_with_params(shard_count, keys, move |k, v, _| condition(k, v))
     }
 }

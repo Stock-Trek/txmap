@@ -16,10 +16,7 @@ impl<K> RemoveOp<K>
 where
     K: Hash + Eq,
 {
-    pub fn new<I>(shard_count: u8, keys: I) -> Self
-    where
-        I: IntoIterator<Item = K>,
-    {
+    pub fn new(shard_count: u8, keys: impl IntoIterator<Item = K>) -> Self {
         let indexed_keys = ShardCount::indexes(shard_count, keys, |k| k);
         Self { indexed_keys }
     }

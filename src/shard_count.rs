@@ -28,13 +28,12 @@ impl From<ShardCount> for u8 {
 }
 
 impl ShardCount {
-    pub(crate) fn indexes<KI, E, K>(
+    pub(crate) fn indexes<E, K>(
         shard_count: u8,
-        keys: KI,
+        keys: impl IntoIterator<Item = E>,
         element_to_key: fn(E) -> K,
     ) -> IndexedKeys<K>
     where
-        KI: IntoIterator<Item = E>,
         K: Hash + Eq,
     {
         let mut bitmask = BitMask::default();

@@ -61,14 +61,12 @@ where
     L: LockPolicy,
     K: Hash + Eq,
 {
-    fn require<const N: usize, C>(
+    fn require<const N: usize>(
         self,
         name: impl AsRef<str>,
         keys: [K; N],
-        condition: C,
-    ) -> impl TxBuilder<'txmap, L, K, V>
-    where
-        C: Fn([Option<&V>; N]) -> bool + 'static;
+        condition: impl Fn([Option<&V>; N]) -> bool + 'static,
+    ) -> impl TxBuilder<'txmap, L, K, V>;
 }
 
 pub trait TxGuardParamBuilder<'txmap, L, K, V, P>
@@ -76,14 +74,12 @@ where
     L: LockPolicy,
     K: Hash + Eq,
 {
-    fn require<const N: usize, C>(
+    fn require<const N: usize>(
         self,
         name: impl AsRef<str>,
         keys: [K; N],
-        condition: C,
-    ) -> impl TxParamBuilder<'txmap, L, K, V, P>
-    where
-        C: Fn([Option<&V>; N], &P) -> bool + 'static;
+        condition: impl Fn([Option<&V>; N], &P) -> bool + 'static,
+    ) -> impl TxParamBuilder<'txmap, L, K, V, P>;
 }
 
 pub trait TxOpBuilder<'txmap, L, K, V>
@@ -100,42 +96,47 @@ where
     where
         K: Clone,
         V: Default;
-    fn insert_with<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, L, K, V>
-    where
-        G: Fn(&K) -> V + 'static,
-        K: Clone;
-    fn insert_with_if_absent<G>(
+    fn insert_with(
         self,
         key: K,
-        value_generator: G,
+        value_generator: impl Fn(&K) -> V + 'static,
     ) -> impl TxBuildable<'txmap, L, K, V>
     where
-        G: Fn(&K) -> V + 'static,
         K: Clone;
-    fn modify<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, L, K, V>
-    where
-        M: Fn(&K, &mut V) + 'static;
-    fn modify_peek<const N: usize, M>(
+    fn insert_with_if_absent(
         self,
         key: K,
-        peek_keys: [K; N],
-        mutate: M,
+        value_generator: impl Fn(&K) -> V + 'static,
     ) -> impl TxBuildable<'txmap, L, K, V>
     where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
         K: Clone;
-    fn update<T>(self, key: K, transform: T) -> impl TxBuildable<'txmap, L, K, V>
-    where
-        T: Fn(&K, Option<&V>) -> Option<V> + 'static,
-        K: Clone;
-    fn update_peek<const N: usize, T>(
+    fn modify(
+        self,
+        key: K,
+        mutate: impl Fn(&K, &mut V) + 'static,
+    ) -> impl TxBuildable<'txmap, L, K, V>;
+    fn modify_peek<const N: usize>(
         self,
         key: K,
         peek_keys: [K; N],
-        transform: T,
+        mutate: impl Fn(&K, &mut V, [Option<&V>; N]) + 'static,
     ) -> impl TxBuildable<'txmap, L, K, V>
     where
-        T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
+        K: Clone;
+    fn update(
+        self,
+        key: K,
+        transform: impl Fn(&K, Option<&V>) -> Option<V> + 'static,
+    ) -> impl TxBuildable<'txmap, L, K, V>
+    where
+        K: Clone;
+    fn update_peek<const N: usize>(
+        self,
+        key: K,
+        peek_keys: [K; N],
+        transform: impl Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
+    ) -> impl TxBuildable<'txmap, L, K, V>
+    where
         K: Clone;
 
     // multi key ops
@@ -147,13 +148,12 @@ where
         K: Clone;
 
     // batch ops
-    fn remove<I>(self, keys: I) -> impl TxBuildable<'txmap, L, K, V>
-    where
-        I: IntoIterator<Item = K>;
-    fn remove_where<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, L, K, V>
-    where
-        I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool + 'static;
+    fn remove(self, keys: impl IntoIterator<Item = K>) -> impl TxBuildable<'txmap, L, K, V>;
+    fn remove_where(
+        self,
+        keys: impl IntoIterator<Item = K>,
+        condition: impl Fn(&K, &V) -> bool + 'static,
+    ) -> impl TxBuildable<'txmap, L, K, V>;
 }
 
 pub trait TxOpParamBuilder<'txmap, L, K, V, P>
@@ -170,46 +170,47 @@ where
     where
         K: Clone,
         V: Default;
-    fn insert_with<G>(
+    fn insert_with(
         self,
         key: K,
-        value_generator: G,
+        value_generator: impl Fn(&K, &P) -> V + 'static,
     ) -> impl TxParamBuildable<'txmap, L, K, V, P>
     where
-        G: Fn(&K, &P) -> V + 'static,
         K: Clone;
-    fn insert_with_if_absent<G>(
+    fn insert_with_if_absent(
         self,
         key: K,
-        value_generator: G,
+        value_generator: impl Fn(&K, &P) -> V + 'static,
     ) -> impl TxParamBuildable<'txmap, L, K, V, P>
     where
-        G: Fn(&K, &P) -> V + 'static,
         K: Clone;
-    fn modify<M>(self, key: K, mutate: M) -> impl TxParamBuildable<'txmap, L, K, V, P>
-    where
-        M: Fn(&K, &mut V, &P) + 'static;
-    fn modify_peek<const N: usize, M>(
+    fn modify(
         self,
         key: K,
-        peek_keys: [K; N],
-        mutate: M,
-    ) -> impl TxParamBuildable<'txmap, L, K, V, P>
-    where
-        M: Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
-        K: Clone;
-    fn update<T>(self, key: K, transform: T) -> impl TxParamBuildable<'txmap, L, K, V, P>
-    where
-        T: Fn(&K, Option<&V>, &P) -> Option<V> + 'static,
-        K: Clone;
-    fn update_peek<const N: usize, T>(
+        mutate: impl Fn(&K, &mut V, &P) + 'static,
+    ) -> impl TxParamBuildable<'txmap, L, K, V, P>;
+    fn modify_peek<const N: usize>(
         self,
         key: K,
         peek_keys: [K; N],
-        transform: T,
+        mutate: impl Fn(&K, &mut V, [Option<&V>; N], &P) + 'static,
     ) -> impl TxParamBuildable<'txmap, L, K, V, P>
     where
-        T: Fn(&K, Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
+        K: Clone;
+    fn update(
+        self,
+        key: K,
+        transform: impl Fn(&K, Option<&V>, &P) -> Option<V> + 'static,
+    ) -> impl TxParamBuildable<'txmap, L, K, V, P>
+    where
+        K: Clone;
+    fn update_peek<const N: usize>(
+        self,
+        key: K,
+        peek_keys: [K; N],
+        transform: impl Fn(&K, Option<&V>, [Option<&V>; N], &P) -> Option<V> + 'static,
+    ) -> impl TxParamBuildable<'txmap, L, K, V, P>
+    where
         K: Clone;
 
     // multi key ops
@@ -221,13 +222,13 @@ where
         K: Clone;
 
     // batch ops
-    fn remove<I>(self, keys: I) -> impl TxParamBuildable<'txmap, L, K, V, P>
-    where
-        I: IntoIterator<Item = K>;
-    fn remove_where<I, C>(self, keys: I, condition: C) -> impl TxParamBuildable<'txmap, L, K, V, P>
-    where
-        I: IntoIterator<Item = K>,
-        C: Fn(&K, &V, &P) -> bool + 'static;
+    fn remove(self, keys: impl IntoIterator<Item = K>)
+    -> impl TxParamBuildable<'txmap, L, K, V, P>;
+    fn remove_where(
+        self,
+        keys: impl IntoIterator<Item = K>,
+        condition: impl Fn(&K, &V, &P) -> bool + 'static,
+    ) -> impl TxParamBuildable<'txmap, L, K, V, P>;
 }
 
 pub trait TxResultBuilder<'txmap, L, K, V>
@@ -238,38 +239,31 @@ where
     fn get_copied(self, key: K) -> impl IntoTransaction<'txmap, L, K, V, CopyFinisher<K, V>>
     where
         V: Copy;
-    fn get_all_copied<I>(
+    fn get_all_copied(
         self,
-        keys: I,
+        keys: impl IntoIterator<Item = K>,
     ) -> impl IntoTransaction<'txmap, L, K, V, CopyAllFinisher<K, V>>
     where
-        I: IntoIterator<Item = K>,
         V: Copy;
     fn get_cloned(self, key: K) -> impl IntoTransaction<'txmap, L, K, V, CloneFinisher<K, V>>
     where
         V: Clone;
-    fn get_all_cloned<I>(
+    fn get_all_cloned(
         self,
-        keys: I,
+        keys: impl IntoIterator<Item = K>,
     ) -> impl IntoTransaction<'txmap, L, K, V, CloneAllFinisher<K, V>>
     where
-        I: IntoIterator<Item = K>,
         V: Clone;
-    fn get_with<T, R>(
+    fn get_with<R>(
         self,
         key: K,
-        transform: T,
-    ) -> impl IntoTransaction<'txmap, L, K, V, ValueFinisher<K, V, R>>
-    where
-        T: Fn(&K, &V) -> R + 'static;
-    fn get_all_with<I, T, R>(
+        transform: impl Fn(&K, &V) -> R + 'static,
+    ) -> impl IntoTransaction<'txmap, L, K, V, ValueFinisher<K, V, R>>;
+    fn get_all_with<R>(
         self,
-        keys: I,
-        transform: T,
-    ) -> impl IntoTransaction<'txmap, L, K, V, ValuesFinisher<K, V, R>>
-    where
-        I: IntoIterator<Item = K>,
-        T: Fn(&K, &V) -> R + 'static;
+        keys: impl IntoIterator<Item = K>,
+        transform: impl Fn(&K, &V) -> R + 'static,
+    ) -> impl IntoTransaction<'txmap, L, K, V, ValuesFinisher<K, V, R>>;
 }
 
 pub trait TxResultParamBuilder<'txmap, L, K, V, P>
@@ -283,12 +277,11 @@ where
     ) -> impl IntoParamTransaction<'txmap, L, K, V, P, CopyFinisher<K, V>>
     where
         V: Copy;
-    fn get_all_copied<I>(
+    fn get_all_copied(
         self,
-        keys: I,
+        keys: impl IntoIterator<Item = K>,
     ) -> impl IntoParamTransaction<'txmap, L, K, V, P, CopyAllFinisher<K, V>>
     where
-        I: IntoIterator<Item = K>,
         V: Copy;
     fn get_cloned(
         self,
@@ -296,28 +289,22 @@ where
     ) -> impl IntoParamTransaction<'txmap, L, K, V, P, CloneFinisher<K, V>>
     where
         V: Clone;
-    fn get_all_cloned<I>(
+    fn get_all_cloned(
         self,
-        keys: I,
+        keys: impl IntoIterator<Item = K>,
     ) -> impl IntoParamTransaction<'txmap, L, K, V, P, CloneAllFinisher<K, V>>
     where
-        I: IntoIterator<Item = K>,
         V: Clone;
-    fn get_with<T, R>(
+    fn get_with<R>(
         self,
         key: K,
-        transform: T,
-    ) -> impl IntoParamTransaction<'txmap, L, K, V, P, ValueFinisher<K, V, R>>
-    where
-        T: Fn(&K, &V) -> R + 'static;
-    fn get_all_with<I, T, R>(
+        transform: impl Fn(&K, &V) -> R + 'static,
+    ) -> impl IntoParamTransaction<'txmap, L, K, V, P, ValueFinisher<K, V, R>>;
+    fn get_all_with<R>(
         self,
-        keys: I,
-        transform: T,
-    ) -> impl IntoParamTransaction<'txmap, L, K, V, P, ValuesFinisher<K, V, R>>
-    where
-        I: IntoIterator<Item = K>,
-        T: Fn(&K, &V) -> R + 'static;
+        keys: impl IntoIterator<Item = K>,
+        transform: impl Fn(&K, &V) -> R + 'static,
+    ) -> impl IntoParamTransaction<'txmap, L, K, V, P, ValuesFinisher<K, V, R>>;
 }
 
 pub trait IntoTransaction<'txmap, L, K, V, F>

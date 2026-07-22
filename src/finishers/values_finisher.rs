@@ -18,11 +18,11 @@ impl<K, V, R> ValuesFinisher<K, V, R>
 where
     K: Hash + Eq,
 {
-    pub fn new<I, T>(shard_count: u8, keys: I, transform: T) -> Self
-    where
-        I: IntoIterator<Item = K>,
-        T: Fn(&K, &V) -> R + 'static,
-    {
+    pub fn new(
+        shard_count: u8,
+        keys: impl IntoIterator<Item = K>,
+        transform: impl Fn(&K, &V) -> R + 'static,
+    ) -> Self {
         Self {
             indexed_keys: ShardCount::indexes(shard_count, keys, |k| k),
             transform: Box::new(move |key, value_opt| value_opt.map(|value| transform(key, value))),

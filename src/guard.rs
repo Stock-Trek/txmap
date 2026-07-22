@@ -20,10 +20,12 @@ impl<K, V> Guard<K, V, ()>
 where
     K: Hash + Eq,
 {
-    pub fn new<const N: usize, C>(shard_count: u8, name: String, keys: [K; N], condition: C) -> Self
-    where
-        C: Fn([Option<&V>; N]) -> bool + 'static,
-    {
+    pub fn new<const N: usize>(
+        shard_count: u8,
+        name: String,
+        keys: [K; N],
+        condition: impl Fn([Option<&V>; N]) -> bool + 'static,
+    ) -> Self {
         Self::new_with_params(shard_count, name, keys, move |k, _| condition(k))
     }
 }
@@ -32,15 +34,12 @@ impl<K, V, P> Guard<K, V, P>
 where
     K: Hash + Eq,
 {
-    pub fn new_with_params<const N: usize, C>(
+    pub fn new_with_params<const N: usize>(
         shard_count: u8,
         name: String,
         keys: [K; N],
-        condition: C,
-    ) -> Self
-    where
-        C: Fn([Option<&V>; N], &P) -> bool + 'static,
-    {
+        condition: impl Fn([Option<&V>; N], &P) -> bool + 'static,
+    ) -> Self {
         let indexed_keys = ShardCount::indexes(shard_count, keys, |k| k);
         let condition = Box::new(move |values: &[Option<&V>], params: &P| {
             let array: [Option<&V>; N] = values.try_into().expect(INCORRECT_GUARD_VALUES_LENGTH);

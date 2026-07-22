@@ -53,15 +53,12 @@ where
     K: Hash + Eq + 'static,
     V: 'static,
 {
-    fn require<const N: usize, C>(
+    fn require<const N: usize>(
         mut self,
         name: impl AsRef<str>,
         keys: [K; N],
-        condition: C,
-    ) -> impl TxBuilder<'txmap, L, K, V>
-    where
-        C: Fn([Option<&V>; N]) -> bool + 'static,
-    {
+        condition: impl Fn([Option<&V>; N]) -> bool + 'static,
+    ) -> impl TxBuilder<'txmap, L, K, V> {
         let guard = Guard::new(
             self.custodian.shard_count,
             name.as_ref().into(),
@@ -106,9 +103,12 @@ where
         };
         builder.insert_default_if_absent(key)
     }
-    fn insert_with<G>(self, key: K, value_generator: G) -> impl TxBuildable<'txmap, L, K, V>
+    fn insert_with(
+        self,
+        key: K,
+        value_generator: impl Fn(&K) -> V + 'static,
+    ) -> impl TxBuildable<'txmap, L, K, V>
     where
-        G: Fn(&K) -> V + 'static,
         K: Clone,
     {
         let Self { custodian, guards } = self;
@@ -119,13 +119,12 @@ where
         };
         builder.insert_with(key, value_generator)
     }
-    fn insert_with_if_absent<G>(
+    fn insert_with_if_absent(
         self,
         key: K,
-        value_generator: G,
+        value_generator: impl Fn(&K) -> V + 'static,
     ) -> impl TxBuildable<'txmap, L, K, V>
     where
-        G: Fn(&K) -> V + 'static,
         K: Clone,
     {
         let Self { custodian, guards } = self;
@@ -136,10 +135,11 @@ where
         };
         builder.insert_with_if_absent(key, value_generator)
     }
-    fn modify<M>(self, key: K, mutate: M) -> impl TxBuildable<'txmap, L, K, V>
-    where
-        M: Fn(&K, &mut V) + 'static,
-    {
+    fn modify(
+        self,
+        key: K,
+        mutate: impl Fn(&K, &mut V) + 'static,
+    ) -> impl TxBuildable<'txmap, L, K, V> {
         let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
             custodian,
@@ -148,14 +148,13 @@ where
         };
         builder.modify(key, mutate)
     }
-    fn modify_peek<const N: usize, M>(
+    fn modify_peek<const N: usize>(
         self,
         key: K,
         peek_keys: [K; N],
-        mutate: M,
+        mutate: impl Fn(&K, &mut V, [Option<&V>; N]) + 'static,
     ) -> impl TxBuildable<'txmap, L, K, V>
     where
-        M: Fn(&K, &mut V, [Option<&V>; N]) + 'static,
         K: Clone,
     {
         let Self { custodian, guards } = self;
@@ -166,9 +165,12 @@ where
         };
         builder.modify_peek(key, peek_keys, mutate)
     }
-    fn update<T>(self, key: K, transform: T) -> impl TxBuildable<'txmap, L, K, V>
+    fn update(
+        self,
+        key: K,
+        transform: impl Fn(&K, Option<&V>) -> Option<V> + 'static,
+    ) -> impl TxBuildable<'txmap, L, K, V>
     where
-        T: Fn(&K, Option<&V>) -> Option<V> + 'static,
         K: Clone,
     {
         let Self { custodian, guards } = self;
@@ -179,14 +181,13 @@ where
         };
         builder.update(key, transform)
     }
-    fn update_peek<const N: usize, T>(
+    fn update_peek<const N: usize>(
         self,
         key: K,
         peek_keys: [K; N],
-        transform: T,
+        transform: impl Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
     ) -> impl TxBuildable<'txmap, L, K, V>
     where
-        T: Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
         K: Clone,
     {
         let Self { custodian, guards } = self;
@@ -225,10 +226,7 @@ where
     }
 
     // batch ops
-    fn remove<I>(self, keys: I) -> impl TxBuildable<'txmap, L, K, V>
-    where
-        I: IntoIterator<Item = K>,
-    {
+    fn remove(self, keys: impl IntoIterator<Item = K>) -> impl TxBuildable<'txmap, L, K, V> {
         let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
             custodian,
@@ -237,11 +235,11 @@ where
         };
         builder.remove(keys)
     }
-    fn remove_where<I, C>(self, keys: I, condition: C) -> impl TxBuildable<'txmap, L, K, V>
-    where
-        I: IntoIterator<Item = K>,
-        C: Fn(&K, &V) -> bool + 'static,
-    {
+    fn remove_where(
+        self,
+        keys: impl IntoIterator<Item = K>,
+        condition: impl Fn(&K, &V) -> bool + 'static,
+    ) -> impl TxBuildable<'txmap, L, K, V> {
         let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
             custodian,
