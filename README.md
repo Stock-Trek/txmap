@@ -206,10 +206,8 @@ Available transaction operations are as follows
 | `modify_peek`              | Like `modify` while peeking at other values.                                 |                            |
 | `update`                   | Update a single entry. Return `Some(v)` to insert/replace, `None` to remove. | `K: Clone`                 |
 | `update_peek`              | Like `update` while peeking at other values.                                 | `K: Clone`                 |
-|                            |                                                                              |                            |
 | `move_value`               | Remove a value from one key and insert it with another key.                  | `K: Clone`                 |
 | `swap_value`               | Swap the values of two keys.                                                 | `K: Clone`                 |
-|                            |                                                                              |                            |
 | `remove`                   | Remove the given keys.                                                       |                            |
 | `remove_where`             | Remove the given keys which also satisfy a condition.                        |                            |
 
