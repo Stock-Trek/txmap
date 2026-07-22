@@ -3,15 +3,15 @@ use std::ops::{Deref, DerefMut};
 pub trait LockPolicy {
     type Lock<T>;
 
-    type ReadGuard<'guard, T>: Deref<Target = T>
+    type ReadGuard<'lock, T>: Deref<Target = T>
     where
-        Self: 'guard,
-        T: 'guard;
+        Self: 'lock,
+        T: 'lock;
 
-    type WriteGuard<'guard, T>: DerefMut<Target = T>
+    type WriteGuard<'lock, T>: DerefMut<Target = T>
     where
-        Self: 'guard,
-        T: 'guard;
+        Self: 'lock,
+        T: 'lock;
 
     fn new<T>(value: T) -> Self::Lock<T>;
     fn read<'lock, T>(lock: &'lock Self::Lock<T>) -> Self::ReadGuard<'lock, T>;
