@@ -1,62 +1,74 @@
 use crate::{
-    indexed_key::IndexedKey, locks::lock_policy::LockPolicy, new_types::BitMask,
-    ops::op_trait::OpTrait, shard::Shard, shard_count::ShardCount,
+    lock_guards::LockGuards,
+    lock_policies::lock_policy::LockPolicy,
+    new_types::BitMask,
+    ops::op_trait::OpTrait,
+    params::{TxKey, TxKeySelector},
+    result::MISSING_LOCK_GUARD_ERROR,
 };
-use intmap::IntMap;
 use std::hash::Hash;
 
-pub(crate) struct UpdateOp<K, V, P = ()>
+pub(crate) struct UpdateOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
 {
-    indexed_key: IndexedKey<K>,
+    pub key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
     #[allow(clippy::type_complexity)]
-    transform: Box<dyn Fn(&K, Option<&V>, &P) -> Option<V>>,
+    pub transform: Box<dyn Fn(&K, Option<&V>, &PARAMS, &mut STATE) -> Option<V> + 'tx>,
 }
 
-impl<K, V, P> UpdateOp<K, V, P>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
+    for UpdateOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq + 'tx,
+    V: 'tx,
+    L: LockPolicy + 'tx,
+    KEYS: 'tx,
+    PARAMS: 'tx,
+    STATE: Default + 'tx,
 {
-    pub fn new_with_params<T>(shard_count: u8, key: K, transform: T) -> Self
-    where
-        T: Fn(&K, Option<&V>, &P) -> Option<V> + 'static,
-    {
-        Self {
-            indexed_key: ShardCount::indexed_key(shard_count, key),
-            transform: Box::new(transform),
+    fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask) {
+        (
+            BitMask::ZERO,
+            self.key_selector.get(keys).shard_index.bitmask(),
+        )
+    }
+    fn apply(
+        &self,
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        keys: &KEYS,
+        params: &PARAMS,
+        state: &mut STATE,
+    ) {
+        let key = self.key_selector.get(keys);
+        if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
+            let value_ref = lock_guards
+                .write
+                .get(key.shard_index.0)
+                .expect(MISSING_LOCK_GUARD_ERROR)
+                .find(key.hash_code.0, |entry| entry.0 == key.key)
+                .map(|(_key, value)| value);
+            let new_value = (self.transform)(&key.key, value_ref, params, state);
+            match new_value {
+                Some(v) => lock_guards.insert(key, v),
+                None => {
+                    lock_guards.remove_entry(key);
+                }
+            };
+        } else {
+            let value_ref = lock_guards
+                .read
+                .get(key.shard_index.0)
+                .expect(MISSING_LOCK_GUARD_ERROR)
+                .find(key.hash_code.0, |entry| entry.0 == key.key)
+                .map(|(_key, value)| value);
+            let new_value = (self.transform)(&key.key, value_ref, params, state);
+            match new_value {
+                Some(v) => lock_guards.insert(key, v),
+                None => {
+                    lock_guards.remove_entry(key);
+                }
+            };
         }
-    }
-}
-
-impl<K, V> UpdateOp<K, V, ()>
-where
-    K: Hash + Eq,
-{
-    pub fn new<T>(shard_count: u8, key: K, transform: T) -> Self
-    where
-        T: Fn(&K, Option<&V>) -> Option<V> + 'static,
-    {
-        Self::new_with_params(shard_count, key, move |k, v, _| transform(k, v))
-    }
-}
-
-impl<L, K, V, P> OpTrait<L, K, V, P> for UpdateOp<K, V, P>
-where
-    L: LockPolicy,
-    K: Clone + Hash + Eq,
-{
-    fn guards_bitmask(&self) -> BitMask {
-        self.indexed_key.2
-    }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>, params: &P) {
-        let value_ref = self.indexed_key.value_ref::<L, V>(mutex_guards);
-        let new_value = (self.transform)(&self.indexed_key.3, value_ref, params);
-        match new_value {
-            Some(v) => self.indexed_key.insert::<L, V>(mutex_guards, v),
-            None => {
-                self.indexed_key.remove_entry::<L, V>(mutex_guards);
-            }
-        };
     }
 }

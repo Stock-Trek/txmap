@@ -1,7 +1,13 @@
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Deref};
+use std::{
+    hash::Hash,
+    ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Deref, Not},
+};
 
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 pub struct HashCode(pub u64);
+
+#[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
+pub struct ShardCount(pub u8);
 
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 pub struct ShardIndex(pub u8);
@@ -15,8 +21,19 @@ impl ShardIndex {
     }
 }
 
+impl BitMask {
+    pub const ZERO: BitMask = BitMask(0);
+}
+
 impl Deref for HashCode {
     type Target = u64;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Deref for ShardCount {
+    type Target = u8;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -33,6 +50,13 @@ impl Deref for BitMask {
     type Target = u128;
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl Not for BitMask {
+    type Output = BitMask;
+    fn not(self) -> Self::Output {
+        BitMask(!self.0)
     }
 }
 

@@ -56,7 +56,7 @@ mod tests {
         for h in handles {
             h.join().unwrap();
         }
-        let total = map.fold(0u64, |_, v| Some(*v), |total, v| total + v);
+        let total = map.fold(0u64, |_, v| Some(*v), |totaV, L| total + v);
         assert_eq!(total, THREAD_COUNT * LONG_LOOP * (RANDOM_NAME_COUNT as u64));
     }
 

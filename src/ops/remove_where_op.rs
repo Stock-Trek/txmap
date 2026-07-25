@@ -1,64 +1,70 @@
 use crate::{
-    indexed_keys::IndexedKeys, locks::lock_policy::LockPolicy, new_types::BitMask,
-    ops::op_trait::OpTrait, shard::Shard, shard_count::ShardCount,
+    lock_guards::LockGuards,
+    lock_policies::lock_policy::LockPolicy,
+    new_types::BitMask,
+    ops::op_trait::OpTrait,
+    params::{TxKey, TxKeySelector},
+    result::MISSING_LOCK_GUARD_ERROR,
 };
-use intmap::IntMap;
 use std::hash::Hash;
 
-pub(crate) struct RemoveWhereOp<K, V, P = ()>
+pub(crate) struct RemoveWhereOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
 {
-    indexed_keys: IndexedKeys<K>,
+    pub key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
     #[allow(clippy::type_complexity)]
-    condition: Box<dyn Fn(&K, &V, &P) -> bool>,
+    pub condition: Box<dyn Fn(&K, &V, &PARAMS, &mut STATE) -> bool + 'tx>,
 }
 
-impl<K, V, P> RemoveWhereOp<K, V, P>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
+    for RemoveWhereOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
-    K: Hash + Eq,
+    K: Hash + Eq + 'tx,
+    V: 'tx,
+    L: LockPolicy + 'tx,
+    KEYS: 'tx,
+    PARAMS: 'tx,
+    STATE: Default + 'tx,
 {
-    pub fn new_with_params(
-        shard_count: u8,
-        keys: impl IntoIterator<Item = K>,
-        condition: impl Fn(&K, &V, &P) -> bool + 'static,
-    ) -> Self {
-        let indexed_keys = ShardCount::indexes(shard_count, keys, |k| k);
-        Self {
-            indexed_keys,
-            condition: Box::new(condition),
-        }
+    fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask) {
+        (
+            BitMask::ZERO,
+            self.key_selector.get(keys).shard_index.bitmask(),
+        )
     }
-}
+    fn apply(
+        &self,
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        keys: &KEYS,
+        params: &PARAMS,
+        state: &mut STATE,
+    ) {
+        let key = self.key_selector.get(keys);
 
-impl<K, V> RemoveWhereOp<K, V, ()>
-where
-    K: Hash + Eq,
-{
-    pub fn new(
-        shard_count: u8,
-        keys: impl IntoIterator<Item = K>,
-        condition: impl Fn(&K, &V) -> bool + 'static,
-    ) -> Self {
-        Self::new_with_params(shard_count, keys, move |k, v, _| condition(k, v))
-    }
-}
-
-impl<L, K, V, P> OpTrait<L, K, V, P> for RemoveWhereOp<K, V, P>
-where
-    L: LockPolicy,
-    K: Hash + Eq,
-{
-    fn guards_bitmask(&self) -> BitMask {
-        self.indexed_keys.bitmask
-    }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>, params: &P) {
-        for indexed_key in &self.indexed_keys.indexed {
-            let value_ref = indexed_key.value_ref::<L, V>(mutex_guards);
+        if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
+            let value_ref = lock_guards
+                .write
+                .get(key.shard_index.0)
+                .expect(MISSING_LOCK_GUARD_ERROR)
+                .find(key.hash_code.0, |entry| entry.0 == key.key)
+                .map(|(_key, value)| value);
             if let Some(v) = value_ref
-                && (self.condition)(&indexed_key.3, v, params)
+                && (self.condition)(&key.key, v, params, state)
             {
-                indexed_key.remove_entry::<L, V>(mutex_guards);
+                lock_guards.remove_entry(key);
+            }
+        } else {
+            let value_ref = lock_guards
+                .read
+                .get(key.shard_index.0)
+                .expect(MISSING_LOCK_GUARD_ERROR)
+                .find(key.hash_code.0, |entry| entry.0 == key.key)
+                .map(|(_key, value)| value);
+            if let Some(v) = value_ref
+                && (self.condition)(&key.key, v, params, state)
+            {
+                lock_guards.remove_entry(key);
             }
         }
     }

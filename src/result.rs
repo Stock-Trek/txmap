@@ -1,6 +1,4 @@
-pub(crate) const INCORRECT_GUARD_VALUES_LENGTH: &str = "Incorrect guard values length";
-pub(crate) const INCORRECT_PEEK_VALUES_LENGTH: &str = "Incorrect peek values length";
-pub(crate) const MISSING_MUTEX_GUARD_ERROR: &str = "Missing mutex guard";
+pub(crate) const MISSING_LOCK_GUARD_ERROR: &str = "Missing lock guard";
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum TxResult<T> {

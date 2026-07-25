@@ -1,32 +1,32 @@
-use crate::locks::lock_policy::LockPolicy;
-use parking_lot::RwLock;
+use crate::lock_policies::lock_policy::LockPolicy;
+use parking_lot::Mutex;
 
-pub struct RwLockPolicy;
+pub struct MutexPolicy;
 
-impl LockPolicy for RwLockPolicy {
-    type Lock<T> = RwLock<T>;
+impl LockPolicy for MutexPolicy {
+    type Lock<T> = Mutex<T>;
 
     type ReadGuard<'guard, T>
-        = parking_lot::RwLockReadGuard<'guard, T>
+        = parking_lot::MutexGuard<'guard, T>
     where
         Self: 'guard,
         T: 'guard;
 
     type WriteGuard<'guard, T>
-        = parking_lot::RwLockWriteGuard<'guard, T>
+        = parking_lot::MutexGuard<'guard, T>
     where
         Self: 'guard,
         T: 'guard;
 
     fn new<T>(value: T) -> Self::Lock<T> {
-        RwLock::new(value)
+        Mutex::new(value)
     }
 
     fn read<'lock, T>(lock: &'lock Self::Lock<T>) -> Self::ReadGuard<'lock, T> {
-        lock.read()
+        lock.lock()
     }
 
     fn write<'lock, T>(lock: &'lock Self::Lock<T>) -> Self::WriteGuard<'lock, T> {
-        lock.write()
+        lock.lock()
     }
 }

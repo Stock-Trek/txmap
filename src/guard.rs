@@ -1,70 +1,58 @@
 use crate::{
-    indexed_keys::IndexedKeys, locks::lock_policy::LockPolicy, new_types::BitMask,
-    result::INCORRECT_GUARD_VALUES_LENGTH, shard::Shard, shard_count::ShardCount,
+    lock_guards::LockGuards,
+    lock_policies::lock_policy::LockPolicy,
+    new_types::BitMask,
+    params::{TxKey, TxKeySelector},
+    result::MISSING_LOCK_GUARD_ERROR,
 };
-use intmap::IntMap;
-use std::hash::Hash;
+use std::{hash::Hash, marker::PhantomData};
 
-pub(crate) struct Guard<K, V, P = ()>
+pub(crate) struct Guard<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
 {
-    pub guards_bitmask: BitMask,
     pub name: String,
-    indexed_keys: IndexedKeys<K>,
+    pub key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
     #[allow(clippy::type_complexity)]
-    condition: Box<dyn Fn(&[Option<&V>], &P) -> bool>,
+    pub condition: Box<dyn Fn(Option<&V>, &PARAMS, &mut STATE) -> bool + 'tx>,
+    pub _phantom: PhantomData<STATE>,
 }
 
-impl<K, V> Guard<K, V, ()>
+impl<'tx, K, V, KEYS, PARAMS, STATE> Guard<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
 {
-    pub fn new<const N: usize>(
-        shard_count: u8,
-        name: String,
-        keys: [K; N],
-        condition: impl Fn([Option<&V>; N]) -> bool + 'static,
-    ) -> Self {
-        Self::new_with_params(shard_count, name, keys, move |k, _| condition(k))
-    }
-}
-
-impl<K, V, P> Guard<K, V, P>
-where
-    K: Hash + Eq,
-{
-    pub fn new_with_params<const N: usize>(
-        shard_count: u8,
-        name: String,
-        keys: [K; N],
-        condition: impl Fn([Option<&V>; N], &P) -> bool + 'static,
-    ) -> Self {
-        let indexed_keys = ShardCount::indexes(shard_count, keys, |k| k);
-        let condition = Box::new(move |values: &[Option<&V>], params: &P| {
-            let array: [Option<&V>; N] = values.try_into().expect(INCORRECT_GUARD_VALUES_LENGTH);
-            (condition)(array, params)
-        });
-        Self {
-            guards_bitmask: indexed_keys.bitmask,
-            name,
-            indexed_keys,
-            condition,
-        }
+    pub fn read_bitmask(&self, keys: &KEYS) -> BitMask {
+        let key = self.key_selector.get(keys);
+        key.shard_index.bitmask()
     }
     pub fn is_condition_met<L>(
         &self,
-        mutex_guards: &IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>,
-        params: &P,
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        keys: &KEYS,
+        params: &PARAMS,
+        state: &mut STATE,
     ) -> bool
     where
         L: LockPolicy,
     {
-        let mut values = Vec::with_capacity(self.indexed_keys.indexed.len());
-        for indexed_key in &self.indexed_keys.indexed {
-            let value_ref = indexed_key.value_ref::<L, V>(mutex_guards);
-            values.push(value_ref);
+        let key = self.key_selector.get(keys);
+        if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
+            let value_ref = lock_guards
+                .write
+                .get(key.shard_index.0)
+                .expect(MISSING_LOCK_GUARD_ERROR)
+                .find(key.hash_code.0, |entry| entry.0 == key.key)
+                .map(|(_key, value)| value);
+            (self.condition)(value_ref, params, state)
+        } else {
+            let value_ref = lock_guards
+                .read
+                .get(key.shard_index.0)
+                .expect(MISSING_LOCK_GUARD_ERROR)
+                .find(key.hash_code.0, |entry| entry.0 == key.key)
+                .map(|(_key, value)| value);
+            (self.condition)(value_ref, params, state)
         }
-        (self.condition)(&values, params)
     }
 }

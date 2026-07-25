@@ -1,82 +1,59 @@
 use crate::{
-    custodian::Custodian, finisher::Finisher, finishers::finisher_trait::FinisherTrait,
-    guard::Guard, locks::lock_policy::LockPolicy, new_types::BitMask, ops::op_trait::OpTrait,
-    result::TxResult,
+    custodian::Custodian, guard::Guard, lock_policies::lock_policy::LockPolicy, new_types::BitMask,
+    ops::op_trait::OpTrait, params::TxKeys, result::TxResult,
 };
 use std::hash::Hash;
 
-pub struct Transaction<'txmap, L, K, V, F>
+pub struct Transaction<'tx, K, V, L, KEYS, PARAMS, STATE>
 where
-    L: LockPolicy,
     K: Hash + Eq,
-    F: FinisherTrait<K, V>,
+    L: LockPolicy,
+    STATE: Default,
 {
-    pub(crate) base: TransactionBase<'txmap, L, K, V, (), F>,
+    pub(crate) custodian: &'tx Custodian<K, V, L>,
+    pub(crate) guards: Vec<Guard<'tx, K, V, KEYS, PARAMS, STATE>>,
+    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, KEYS, PARAMS, STATE> + 'tx>>,
 }
 
-impl<'txmap, L, K, V, F> Transaction<'txmap, L, K, V, F>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE> Transaction<'tx, K, V, L, KEYS, PARAMS, STATE>
 where
-    L: LockPolicy,
     K: Hash + Eq,
-    F: FinisherTrait<K, V>,
+    L: LockPolicy,
+    STATE: Default,
 {
     #[must_use]
-    pub fn execute(&self) -> TxResult<F::Output> {
-        self.base.execute_with_params(&())
-    }
-}
+    pub fn execute<'ex, RAW>(&'ex self, keys: RAW, params: &'ex PARAMS) -> TxResult<STATE>
+    where
+        RAW: TxKeys<K, KEYS>,
+    {
+        let keys = keys.into_indexed(self.custodian.shard_count);
+        let mut total_read_bitmask = BitMask::ZERO;
+        let mut total_write_bitmask = BitMask::ZERO;
 
-pub struct ParameterizedTransaction<'txmap, L, K, V, P, F>
-where
-    L: LockPolicy,
-    K: Hash + Eq,
-    F: FinisherTrait<K, V>,
-{
-    pub(crate) base: TransactionBase<'txmap, L, K, V, P, F>,
-}
+        // get all bitmasks
+        for guard in self.guards.iter() {
+            total_read_bitmask |= guard.read_bitmask(&keys);
+        }
+        for op in self.ops.iter() {
+            let (read_bitmask, write_bitmask) = op.read_write_bitmasks(&keys);
+            total_read_bitmask |= read_bitmask;
+            total_write_bitmask |= write_bitmask;
+        }
+        // ensure locks are either read or write, not both
+        total_read_bitmask &= !total_write_bitmask;
 
-impl<'txmap, L, K, V, P, F> ParameterizedTransaction<'txmap, L, K, V, P, F>
-where
-    L: LockPolicy,
-    K: Hash + Eq,
-    F: FinisherTrait<K, V>,
-{
-    #[must_use]
-    pub fn execute(&self, params: &P) -> TxResult<F::Output> {
-        self.base.execute_with_params(params)
-    }
-}
-
-pub(crate) struct TransactionBase<'txmap, L, K, V, P, F>
-where
-    L: LockPolicy,
-    K: Hash + Eq,
-    F: FinisherTrait<K, V>,
-{
-    pub(crate) custodian: &'txmap Custodian<L, K, V>,
-    pub(crate) guards_bitmask: BitMask,
-    pub(crate) guards: Vec<Guard<K, V, P>>,
-    pub(crate) ops: Vec<Box<dyn OpTrait<L, K, V, P>>>,
-    pub(crate) finisher: Finisher<K, V, F>,
-}
-
-impl<'txmap, L, K, V, P, F> TransactionBase<'txmap, L, K, V, P, F>
-where
-    L: LockPolicy,
-    K: Hash + Eq,
-    F: FinisherTrait<K, V>,
-{
-    pub fn execute_with_params(&self, params: &P) -> TxResult<F::Output> {
-        let mut mutex_guards = self.custodian.guards(self.guards_bitmask);
+        let mut lock_guards = self
+            .custodian
+            .lock_guards(total_read_bitmask, total_write_bitmask);
+        let mut state = STATE::default();
         for (i, guard) in self.guards.iter().enumerate() {
-            if !guard.is_condition_met::<L>(&mutex_guards, params) {
+            if !guard.is_condition_met::<L>(&mut lock_guards, &keys, params, &mut state) {
                 return TxResult::RequirementNotMet(i, guard.name.clone());
             }
         }
-        for op in &self.ops {
-            op.apply(&mut mutex_guards, params);
+        for op in self.ops.iter() {
+            op.apply(&mut lock_guards, &keys, params, &mut state);
         }
-        let result = self.finisher.finish::<L>(&mutex_guards);
-        TxResult::Completed(result)
+        TxResult::Completed(state)
     }
 }

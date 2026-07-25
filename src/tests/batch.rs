@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::{
+        params::Params,
         prelude::*,
         tests::{
             creators::creators::map_alice_bob_chuck,
@@ -12,11 +13,14 @@ mod tests {
     fn remove_multiple_keys() {
         let map = map_alice_bob_chuck(1, 2, 3);
         let tx = map
-            .transaction()
+            .transaction::<2, ()>()
             .remove([ALICE.into(), BOB.into()])
             .get_copied(CHUCK.into())
             .into_transaction();
-        assert_eq!(tx.execute(), TxResult::Completed(Some(3)));
+        assert_eq!(
+            tx.execute(&Params::new([ALICE.into(), BOB.into()], ())),
+            TxResult::Completed(Some(3))
+        );
         assert_eq!(map.len(), 1);
     }
 
