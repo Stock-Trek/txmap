@@ -44,91 +44,99 @@ macro_rules! tx_schema {
         $(,)?
     ) => {
         $crate::_paste! {
-            // schema
-            pub struct $name <K>
-            where
-                K: std::hash::Hash + Eq,
-            {
-                _phantom: std::marker::PhantomData<K>,
-            }
-            impl<K> $crate::prelude::TxSchema<K> for $name<K>
-            where
-                K: std::hash::Hash + Eq,
-            {
-                type Keys =   [<$name Keys>]<K>;
-                type IndexedKeys = [<$name IndexedKeys>]<K>;
-                type Params = [<$name Params>];
-                type State =  [<$name State>];
-            }
-            impl<K> $name <K>
-            where
-                K: std::hash::Hash + Eq,
-            {
-                pub const SCHEMA: $name <K> = $name {
-                    _phantom: std::marker::PhantomData,
-                };
-                $(
-                    #[allow(non_upper_case_globals)]
-                    pub const $key: [<$name _ $key>]<K> = [<$name _ $key>] {
+            pub use [<__private $name>] :: $name;
+            pub use [<__private $name>] :: [<$name Keys>];
+            pub use [<__private $name>] :: [<$name Params>];
+            pub use [<__private $name>] :: [<$name State>];
+            #[allow(non_snake_case)]
+            mod [<__private $name>] {
+                // schema
+                pub struct $name <K>
+                where
+                    K: std::hash::Hash + Eq,
+                {
+                    _phantom: std::marker::PhantomData<K>,
+                }
+                impl<K> $crate::prelude::TxSchema<K> for $name<K>
+                where
+                    K: std::hash::Hash + Eq,
+                {
+                    type Keys =   [<$name Keys>]<K>;
+                    type IndexedKeys = [<$name IndexedKeys>]<K>;
+                    type Params = [<$name Params>];
+                    type State =  [<$name State>];
+                }
+                impl<K> $name <K>
+                where
+                    K: std::hash::Hash + Eq,
+                {
+                    pub const SCHEMA: $name <K> = $name {
                         _phantom: std::marker::PhantomData,
                     };
+                    $(
+                        #[allow(non_upper_case_globals)]
+                        pub const $key: [<$name _ $key>]<K> = [<$name _ $key>] {
+                            _phantom: std::marker::PhantomData,
+                        };
+                    )*
+                }
+
+                // keys
+                pub struct [<$name Keys>]<K>
+                where
+                    K: std::hash::Hash + Eq,
+                {
+                    $(pub $key: K,)*
+                }
+
+                // params
+                pub struct [<$name Params>] {
+                    $(pub $param_field: $param_type,)*
+                }
+
+                // state
+                #[derive(Debug, Default, Hash, PartialEq, Eq)]
+                pub struct [<$name State>] {
+                    $(pub $state_field: $state_type,)*
+                }
+
+                pub struct [<$name IndexedKeys>]<K>
+                where
+                    K: std::hash::Hash + Eq,
+                {
+                    $(pub $key: $crate::prelude::TxKey<K>,)*
+                }
+                $(
+                    #[allow(non_camel_case_types)]
+                    pub struct [<$name _ $key>]<K>
+                    where
+                        K: std::hash::Hash + Eq,
+                    {
+                    _phantom: std::marker::PhantomData<K>,
+                    }
                 )*
-            }
-
-            // keys
-            pub struct [<$name Keys>]<K>
-            where
-                K: std::hash::Hash + Eq,
-            {
-                $(pub $key: K,)*
-            }
-            pub struct [<$name IndexedKeys>]<K>
-            where
-                K: std::hash::Hash + Eq,
-            {
-                $(pub $key: $crate::prelude::TxKey<K>,)*
-            }
-            $(
-                #[allow(non_camel_case_types)]
-                pub struct [<$name _ $key>]<K>
+                $(
+                    impl<K> $crate::prelude::TxKeySelector<$crate::prelude::TxKey<K>, [<$name IndexedKeys>]<K>> for [<$name _ $key>]<K>
+                    where
+                        K: std::hash::Hash + Eq,
+                    {
+                        fn get<'keys>(&self, keys: &'keys [<$name IndexedKeys>]<K>) -> &'keys $crate::prelude::TxKey<K> {
+                            &keys.$key
+                        }
+                    }
+                )*
+                impl<K> $crate::prelude::TxKeys<K, [<$name IndexedKeys>]<K>> for [<$name Keys>]<K>
                 where
                     K: std::hash::Hash + Eq,
                 {
-                   _phantom: std::marker::PhantomData<K>,
-                }
-            )*
-            $(
-                impl<K> $crate::prelude::TxKeySelector<$crate::prelude::TxKey<K>, [<$name IndexedKeys>]<K>> for [<$name _ $key>]<K>
-                where
-                    K: std::hash::Hash + Eq,
-                {
-                    fn get<'keys>(&self, keys: &'keys [<$name IndexedKeys>]<K>) -> &'keys $crate::prelude::TxKey<K> {
-                        &keys.$key
+                    fn into_indexed(self, shard_count: $crate::prelude::ShardCount) -> [<$name IndexedKeys>]<K> {
+                        [<$name IndexedKeys>] {
+                            $(
+                                $key: $crate::prelude::Indexer::indexed_key(shard_count, self.$key),
+                            )*
+                        }
                     }
                 }
-            )*
-            impl<K> $crate::prelude::TxKeys<K, [<$name IndexedKeys>]<K>> for [<$name Keys>]<K>
-            where
-                K: std::hash::Hash + Eq,
-            {
-                fn into_indexed(self, shard_count: $crate::prelude::ShardCount) -> [<$name IndexedKeys>]<K> {
-                    [<$name IndexedKeys>] {
-                        $(
-                            $key: $crate::prelude::Indexer::indexed_key(shard_count, self.$key),
-                        )*
-                    }
-                }
-            }
-
-            // params
-            pub struct [<$name Params>] {
-                $(pub $param_field: $param_type,)*
-            }
-
-            // state
-            #[derive(Debug, Default, Hash, PartialEq, Eq)]
-            pub struct [<$name State>] {
-                $(pub $state_field: $state_type,)*
             }
         }
     };
