@@ -10,7 +10,8 @@ pub mod params;
 pub mod result;
 pub mod shard;
 pub mod shards;
-// pub mod tests;
+#[cfg(test)]
+pub mod tests;
 pub mod transaction;
 pub mod tx_map;
 

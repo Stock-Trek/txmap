@@ -38,9 +38,10 @@ where
 macro_rules! tx_schema {
     (
         $name:ident,
-        keys: [ $($key:ident),* ],
-        params: { $($param_field:ident: $param_type:ty),* },
-        state: { $($state_field:ident: $state_type:ty),* }
+        keys: [ $($key:ident),* $(,)? ],
+        params: { $($param_field:ident: $param_type:ty),* $(,)? },
+        state: { $($state_field:ident: $state_type:ty),* $(,)? }
+        $(,)?
     ) => {
         $crate::_paste! {
             // schema
@@ -89,7 +90,7 @@ macro_rules! tx_schema {
             }
             $(
                 #[allow(non_camel_case_types)]
-                struct [<$name _ $key>]<K>
+                pub struct [<$name _ $key>]<K>
                 where
                     K: std::hash::Hash + Eq,
                 {
@@ -110,10 +111,10 @@ macro_rules! tx_schema {
             where
                 K: std::hash::Hash + Eq,
             {
-                fn into_indexed(self, _shard_count: $crate::prelude::ShardCount) -> [<$name IndexedKeys>]<K> {
+                fn into_indexed(self, shard_count: $crate::prelude::ShardCount) -> [<$name IndexedKeys>]<K> {
                     [<$name IndexedKeys>] {
                         $(
-                            $key: $crate::prelude::Indexer::indexed_key(shard_count, self.key),
+                            $key: $crate::prelude::Indexer::indexed_key(shard_count, self.$key),
                         )*
                     }
                 }
@@ -125,7 +126,7 @@ macro_rules! tx_schema {
             }
 
             // state
-            #[derive(Default)]
+            #[derive(Debug, Default, Hash, PartialEq, Eq)]
             pub struct [<$name State>] {
                 $(pub $state_field: $state_type,)*
             }

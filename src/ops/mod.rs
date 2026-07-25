@@ -1,3 +1,4 @@
+pub mod get_op;
 pub mod insert_default_if_absent_op;
 pub mod insert_default_op;
 pub mod insert_with_if_absent_op;

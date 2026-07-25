@@ -55,6 +55,11 @@ where
     PARAMS: 'tx,
     STATE: Default + 'tx,
 {
+    fn get(
+        self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        get: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) + 'tx,
+    ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE>;
     fn insert_default(
         self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -98,6 +103,7 @@ where
     fn remove(
         self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        on_remove: impl Fn(Option<(K, V)>, &PARAMS, &mut STATE) + 'tx,
     ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE>;
     fn remove_where(
         self,

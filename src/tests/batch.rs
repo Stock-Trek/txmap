@@ -1,50 +1,56 @@
-#[cfg(test)]
-mod tests {
-    use crate::{
-        params::Params,
-        prelude::*,
-        tests::{
-            creators::creators::map_alice_bob_chuck,
-            data::data::{ALICE, BOB, CHUCK},
-        },
-    };
+use crate::{
+    prelude::*,
+    tests::{creators::*, data::*, types::*},
+};
 
-    #[test]
-    fn remove_multiple_keys() {
-        let map = map_alice_bob_chuck(1, 2, 3);
-        let tx = map
-            .transaction::<2, ()>()
-            .remove([ALICE.into(), BOB.into()])
-            .get_copied(CHUCK.into())
-            .into_transaction();
-        assert_eq!(
-            tx.execute(&Params::new([ALICE.into(), BOB.into()], ())),
-            TxResult::Completed(Some(3))
-        );
-        assert_eq!(map.len(), 1);
-    }
+#[test]
+fn remove_multiple_keys() {
+    let map = map_alice_bob_chuck(1, 2, 3);
+    let tx = map
+        .transaction(&RemoveMultiple::SCHEMA)
+        .remove(RemoveMultiple::a, |entry, _params, state| {
+            state.user.push(entry.map(|e| e.0))
+        })
+        .remove(RemoveMultiple::b, |entry, _params, state| {
+            state.user.push(entry.map(|e| e.0))
+        })
+        .into_transaction();
+    assert_eq!(
+        tx.execute(
+            RemoveMultipleKeys {
+                a: ALICE.into(),
+                b: BOB.into(),
+            },
+            RemoveMultipleParams {},
+        ),
+        TxResult::Completed(RemoveMultipleState {
+            user: vec![Some(ALICE.into()), Some(BOB.into())],
+        })
+    );
+    assert_eq!(map.len(), 1);
+}
 
-    #[test]
-    fn remove_where_conditionally() {
-        let map = map_alice_bob_chuck(1, 2, 3);
-        let tx = map
-            .transaction()
-            .remove_where([ALICE.into(), BOB.into(), CHUCK.into()], |_k, v| *v >= 2)
-            .get_all_copied([ALICE.into(), BOB.into(), CHUCK.into()])
-            .into_transaction();
-        assert_eq!(tx.execute(), TxResult::Completed(vec![Some(1), None, None]));
-        assert_eq!(map.len(), 1);
-    }
-
-    #[test]
-    fn param_remove() {
-        let map = map_alice_bob_chuck(1, 2, 3);
-        let tx = map
-            .transaction()
-            .with_param::<()>()
-            .remove([ALICE.into()])
-            .into_transaction();
-        assert_eq!(tx.execute(&()), TxResult::Completed(()));
-        assert_eq!(map.len(), 2);
-    }
+#[test]
+fn remove_where_conditionally() {
+    let map = map_alice_bob(1, 2);
+    let tx = map
+        .transaction(&RemoveMultiple::SCHEMA)
+        .remove_where(RemoveMultiple::a, |k, v, _p, s| {
+            s.user.push(Some(k.clone()));
+            *v >= 2
+        })
+        .into_transaction();
+    assert_eq!(
+        tx.execute(
+            RemoveMultipleKeys {
+                a: ALICE.into(),
+                b: BOB.into()
+            },
+            RemoveMultipleParams {}
+        ),
+        TxResult::Completed(RemoveMultipleState {
+            user: vec![None, Some(BOB.into())]
+        })
+    );
+    assert_eq!(map.len(), 1);
 }

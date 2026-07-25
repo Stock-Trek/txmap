@@ -22,7 +22,7 @@ where
     STATE: Default,
 {
     #[must_use]
-    pub fn execute<'ex, RAW>(&'ex self, keys: RAW, params: &'ex PARAMS) -> TxResult<STATE>
+    pub fn execute<'ex, RAW>(&'ex self, keys: RAW, params: PARAMS) -> TxResult<STATE>
     where
         RAW: TxKeys<K, KEYS>,
     {
@@ -47,12 +47,12 @@ where
             .lock_guards(total_read_bitmask, total_write_bitmask);
         let mut state = STATE::default();
         for (i, guard) in self.guards.iter().enumerate() {
-            if !guard.is_condition_met::<L>(&mut lock_guards, &keys, params, &mut state) {
+            if !guard.is_condition_met::<L>(&mut lock_guards, &keys, &params, &mut state) {
                 return TxResult::RequirementNotMet(i, guard.name.clone());
             }
         }
         for op in self.ops.iter() {
-            op.apply(&mut lock_guards, &keys, params, &mut state);
+            op.apply(&mut lock_guards, &keys, &params, &mut state);
         }
         TxResult::Completed(state)
     }

@@ -7,15 +7,17 @@ use crate::{
 };
 use std::hash::Hash;
 
-pub(crate) struct RemoveOp<'tx, K, KEYS>
+pub(crate) struct RemoveOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
 {
     pub key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
+    #[allow(clippy::type_complexity)]
+    pub on_remove: Box<dyn Fn(Option<(K, V)>, &PARAMS, &mut STATE) + 'tx>,
 }
 
 impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
-    for RemoveOp<'tx, K, KEYS>
+    for RemoveOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq + 'tx,
     V: 'tx,
@@ -34,10 +36,11 @@ where
         &self,
         lock_guards: &mut LockGuards<'_, K, V, L>,
         keys: &KEYS,
-        _: &PARAMS,
-        _: &mut STATE,
+        params: &PARAMS,
+        state: &mut STATE,
     ) {
         let key = self.key_selector.get(keys);
-        lock_guards.remove_entry(key);
+        let removed_entry = lock_guards.remove_entry(key);
+        (self.on_remove)(removed_entry, params, state)
     }
 }

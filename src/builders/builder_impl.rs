@@ -72,6 +72,19 @@ where
     PARAMS: 'tx,
     STATE: Default + 'tx,
 {
+    fn get(
+        self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        get: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) + 'tx,
+    ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE> {
+        let Self { custodian, guards } = self;
+        let builder = TxBuildableImpl::<'tx, K, V, L, KEYS, PARAMS, STATE> {
+            custodian,
+            guards,
+            ops: Vec::new(),
+        };
+        builder.get(key_selector, get)
+    }
     fn insert_default(
         self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -168,6 +181,7 @@ where
     fn remove(
         self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        on_remove: impl Fn(Option<(K, V)>, &PARAMS, &mut STATE) + 'tx,
     ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE> {
         let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
@@ -175,7 +189,7 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.remove(key_selector)
+        builder.remove(key_selector, on_remove)
     }
     fn remove_where(
         self,

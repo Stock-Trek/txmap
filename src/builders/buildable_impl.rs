@@ -4,10 +4,11 @@ use crate::{
     guard::Guard,
     lock_policies::lock_policy::LockPolicy,
     ops::{
-        insert_default_if_absent_op::InsertDefaultIfAbsentOp, insert_default_op::InsertDefaultOp,
-        insert_with_if_absent_op::InsertWithIfAbsentOp, insert_with_op::InsertWithOp,
-        modify_op::ModifyOp, move_value_op::MoveValueOp, op_trait::OpTrait, remove_op::RemoveOp,
-        remove_where_op::RemoveWhereOp, swap_value_op::SwapValueOp, update_op::UpdateOp,
+        get_op::GetOp, insert_default_if_absent_op::InsertDefaultIfAbsentOp,
+        insert_default_op::InsertDefaultOp, insert_with_if_absent_op::InsertWithIfAbsentOp,
+        insert_with_op::InsertWithOp, modify_op::ModifyOp, move_value_op::MoveValueOp,
+        op_trait::OpTrait, remove_op::RemoveOp, remove_where_op::RemoveWhereOp,
+        swap_value_op::SwapValueOp, update_op::UpdateOp,
     },
     params::{TxKey, TxKeySelector},
     transaction::Transaction,
@@ -50,6 +51,18 @@ where
     PARAMS: 'tx,
     STATE: Default + 'tx,
 {
+    fn get(
+        mut self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        get: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) + 'tx,
+    ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE> {
+        let op = GetOp {
+            key_selector: Box::new(key_selector),
+            get: Box::new(get),
+        };
+        self.ops.push(Box::new(op));
+        self
+    }
     fn insert_default(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -58,7 +71,7 @@ where
         K: Clone,
         V: Default,
     {
-        let op = InsertDefaultOp::<'tx, K, KEYS> {
+        let op = InsertDefaultOp {
             key_selector: Box::new(key_selector),
         };
         self.ops.push(Box::new(op));
@@ -138,9 +151,11 @@ where
     fn remove(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        on_remove: impl Fn(Option<(K, V)>, &PARAMS, &mut STATE) + 'tx,
     ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE> {
         let op = RemoveOp {
             key_selector: Box::new(key_selector),
+            on_remove: Box::new(on_remove),
         };
         self.ops.push(Box::new(op));
         self
