@@ -4,26 +4,81 @@ use std::{sync::Arc, thread};
 use txmap::prelude::*;
 
 fn insert(c: &mut Criterion) {
-    let mut hashbrownmap = HashMap::<String, i32>::new();
-    let txmap = TxMap::new(Shards::_8);
+    let mut hashbrownmap = HashMap::new();
+    let map = TxMap::new(Shards::_8);
+    let tx = map
+        .prepare_transaction(&Insert::SCHEMA)
+        .insert_with(Insert::a, |_, _, _| 1)
+        .into_transaction();
+    let tx5 = map
+        .prepare_transaction(&Insert::SCHEMA)
+        .insert_with(Insert::a, |_, _, _| 1)
+        .insert_with(Insert::a, |_, _, _| 1)
+        .insert_with(Insert::a, |_, _, _| 1)
+        .insert_with(Insert::a, |_, _, _| 1)
+        .insert_with(Insert::a, |_, _, _| 1)
+        .into_transaction();
 
     c.bench_function("hashbrownmap_insert", |b| {
         b.iter(|| {
-            let key = std::hint::black_box("key".to_string());
+            let key = std::hint::black_box("key");
             hashbrownmap.insert(key, 42);
         });
     });
     c.bench_function("txmap_insert", |b| {
         b.iter(|| {
-            let key = std::hint::black_box("key".to_string());
-            txmap.insert(key, 42);
+            let key = std::hint::black_box("key");
+            map.insert(key, 42);
+        });
+    });
+    c.bench_function("txmap_insert_tx", |b| {
+        b.iter(|| {
+            let key = std::hint::black_box("key");
+            let _ = tx.execute(InsertKeys { a: key }, InsertParams {});
+        });
+    });
+    c.bench_function("txmap_insert_tx5", |b| {
+        b.iter(|| {
+            let key = std::hint::black_box("key");
+            let _ = tx5.execute(InsertKeys { a: key }, InsertParams {});
+        });
+    });
+    c.bench_function("txmap_insert_new", |b| {
+        b.iter(|| {
+            let key = std::hint::black_box("key");
+            let _ = map
+                .prepare_transaction(&Insert::SCHEMA)
+                .insert_with(Insert::a, |_, _, _| 1)
+                .into_transaction()
+                .execute(InsertKeys { a: key }, InsertParams {});
+        });
+    });
+    c.bench_function("txmap_insert_new5", |b| {
+        b.iter(|| {
+            let key = std::hint::black_box("key");
+            let _ = map
+                .prepare_transaction(&Insert::SCHEMA)
+                .insert_with(Insert::a, |_, _, _| 1)
+                .insert_with(Insert::a, |_, _, _| 1)
+                .insert_with(Insert::a, |_, _, _| 1)
+                .insert_with(Insert::a, |_, _, _| 1)
+                .insert_with(Insert::a, |_, _, _| 1)
+                .into_transaction()
+                .execute(InsertKeys { a: key }, InsertParams {});
         });
     });
 }
 
+tx_schema! {
+    Insert,
+    keys: [a],
+    params: {},
+    state: {},
+}
+
 fn concurrent_insert(c: &mut Criterion) {
     let num_threads = 8;
-    let ops_per_thread = 1_000;
+    let ops_per_thread = 10_000;
     let map = Arc::new(TxMap::new(Shards::_8));
 
     c.bench_function("txmap_concurrent_insert", |b| {
@@ -32,13 +87,17 @@ fn concurrent_insert(c: &mut Criterion) {
                 .map(|_| {
                     let map = map.clone();
                     thread::spawn(move || {
+                        let tx = map
+                            .prepare_transaction(&Insert::SCHEMA)
+                            .insert_with(Insert::a, |_, _, _| 1)
+                            .into_transaction();
                         for i in 0..ops_per_thread {
                             let key = std::hint::black_box(format!(
                                 "key_{:?}_{}",
                                 thread::current().id(),
                                 i
                             ));
-                            map.insert(key, 42);
+                            let _ = tx.execute(InsertKeys { a: key }, InsertParams {});
                         }
                     })
                 })

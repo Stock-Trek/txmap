@@ -19,7 +19,7 @@ fn transfer() {
         last_name: "Pamson".into(),
     };
     let _ = db
-        .transaction()
+        .prepare_transaction()
         .update(tim.clone(), |_t, _f| {
             Some(Funds {
                 usd_and_cents: 150,
@@ -29,7 +29,7 @@ fn transfer() {
         .into_transaction()
         .execute();
     let send_1_usd_from_bob_to_tim = db
-        .transaction()
+        .prepare_transaction()
         .require("Has available funds", [tim.clone()], |[tim_funds]| {
             tim_funds.is_some_and(|f| f.usd_and_cents > 100)
         })
@@ -62,7 +62,7 @@ fn transfer() {
     );
 
     let send_x_usd_from_bob_to_tim = db
-        .transaction()
+        .prepare_transaction()
         .with_param::<Transfer>()
         .require(
             "Has available funds",
@@ -92,7 +92,7 @@ fn transfer() {
     );
 
     let add_100_usd_to_bob_if_exists = db
-        .transaction()
+        .prepare_transaction()
         .modify(bob.clone(), |_b, bob_funds| {
             bob_funds.usd_and_cents += 100;
         })
@@ -107,7 +107,7 @@ fn transfer() {
     );
 
     let add_123_to_pam = db
-        .transaction()
+        .prepare_transaction()
         .insert_default_if_absent(pam.clone())
         .modify(pam.clone(), |_p, pam_funds| {
             pam_funds.usd_and_cents += 123;

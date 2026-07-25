@@ -25,7 +25,7 @@ impl Indexer {
         }
         indexed
     }
-    pub(crate) fn indexed_key<K>(shard_count: ShardCount, key: K) -> TxKey<K>
+    pub fn indexed_key<K>(shard_count: ShardCount, key: K) -> TxKey<K>
     where
         K: Hash + Eq,
     {

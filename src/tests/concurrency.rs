@@ -47,7 +47,7 @@ fn concurrent_transactions_dont_deadlock() {
             for _ in 0..LONG_LOOP {
                 let [from, to] = random_names::<RANDOM_NAME_COUNT>();
                 let _ = m
-                    .transaction(&Transfer::SCHEMA)
+                    .prepare_transaction(&Transfer::SCHEMA)
                     .modify(Transfer::from, |_k, v, p, _s| *v -= p.amount)
                     .modify(Transfer::to, |_k, v, p, _s| *v += p.amount)
                     .into_transaction()
@@ -108,7 +108,7 @@ fn atomic_transaction_isolation() {
         b1.wait();
         for _ in 0..LONG_LOOP {
             let _ = map_clone1
-                .transaction(&Increment::SCHEMA)
+                .prepare_transaction(&Increment::SCHEMA)
                 .modify(Increment::k, |_k, v, _p, _s| *v += 1)
                 .into_transaction()
                 .execute(IncrementKeys { k: 1 }, IncrementParams {});
@@ -119,7 +119,7 @@ fn atomic_transaction_isolation() {
         b2.wait();
         for _ in 0..LONG_LOOP {
             let _ = map_clone2
-                .transaction(&Increment::SCHEMA)
+                .prepare_transaction(&Increment::SCHEMA)
                 .modify(Increment::k, |_k, v, _p, _s| *v += 1)
                 .into_transaction()
                 .execute(IncrementKeys { k: 1 }, IncrementParams {});

@@ -51,15 +51,15 @@ where
     L: LockPolicy,
 {
     pub fn clear(&self) {
-        for mut mutex_guard in self.custodian.all_write_guards() {
-            mutex_guard.1.clear();
+        for mut write_guard in self.custodian.all_write_guards() {
+            write_guard.1.clear();
         }
     }
     #[must_use]
     pub fn len(&self) -> usize {
         let mut total_length = 0;
-        for mutex_guard in self.custodian.all_read_guards() {
-            total_length += mutex_guard.1.len();
+        for read_guard in self.custodian.all_read_guards() {
+            total_length += read_guard.1.len();
         }
         total_length
     }
@@ -70,8 +70,8 @@ where
     pub fn insert(&self, key: K, value: V) -> Option<V> {
         let hash_code = Indexer::hash(&key);
         let shard_index = Indexer::shard_index(self.shard_count, hash_code);
-        let mut mutex_guard = self.custodian.write_guard_at(shard_index);
-        let entry = mutex_guard.entry(
+        let mut write_guard = self.custodian.write_guard_at(shard_index);
+        let entry = write_guard.entry(
             hash_code.0,
             |entry| entry.0 == key,
             |entry| Indexer::hash(&entry.0).0,
@@ -138,8 +138,8 @@ where
     pub fn remove(&self, key: &K) -> Option<V> {
         let hash_code = Indexer::hash(&key);
         let shard_index = Indexer::shard_index(self.shard_count, hash_code);
-        let mut mutex_guard = self.custodian.write_guard_at(shard_index);
-        let entry = mutex_guard.entry(
+        let mut write_guard = self.custodian.write_guard_at(shard_index);
+        let entry = write_guard.entry(
             hash_code.0,
             |entry| entry.0 == *key,
             |entry| Indexer::hash(&entry.0).0,
@@ -153,21 +153,21 @@ where
         }
     }
     pub fn remove_if(&self, condition: impl Fn(&K, &V) -> bool) {
-        let mutex_guards = self.custodian.all_write_guards();
-        for (_, mut mutex_guard) in mutex_guards {
+        let write_guards = self.custodian.all_write_guards();
+        for (_, mut mutex_guard) in write_guards {
             mutex_guard.retain(|entry| !condition(&entry.0, &entry.1))
         }
     }
     pub fn retain(&self, condition: impl Fn(&K, &V) -> bool) {
-        let mutex_guards = self.custodian.all_write_guards();
-        for (_, mut mutex_guard) in mutex_guards {
+        let write_guards = self.custodian.all_write_guards();
+        for (_, mut mutex_guard) in write_guards {
             mutex_guard.retain(|entry| condition(&entry.0, &entry.1))
         }
     }
     pub fn retain_only(&self, keys: impl IntoIterator<Item = K>) {
         let keys: Vec<K> = keys.into_iter().collect();
-        let mutex_guards = self.custodian.all_write_guards();
-        for (_, mut mutex_guard) in mutex_guards {
+        let write_guards = self.custodian.all_write_guards();
+        for (_, mut mutex_guard) in write_guards {
             mutex_guard.retain(|entry| keys.contains(&entry.0));
         }
     }
@@ -177,14 +177,14 @@ where
         condition: impl Fn(&K, &V) -> bool,
     ) {
         let keys: Vec<K> = keys.into_iter().collect();
-        let mutex_guards = self.custodian.all_write_guards();
-        for (_, mut mutex_guard) in mutex_guards {
+        let write_guards = self.custodian.all_write_guards();
+        for (_, mut mutex_guard) in write_guards {
             mutex_guard.retain(|entry| keys.contains(&entry.0) && condition(&entry.0, &entry.1));
         }
     }
 
     #[must_use]
-    pub fn transaction<'tx, SCHEMA, RAW, KEYS, PARAMS, STATE>(
+    pub fn prepare_transaction<'tx, SCHEMA, RAW, KEYS, PARAMS, STATE>(
         &'tx self,
         _schema: &SCHEMA,
     ) -> impl TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE>
@@ -202,6 +202,16 @@ where
             guards: Vec::new(),
         }
     }
+
+    // #[must_use]
+    // pub fn transaction<'tx, STATE>(&'tx self, initial_state: STATE) -> TxResult<STATE>
+    // where
+    //     K: 'tx,
+    //     V: 'tx,
+    //     STATE: Default + 'tx,
+    // {
+    //     // TODO
+    // }
 }
 
 impl<K, V, L> TxMap<K, V, L>

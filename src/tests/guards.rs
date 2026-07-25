@@ -11,7 +11,7 @@ use crate::{
 fn empty_values_in_guard() {
     let map = empty_map();
     let tx = map
-        .transaction(&Increment::SCHEMA)
+        .prepare_transaction(&Increment::SCHEMA)
         .require("Alice exists", Increment::k, |v, _p, _s| v.is_some())
         .modify(Increment::k, |_k, _v, _p, _s| {})
         .into_transaction();
@@ -25,7 +25,7 @@ fn empty_values_in_guard() {
 fn one_failed_requirement_can_veto_transaction() {
     let map = map_alice(1);
     let result = map
-        .transaction(&Increment::SCHEMA)
+        .prepare_transaction(&Increment::SCHEMA)
         .require("Exists", Increment::k, |v, _p, _s| v.is_some())
         .require("> 0", Increment::k, |v, _p, _s| v.is_some_and(|x| *x > 0))
         .require("== 1", Increment::k, |v, _p, _s| v.is_some_and(|x| *x == 1))

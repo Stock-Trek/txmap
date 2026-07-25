@@ -9,7 +9,7 @@ fn empty_key_works() {
     map.insert("".into(), 1);
     assert_eq!(map.get_with(&"".into(), |v| *v), Some(1));
     let tx = map
-        .transaction()
+        .prepare_transaction()
         .modify("".into(), |_k, v| *v += 1)
         .get_copied("".into())
         .into_transaction();
@@ -20,7 +20,7 @@ fn empty_key_works() {
 fn transaction_on_empty_map() {
     let map = empty_map();
     let result = map
-        .transaction()
+        .prepare_transaction()
         .modify(ALICE.into(), |_k, v| *v = 42)
         .get_copied(ALICE.into())
         .into_transaction()
@@ -32,7 +32,7 @@ fn transaction_on_empty_map() {
 fn mixed_ops_in_one_transaction() {
     let map = empty_map();
     let tx = map
-        .transaction()
+        .prepare_transaction()
         .insert_default(ALICE.into())
         .insert_default(BOB.into())
         .insert_default(CHUCK.into())
@@ -51,7 +51,7 @@ fn mixed_ops_in_one_transaction() {
 fn chain_many_ops() {
     let map: TxMap<u64, u64> = empty_typed_map();
     let tx = map
-        .transaction()
+        .prepare_transaction()
         .insert_default(0)
         .insert_default(1)
         .insert_default(2)
@@ -66,7 +66,7 @@ fn chain_many_ops() {
 fn chain_many_ops_with_params() {
     let map = empty_map();
     let tx = map
-        .transaction()
+        .prepare_transaction()
         .with_param::<Vec<u64>>()
         .insert_default(ALICE.into())
         .insert_default(BOB.into())
@@ -82,7 +82,7 @@ fn chain_many_ops_with_params() {
 fn chained_modify_and_get() {
     let map: TxMap<String, Counter> = empty_typed_map();
     let tx = map
-        .transaction()
+        .prepare_transaction()
         .insert_default("ctr".into())
         .modify("ctr".into(), |_k, c| c.value += 1)
         .modify("ctr".into(), |_k, c| c.value += 1)
@@ -96,7 +96,7 @@ fn chained_modify_and_get() {
 fn chained_ops_on_multiple_keys() {
     let map = empty_map();
     let tx = map
-        .transaction()
+        .prepare_transaction()
         .insert_default(ALICE.into())
         .insert_default(BOB.into())
         .modify(ALICE.into(), |_k, v| *v += 10)

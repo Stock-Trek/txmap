@@ -7,7 +7,7 @@ use crate::{
 fn swap_value_exchanges_values() {
     let map = map_alice_bob(1, 2);
     let tx = map
-        .transaction()
+        .prepare_transaction()
         .swap_value(ALICE.into(), BOB.into())
         .get_all_copied([ALICE.into(), BOB.into()])
         .into_transaction();
@@ -18,7 +18,7 @@ fn swap_value_exchanges_values() {
 fn swap_with_missing_value() {
     let map = map_alice(1);
     let tx = map
-        .transaction()
+        .prepare_transaction()
         .swap_value(ALICE.into(), BOB.into())
         .get_all_copied([ALICE.into(), BOB.into()])
         .into_transaction();
@@ -29,7 +29,7 @@ fn swap_with_missing_value() {
 fn swap_value_same_key() {
     let map = map_alice(7);
     let tx = map
-        .transaction()
+        .prepare_transaction()
         .swap_value(ALICE.into(), ALICE.into())
         .get_copied(ALICE.into())
         .into_transaction();
