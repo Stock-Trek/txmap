@@ -45,8 +45,7 @@ where
 //  Each operation transitions to BuildablePhase.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE>
-    TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE>
 where
     K: Hash + Eq + 'tx,
     V: 'tx,
