@@ -7,7 +7,7 @@ use crate::{
 fn param_transaction_basic() {
     let map = map_alice(0);
     let tx = map
-        .prepare_transaction(&GetOneParamU64::SCHEMA)
+        .prepared_tx(&GetOneParamU64::SCHEMA)
         .modify(GetOneParamU64::key, |_k, v, p, _s| *v += p.param)
         .get(GetOneParamU64::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -34,7 +34,7 @@ fn param_requirement_not_met() {
     let map = empty_typed_map::<String, u64>();
     map.insert("funds".into(), 100);
     let tx = map
-        .prepare_transaction(&GetOneParamU64::SCHEMA)
+        .prepared_tx(&GetOneParamU64::SCHEMA)
         .require("sufficient", GetOneParamU64::key, |v, p, _s| {
             v.copied().unwrap_or(0) >= p.param
         })
@@ -64,7 +64,7 @@ fn param_requirement_not_met() {
 fn param_insert_with() {
     let map: TxMap<String, String> = empty_typed_map();
     let tx = map
-        .prepare_transaction(&GetOneParamString::SCHEMA)
+        .prepared_tx(&GetOneParamString::SCHEMA)
         .insert_with(GetOneParamString::key, |_k, p, _s| p.param.clone())
         .get(GetOneParamString::key, |_k, v, _p, s| {
             s.result = v.cloned();
@@ -87,7 +87,7 @@ fn param_insert_with() {
 fn param_map_op() {
     let map = map_alice(10);
     let tx = map
-        .prepare_transaction(&GetOneParamU64::SCHEMA)
+        .prepared_tx(&GetOneParamU64::SCHEMA)
         .update(GetOneParamU64::key, |_k, v, p, _s| v.map(|x| x * p.param))
         .get(GetOneParamU64::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -106,7 +106,7 @@ fn param_map_op() {
 fn param_remove_where() {
     let map = map_alice_bob(5, 15);
     let tx = map
-        .prepare_transaction(&GetTwoParamU64::SCHEMA)
+        .prepared_tx(&GetTwoParamU64::SCHEMA)
         .remove_where(GetTwoParamU64::a, |_k, v, p, _s| *v > p.param)
         .remove_where(GetTwoParamU64::b, |_k, v, p, _s| *v > p.param)
         .get(GetTwoParamU64::a, |_k, v, _p, s| {
@@ -133,7 +133,7 @@ fn param_remove_where() {
 fn param_modify_peek() {
     let map = map_alice_bob(10, 5);
     let tx = map
-        .prepare_transaction(&GetTwoParamU64::SCHEMA)
+        .prepared_tx(&GetTwoParamU64::SCHEMA)
         .modify(GetTwoParamU64::a, |_k, v, p, _s| {
             *v = 5 * p.param // bob's value (5) * param
         })
@@ -160,7 +160,7 @@ fn param_modify_peek() {
 fn param_swap_value() {
     let map = map_alice_bob(1, 2);
     let tx = map
-        .prepare_transaction(&GetTwoParam::SCHEMA)
+        .prepared_tx(&GetTwoParam::SCHEMA)
         .swap_value(GetTwoParam::a, GetTwoParam::b)
         .get(GetTwoParam::a, |_k, v, _p, s| {
             s.result_a = v.copied();
@@ -188,7 +188,7 @@ fn param_swap_value() {
 fn param_move_value() {
     let map = map_alice(42);
     let tx = map
-        .prepare_transaction(&GetTwoParam::SCHEMA)
+        .prepared_tx(&GetTwoParam::SCHEMA)
         .move_value(GetTwoParam::a, GetTwoParam::b)
         .get(GetTwoParam::a, |_k, v, _p, s| {
             s.result_a = v.copied();
@@ -216,7 +216,7 @@ fn param_move_value() {
 fn param_get_all() {
     let map = map_alice(10);
     let tx = map
-        .prepare_transaction(&GetTwoParam::SCHEMA)
+        .prepared_tx(&GetTwoParam::SCHEMA)
         .modify(GetTwoParam::a, |_k, v, _p, _s| *v += 0)
         .modify(GetTwoParam::b, |_k, v, _p, _s| *v += 0)
         .get(GetTwoParam::a, |_k, v, _p, s| {
@@ -245,7 +245,7 @@ fn param_get_all() {
 fn param_insert_default() {
     let map = empty_map();
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .insert_default(GetOne::key)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -261,7 +261,7 @@ fn param_insert_default() {
 fn param_update_peek() {
     let map = map_alice_bob(10, 5);
     let tx = map
-        .prepare_transaction(&GetTwoParamU64::SCHEMA)
+        .prepared_tx(&GetTwoParamU64::SCHEMA)
         .update(GetTwoParamU64::a, |_k, v, p, _s| {
             v.map(|x| (x + 5) * p.param) // bob's value (5) is hardcoded
         })

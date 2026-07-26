@@ -9,7 +9,7 @@ fn empty_key_works() {
     map.insert("".into(), 1);
     assert_eq!(map.get_with(&"".into(), |v| *v), Some(1));
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .modify(GetOne::key, |_k, v, _p, _s| *v += 1)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -25,7 +25,7 @@ fn empty_key_works() {
 fn transaction_on_empty_map() {
     let map = empty_map();
     let result = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .modify(GetOne::key, |_k, v, _p, _s| *v = 42)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -39,7 +39,7 @@ fn transaction_on_empty_map() {
 fn mixed_ops_in_one_transaction() {
     let map = empty_map();
     let tx = map
-        .prepare_transaction(&GetThree::SCHEMA)
+        .prepared_tx(&GetThree::SCHEMA)
         .insert_default(GetThree::a)
         .insert_default(GetThree::b)
         .insert_default(GetThree::c)
@@ -76,7 +76,7 @@ fn chain_many_ops() {
     let map: TxMap<u64, u64> = empty_typed_map();
     for i in 0..5u64 {
         let tx = map
-            .prepare_transaction(&Increment::SCHEMA)
+            .prepared_tx(&Increment::SCHEMA)
             .insert_default(Increment::k)
             .into_transaction();
         assert_eq!(
@@ -91,7 +91,7 @@ fn chain_many_ops() {
 fn chain_many_ops_with_params() {
     let map = empty_map();
     let tx = map
-        .prepare_transaction(&GetVecParam::SCHEMA)
+        .prepared_tx(&GetVecParam::SCHEMA)
         .insert_default(GetVecParam::a)
         .insert_default(GetVecParam::b)
         .modify(GetVecParam::a, |_k, v, p, _s| *v = p.param[0])
@@ -124,7 +124,7 @@ fn chain_many_ops_with_params() {
 fn chained_modify_and_get() {
     let map: TxMap<String, Counter> = empty_typed_map();
     let tx = map
-        .prepare_transaction(&GetCounter::SCHEMA)
+        .prepared_tx(&GetCounter::SCHEMA)
         .insert_default(GetCounter::key)
         .modify(GetCounter::key, |_k, c, _p, _s| c.value += 1)
         .modify(GetCounter::key, |_k, c, _p, _s| c.value += 1)
@@ -143,7 +143,7 @@ fn chained_modify_and_get() {
 fn chained_ops_on_multiple_keys() {
     let map = empty_map();
     let tx = map
-        .prepare_transaction(&GetTwo::SCHEMA)
+        .prepared_tx(&GetTwo::SCHEMA)
         .insert_default(GetTwo::a)
         .insert_default(GetTwo::b)
         .modify(GetTwo::a, |_k, v, _p, _s| *v += 10)

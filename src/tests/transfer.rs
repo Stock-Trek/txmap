@@ -21,7 +21,7 @@ fn transfer() {
 
     // Initial setup: give Tim 150 USD
     let _ = db
-        .prepare_transaction(&Transfer::SCHEMA)
+        .prepared_tx(&Transfer::SCHEMA)
         .insert_with(Transfer::to, |_u, _p, _s| Funds {
             usd_and_cents: 150,
             sterling_and_pence: 0,
@@ -37,7 +37,7 @@ fn transfer() {
 
     // Send 1 USD from Tim to Bob (using update, no params)
     let send_1_usd = db
-        .prepare_transaction(&Transfer::SCHEMA)
+        .prepared_tx(&Transfer::SCHEMA)
         .require("Has available funds", Transfer::from, |v, _p, _s| {
             v.is_some_and(|f| f.usd_and_cents > 100)
         })
@@ -83,7 +83,7 @@ fn transfer() {
 
     // Send X USD from Bob to Tim (parameterized with get verification)
     let send_x_usd = db
-        .prepare_transaction(&Transfer::SCHEMA)
+        .prepared_tx(&Transfer::SCHEMA)
         .require("Has available funds", Transfer::from, |v, p, _s| {
             v.is_some_and(|f| f.usd_and_cents >= p.amount)
         })
@@ -116,7 +116,7 @@ fn transfer() {
 
     // Add 100 USD to Bob (modify existing)
     let add_100_usd_to_bob = db
-        .prepare_transaction(&Transfer::SCHEMA)
+        .prepared_tx(&Transfer::SCHEMA)
         .modify(Transfer::from, |_b, funds, _p, _s| {
             funds.usd_and_cents += 100;
         })
@@ -144,7 +144,7 @@ fn transfer() {
 
     // Add 123 to Pam (insert_default_if_absent + modify + verify with get)
     let add_123_to_pam = db
-        .prepare_transaction(&Transfer::SCHEMA)
+        .prepared_tx(&Transfer::SCHEMA)
         .insert_default_if_absent(Transfer::from)
         .modify(Transfer::from, |_p, funds, _p2, _s| {
             funds.usd_and_cents += 123;

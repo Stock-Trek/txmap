@@ -7,7 +7,7 @@ use crate::{
 fn update_overwrites_when_returning_some() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .update(GetOne::key, |_k, _v, _p, _s| Some(42))
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -23,7 +23,7 @@ fn update_overwrites_when_returning_some() {
 fn update_removes_when_returning_none() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .update(GetOne::key, |_k, _v, _p, _s| None)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -39,7 +39,7 @@ fn update_removes_when_returning_none() {
 fn update_transforms_existing_value() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .update(GetOne::key, |_k, v, _p, _s| v.map(|x| x * 2))
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -55,7 +55,7 @@ fn update_transforms_existing_value() {
 fn update_peek_modifies_based_on_peek() {
     let map = map_alice_bob(10, 5);
     let tx = map
-        .prepare_transaction(&GetTwo::SCHEMA)
+        .prepared_tx(&GetTwo::SCHEMA)
         .update(GetTwo::a, |_k, v, _p, _s| v.map(|x| x + 5))
         .get(GetTwo::a, |_k, v, _p, s| {
             s.result_a = v.copied();

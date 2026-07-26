@@ -7,7 +7,7 @@ use crate::{
 fn modify_existing_key() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .modify(GetOne::key, |_k, v, _p, _s| *v += 5)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -23,7 +23,7 @@ fn modify_existing_key() {
 fn modify_missing_key_is_noop() {
     let map = empty_map();
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .modify(GetOne::key, |_k, v, _p, _s| *v = 42)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -39,7 +39,7 @@ fn modify_missing_key_is_noop() {
 fn modify_peek_existing_key() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction(&GetTwo::SCHEMA)
+        .prepared_tx(&GetTwo::SCHEMA)
         .modify(GetTwo::a, |_k, v, _p, _s| *v += 5)
         .get(GetTwo::a, |_k, v, _p, s| {
             s.result_a = v.copied();
@@ -64,7 +64,7 @@ fn modify_peek_existing_key() {
 fn modify_peek_missing_key_is_noop() {
     let map = empty_map();
     let tx = map
-        .prepare_transaction(&GetTwo::SCHEMA)
+        .prepared_tx(&GetTwo::SCHEMA)
         .modify(GetTwo::a, |_k, v, _p, _s| *v = 42)
         .get(GetTwo::a, |_k, v, _p, s| {
             s.result_a = v.copied();
@@ -89,7 +89,7 @@ fn modify_peek_missing_key_is_noop() {
 fn modify_peek_can_use_peeked_values() {
     let map = map_alice_bob(1, 2);
     let tx = map
-        .prepare_transaction(&GetTwo::SCHEMA)
+        .prepared_tx(&GetTwo::SCHEMA)
         .modify(GetTwo::a, |_k, v, _p, _s| *v += 2)
         .get(GetTwo::a, |_k, v, _p, s| {
             s.result_a = v.copied();
@@ -115,7 +115,7 @@ fn modify_peek_with_empty_peek_keys() {
     let map = empty_map();
     map.insert(ALICE.into(), 10);
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .modify(GetOne::key, |_k, v, _p, _s| *v = 99)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -133,7 +133,7 @@ fn modify_peek_modifies_with_peek_values() {
     map.insert("target".into(), 100);
     map.insert("reference".into(), 50);
     let tx = map
-        .prepare_transaction(&GetTwo::SCHEMA)
+        .prepared_tx(&GetTwo::SCHEMA)
         .modify(GetTwo::a, |_k, v, _p, _s| {
             *v += 50; // we use the b value inline instead of peek
         })
@@ -161,7 +161,7 @@ fn modify_peek_missing_target_is_noop() {
     let map = empty_map();
     map.insert("ref".into(), 99);
     let tx = map
-        .prepare_transaction(&GetTwo::SCHEMA)
+        .prepared_tx(&GetTwo::SCHEMA)
         .modify(GetTwo::a, |_k, v, _p, _s| *v = 0)
         .get(GetTwo::a, |_k, v, _p, s| {
             s.result_a = v.copied();
@@ -192,7 +192,7 @@ fn modify_peek_modifies_using_peeked_values() {
     map.insert(BOB.into(), 20);
     map.insert(CHUCK.into(), 3);
     let tx = map
-        .prepare_transaction(&GetThree::SCHEMA)
+        .prepared_tx(&GetThree::SCHEMA)
         .modify(GetThree::a, |_k, v, _p, _s| {
             *v += 20 + 3; // bob(20) + chuck(3)
         })

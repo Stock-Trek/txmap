@@ -1,6 +1,6 @@
 use crate::{
     key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
-    new_types::BitMask, prepared::params::TxKeySelector, result::MISSING_LOCK_GUARD_ERROR,
+    new_types::BitMask, prepared::schema::TxKeySelector, result::MISSING_LOCK_GUARD_ERROR,
 };
 use std::{hash::Hash, marker::PhantomData};
 

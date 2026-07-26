@@ -1,11 +1,12 @@
 use crate::{
     custodian::Custodian,
+    immediate::tx_builder::ImmediateTxBuilder,
     indexer::Indexer,
     lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
     new_types::{BitMask, ShardCount},
     prepared::{
-        params::{TxKeys, TxSchema},
-        tx_builder::{PrepBuilderPhase, PrepTxBuilder},
+        schema::{TxKeys, TxSchema},
+        tx_builder::{PreparedBuilderPhase, PreparedTxBuilder},
     },
     result::MISSING_LOCK_GUARD_ERROR,
     shards::Shards,
@@ -186,36 +187,40 @@ where
     }
 
     #[must_use]
-    pub fn prepare_transaction<'tx, SCHEMA, RAW, KEYS, PARAMS, STATE>(
+    pub fn prepared_tx<'tx, SCHEMA, RAW, KEYS, PARAMS, STATE>(
         &'tx self,
         _schema: &SCHEMA,
-    ) -> PrepTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PrepBuilderPhase>
+    ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuilderPhase>
     where
         K: 'tx,
         V: 'tx,
-        SCHEMA: TxSchema<K, Keys = RAW, IndexedKeys = KEYS, Params = PARAMS, State = STATE>,
+        SCHEMA: TxSchema<K, Keys = RAW, IndexedKeys = KEYS, Params = PARAMS, State = STATE> + 'tx,
         RAW: TxKeys<K, KEYS> + 'tx,
         KEYS: 'tx,
         PARAMS: 'tx,
         STATE: Default + 'tx,
     {
-        PrepTxBuilder {
+        PreparedTxBuilder {
             custodian: &self.custodian,
             guards: Vec::new(),
             ops: Vec::new(),
             _phase: std::marker::PhantomData,
         }
     }
-
-    // #[must_use]
-    // pub fn transaction<'tx, STATE>(&'tx self, initial_state: STATE) -> TxResult<STATE>
-    // where
-    //     K: 'tx,
-    //     V: 'tx,
-    //     STATE: Default + 'tx,
-    // {
-    //     // TODO
-    // }
+    #[must_use]
+    pub fn immediate_tx<'tx, STATE>(&'tx self) -> ImmediateTxBuilder<'tx, K, V, L, STATE>
+    where
+        K: 'tx,
+        V: 'tx,
+        STATE: Default + 'tx,
+    {
+        ImmediateTxBuilder {
+            custodian: &self.custodian,
+            guards: Vec::new(),
+            ops: Vec::new(),
+            _phase: std::marker::PhantomData,
+        }
+    }
 }
 
 impl<K, V, L> TxMap<K, V, L>

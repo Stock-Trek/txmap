@@ -7,7 +7,7 @@ use crate::{
 fn move_existing_value() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction(&GetTwo::SCHEMA)
+        .prepared_tx(&GetTwo::SCHEMA)
         .move_value(GetTwo::a, GetTwo::b)
         .get(GetTwo::a, |_k, v, _p, s| {
             s.result_a = v.copied();
@@ -35,7 +35,7 @@ fn move_existing_value() {
 fn move_value_overwrites_existing() {
     let map = map_alice_bob(1, 2);
     let tx = map
-        .prepare_transaction(&GetTwo::SCHEMA)
+        .prepared_tx(&GetTwo::SCHEMA)
         .move_value(GetTwo::a, GetTwo::b)
         .get(GetTwo::a, |_k, v, _p, s| {
             s.result_a = v.copied();
@@ -63,7 +63,7 @@ fn move_value_overwrites_existing() {
 fn move_none_removes_existing() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction(&GetTwo::SCHEMA)
+        .prepared_tx(&GetTwo::SCHEMA)
         .move_value(GetTwo::a, GetTwo::b)
         .get(GetTwo::a, |_k, v, _p, s| {
             s.result_a = v.copied();
@@ -92,7 +92,7 @@ fn move_value_to_self() {
     let map = empty_map();
     map.insert(ALICE.into(), 7);
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .move_value(GetOne::key, GetOne::key)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();

@@ -7,11 +7,11 @@ fn insert(c: &mut Criterion) {
     let mut hashbrownmap = HashMap::new();
     let map = TxMap::new(Shards::_8);
     let tx = map
-        .prepare_transaction(&Insert::SCHEMA)
+        .prepared_tx(&Insert::SCHEMA)
         .insert_with(Insert::a, |_, _, _| 1)
         .into_transaction();
     let tx5 = map
-        .prepare_transaction(&Insert::SCHEMA)
+        .prepared_tx(&Insert::SCHEMA)
         .insert_with(Insert::a, |_, _, _| 1)
         .insert_with(Insert::a, |_, _, _| 1)
         .insert_with(Insert::a, |_, _, _| 1)
@@ -47,7 +47,7 @@ fn insert(c: &mut Criterion) {
         b.iter(|| {
             let key = std::hint::black_box("key");
             let _ = map
-                .prepare_transaction(&Insert::SCHEMA)
+                .prepared_tx(&Insert::SCHEMA)
                 .insert_with(Insert::a, |_, _, _| 1)
                 .into_transaction()
                 .execute(InsertKeys { a: key }, InsertParams {});
@@ -57,7 +57,7 @@ fn insert(c: &mut Criterion) {
         b.iter(|| {
             let key = std::hint::black_box("key");
             let _ = map
-                .prepare_transaction(&Insert::SCHEMA)
+                .prepared_tx(&Insert::SCHEMA)
                 .insert_with(Insert::a, |_, _, _| 1)
                 .insert_with(Insert::a, |_, _, _| 1)
                 .insert_with(Insert::a, |_, _, _| 1)
@@ -88,7 +88,7 @@ fn concurrent_insert(c: &mut Criterion) {
                     let map = map.clone();
                     thread::spawn(move || {
                         let tx = map
-                            .prepare_transaction(&Insert::SCHEMA)
+                            .prepared_tx(&Insert::SCHEMA)
                             .insert_with(Insert::a, |_, _, _| 1)
                             .into_transaction();
                         for i in 0..ops_per_thread {

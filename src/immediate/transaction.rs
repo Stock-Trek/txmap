@@ -1,45 +1,40 @@
 use crate::{
     custodian::Custodian,
+    immediate::{guard::Guard, ops::op_trait::OpTrait},
     lock_policies::lock_policy::LockPolicy,
     new_types::BitMask,
-    prepared::{guard::Guard, ops::op_trait::OpTrait, schema::TxKeys},
     result::TxResult,
 };
 use std::hash::Hash;
 
-pub struct PreparedTransaction<'tx, K, V, L, KEYS, PARAMS, STATE>
+pub struct ImmediateTransaction<'tx, K, V, L, STATE>
 where
     K: Hash + Eq,
     L: LockPolicy,
-    STATE: Default,
 {
     pub(crate) custodian: &'tx Custodian<K, V, L>,
-    pub(crate) guards: Vec<Guard<'tx, K, V, KEYS, PARAMS, STATE>>,
+    pub(crate) guards: Vec<Guard<'tx, K, V, STATE>>,
     #[allow(clippy::type_complexity)]
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, KEYS, PARAMS, STATE> + 'tx>>,
+    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, STATE> + 'tx>>,
 }
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE> PreparedTransaction<'tx, K, V, L, KEYS, PARAMS, STATE>
+impl<'tx, K, V, L, STATE> ImmediateTransaction<'tx, K, V, L, STATE>
 where
     K: Hash + Eq,
     L: LockPolicy,
     STATE: Default,
 {
     #[must_use]
-    pub fn execute<RAW>(&self, keys: RAW, params: PARAMS) -> TxResult<STATE>
-    where
-        RAW: TxKeys<K, KEYS>,
-    {
-        let keys = keys.into_indexed(self.custodian.shard_count);
+    pub fn execute(&self) -> TxResult<STATE> {
         let mut total_read_bitmask = BitMask::ZERO;
         let mut total_write_bitmask = BitMask::ZERO;
 
         // get all bitmasks
         for guard in self.guards.iter() {
-            total_read_bitmask |= guard.read_bitmask(&keys);
+            total_read_bitmask |= guard.read_bitmask();
         }
         for op in self.ops.iter() {
-            let (read_bitmask, write_bitmask) = op.read_write_bitmasks(&keys);
+            let (read_bitmask, write_bitmask) = op.read_write_bitmasks();
             total_read_bitmask |= read_bitmask;
             total_write_bitmask |= write_bitmask;
         }
@@ -51,12 +46,12 @@ where
             .lock_guards(total_read_bitmask, total_write_bitmask);
         let mut state = STATE::default();
         for (i, guard) in self.guards.iter().enumerate() {
-            if !guard.is_condition_met::<L>(&mut lock_guards, &keys, &params, &mut state) {
+            if !guard.is_condition_met::<L>(&mut lock_guards, &mut state) {
                 return TxResult::RequirementNotMet(i, guard.name.clone());
             }
         }
         for op in self.ops.iter() {
-            op.apply(&mut lock_guards, &keys, &params, &mut state);
+            op.apply(&mut lock_guards, &mut state);
         }
         TxResult::Completed(state)
     }

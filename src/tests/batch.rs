@@ -7,7 +7,7 @@ use crate::{
 fn remove_multiple_keys() {
     let map = map_alice_bob_chuck(1, 2, 3);
     let tx = map
-        .prepare_transaction(&RemoveMultiple::SCHEMA)
+        .prepared_tx(&RemoveMultiple::SCHEMA)
         .remove(RemoveMultiple::a, |entry, _params, state| {
             state.user.push(entry.map(|e| e.0))
         })
@@ -34,7 +34,7 @@ fn remove_multiple_keys() {
 fn remove_where_conditionally() {
     let map = map_alice_bob(1, 2);
     let tx = map
-        .prepare_transaction(&RemoveMultiple::SCHEMA)
+        .prepared_tx(&RemoveMultiple::SCHEMA)
         .remove_where(RemoveMultiple::a, |k, v, _p, s| {
             let cond = *v >= 2;
             if cond {

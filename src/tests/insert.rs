@@ -7,7 +7,7 @@ use crate::{
 fn insert_with_creates_entry() {
     let map = empty_map();
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .insert_with(GetOne::key, |_k, _p, _s| 42)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -23,7 +23,7 @@ fn insert_with_creates_entry() {
 fn insert_with_overwrites_existing() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .insert_with(GetOne::key, |_k, _p, _s| 42)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -39,7 +39,7 @@ fn insert_with_overwrites_existing() {
 fn insert_with_if_absent_creates_entry() {
     let map = empty_map();
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .insert_with_if_absent(GetOne::key, |_k, _p, _s| 42)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -55,7 +55,7 @@ fn insert_with_if_absent_creates_entry() {
 fn insert_with_if_absent_does_not_overwrite_existing() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .insert_with_if_absent(GetOne::key, |_k, _p, _s| 42)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -71,7 +71,7 @@ fn insert_with_if_absent_does_not_overwrite_existing() {
 fn insert_default_creates_default_entry() {
     let map = empty_map();
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .insert_default(GetOne::key)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -87,7 +87,7 @@ fn insert_default_creates_default_entry() {
 fn insert_default_overwrites_existing() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .insert_default(GetOne::key)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -103,7 +103,7 @@ fn insert_default_overwrites_existing() {
 fn insert_default_if_absent_creates_default_entry() {
     let map = empty_map();
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .insert_default_if_absent(GetOne::key)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();
@@ -119,7 +119,7 @@ fn insert_default_if_absent_creates_default_entry() {
 fn insert_default_if_absent_does_not_overwrite_existing() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction(&GetOne::SCHEMA)
+        .prepared_tx(&GetOne::SCHEMA)
         .insert_default_if_absent(GetOne::key)
         .get(GetOne::key, |_k, v, _p, s| {
             s.result = v.copied();

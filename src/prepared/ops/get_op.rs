@@ -3,7 +3,7 @@ use crate::{
     lock_guards::LockGuards,
     lock_policies::lock_policy::LockPolicy,
     new_types::BitMask,
-    prepared::{ops::op_trait::OpTrait, params::TxKeySelector},
+    prepared::{ops::op_trait::OpTrait, schema::TxKeySelector},
     result::MISSING_LOCK_GUARD_ERROR,
 };
 use std::hash::Hash;
