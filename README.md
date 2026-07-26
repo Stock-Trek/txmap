@@ -125,7 +125,7 @@ let transfer_tx = db
     .prepared_tx(&Transfer::SCHEMA) // pass in the SCHEMA constant
     // prepared transactions also pass in your parameters to all closures
     .modify(
-        Transfer::from, // use the key handles available, these will populated per execution
+        Transfer::from, // use the key handles available, these are populated per execution
         |_name, balance, params, _state| {
             // changes are safe to make separately as the whole transaction is atomic
             *balance -= params.amount;
@@ -144,6 +144,7 @@ let transfer_tx = db
     .into_transaction();
 
     // Execute with different parameters
+    // Use the ...Keys and ...Params structs created by the `tx_schema` macro
     let result1 = transfer_tx.execute(
         TransferKeys {
             from: "alice".into(),
@@ -185,7 +186,7 @@ let transfer_tx = db
 
 ### Transaction with guards (preconditions)
 
-Perhaps Alice doesn't have enough funds to make a transfer and you need to prevent a transfer causing a negative balance.
+Perhaps Alice doesn't have enough funds to make a transfer and you need to prevent a transfer if it would cause a negative balance.
 Guards can be used to veto a transaction if they fail, in which case `TxResult::RequirementNotMet` is returned.
 
 ```rust
