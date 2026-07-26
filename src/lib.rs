@@ -7,6 +7,8 @@ pub mod lock_policies;
 pub mod new_types;
 pub mod prepared;
 pub mod result;
+#[cfg(feature = "serde")]
+pub mod serde;
 pub mod shard;
 pub mod shards;
 #[cfg(test)]

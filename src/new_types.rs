@@ -1,18 +1,29 @@
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use std::{
     hash::Hash,
     ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Deref, Not},
 };
 
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct HashCode(pub u64);
 
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct ShardCount(pub u8);
 
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct ShardIndex(pub u8);
 
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct BitMask(pub u128);
 
 impl ShardIndex {
