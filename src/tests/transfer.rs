@@ -38,7 +38,7 @@ fn transfer() {
     // Send 1 USD from Tim to Bob (using update, no params)
     let send_1_usd = db
         .prepared_tx(&Transfer::SCHEMA)
-        .require("Has available funds", Transfer::from, |v, _p, _s| {
+        .require("Has available funds", Transfer::from, |_k, v, _p, _s| {
             v.is_some_and(|f| f.usd_and_cents > 100)
         })
         .update(Transfer::from, |_t, tim_funds, _p, _s| {
@@ -84,7 +84,7 @@ fn transfer() {
     // Send X USD from Bob to Tim (parameterized with get verification)
     let send_x_usd = db
         .prepared_tx(&Transfer::SCHEMA)
-        .require("Has available funds", Transfer::from, |v, p, _s| {
+        .require("Has available funds", Transfer::from, |_k, v, p, _s| {
             v.is_some_and(|f| f.usd_and_cents >= p.amount)
         })
         .insert_default_if_absent(Transfer::to)

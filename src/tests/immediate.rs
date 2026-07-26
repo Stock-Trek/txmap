@@ -173,12 +173,12 @@ fn immediate_param_requirement_not_met() {
     let threshold = 200u64;
     let result = map
         .immediate_tx::<GetOneParamU64State>()
-        .require("sufficient", "funds".into(), move |v, _s| {
+        .require("sufficient", "funds".into(), move |_k, v, _s| {
             v.copied().unwrap_or(0) >= threshold
         })
         .modify("funds".into(), |_k, v, _s| *v += 0)
         .execute();
-    assert!(matches!(result, TxResult::RequirementNotMet(0, _)));
+    assert!(matches!(result, TxResult::RequirementNotMet(0, _, _)));
 }
 
 #[test]
@@ -602,7 +602,7 @@ fn immediate_require_condition_met() {
     let threshold = 50u64;
     let result = map
         .immediate_tx::<GetOneParamU64State>()
-        .require("sufficient", "funds".into(), move |v, _s| {
+        .require("sufficient", "funds".into(), move |_k, v, _s| {
             v.copied().unwrap_or(0) >= threshold
         })
         .modify("funds".into(), |_k, v, s| {
@@ -623,12 +623,12 @@ fn immediate_require_condition_not_met() {
     let threshold = 50u64;
     let result = map
         .immediate_tx::<GetOneParamU64State>()
-        .require("sufficient", "funds".into(), move |v, _s| {
+        .require("sufficient", "funds".into(), move |_k, v, _s| {
             v.copied().unwrap_or(0) >= threshold
         })
         .modify("funds".into(), |_k, v, _s| *v -= 30)
         .execute();
-    assert!(matches!(result, TxResult::RequirementNotMet(0, _)));
+    assert!(matches!(result, TxResult::RequirementNotMet(0, _, _)));
 }
 
 #[test]

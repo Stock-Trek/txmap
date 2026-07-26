@@ -35,7 +35,7 @@ fn param_requirement_not_met() {
     map.insert("funds".into(), 100);
     let tx = map
         .prepared_tx(&GetOneParamU64::SCHEMA)
-        .require("sufficient", GetOneParamU64::key, |v, p, _s| {
+        .require("sufficient", GetOneParamU64::key, |_k, v, p, _s| {
             v.copied().unwrap_or(0) >= p.param
         })
         .modify(GetOneParamU64::key, |_k, v, _p, _s| *v += 0)
@@ -56,7 +56,7 @@ fn param_requirement_not_met() {
             },
             GetOneParamU64Params { param: 200 }
         ),
-        TxResult::RequirementNotMet(0, _)
+        TxResult::RequirementNotMet(0, _, _)
     ));
 }
 

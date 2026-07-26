@@ -50,7 +50,7 @@ where
         mut self,
         name: impl AsRef<str>,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        condition: impl Fn(Option<&V>, &PARAMS, &mut STATE) -> bool + 'tx,
+        condition: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) -> bool + 'tx,
     ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuilderPhase> {
         let guard = Guard {
             name: name.as_ref().into(),

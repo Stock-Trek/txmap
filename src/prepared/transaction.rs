@@ -52,7 +52,7 @@ where
         let mut state = STATE::default();
         for (i, guard) in self.guards.iter().enumerate() {
             if !guard.is_condition_met::<L>(&mut lock_guards, &keys, &params, &mut state) {
-                return TxResult::RequirementNotMet(i, guard.name.clone());
+                return TxResult::RequirementNotMet(i, guard.name.clone(), state);
             }
         }
         for op in self.ops.iter() {

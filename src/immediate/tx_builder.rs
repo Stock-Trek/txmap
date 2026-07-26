@@ -45,7 +45,7 @@ where
         mut self,
         name: impl AsRef<str>,
         key: K,
-        condition: impl Fn(Option<&V>, &mut STATE) -> bool + 'tx,
+        condition: impl Fn(&K, Option<&V>, &mut STATE) -> bool + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuilderPhase> {
         let guard = Guard {
             name: name.as_ref().into(),

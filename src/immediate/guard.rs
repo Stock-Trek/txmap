@@ -11,7 +11,7 @@ where
     pub name: String,
     pub key: TxKey<K>,
     #[allow(clippy::type_complexity)]
-    pub condition: Box<dyn Fn(Option<&V>, &mut STATE) -> bool + 'tx>,
+    pub condition: Box<dyn Fn(&K, Option<&V>, &mut STATE) -> bool + 'tx>,
     pub _phantom: PhantomData<STATE>,
 }
 
@@ -37,7 +37,7 @@ where
                 .expect(MISSING_LOCK_GUARD_ERROR)
                 .find(self.key.hash_code.0, |entry| entry.0 == self.key.key)
                 .map(|(_key, value)| value);
-            (self.condition)(value_ref, state)
+            (self.condition)(&self.key.key, value_ref, state)
         } else {
             let value_ref = lock_guards
                 .read
@@ -45,7 +45,7 @@ where
                 .expect(MISSING_LOCK_GUARD_ERROR)
                 .find(self.key.hash_code.0, |entry| entry.0 == self.key.key)
                 .map(|(_key, value)| value);
-            (self.condition)(value_ref, state)
+            (self.condition)(&self.key.key, value_ref, state)
         }
     }
 }

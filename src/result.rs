@@ -3,7 +3,7 @@ pub(crate) const MISSING_LOCK_GUARD_ERROR: &str = "Missing lock guard";
 #[derive(Clone, PartialEq, Eq)]
 pub enum TxResult<T> {
     Completed(T),
-    RequirementNotMet(usize, String),
+    RequirementNotMet(usize, String, T),
 }
 
 impl<T> std::fmt::Debug for TxResult<T>
@@ -12,9 +12,13 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Completed(result) => write!(f, "Transaction completed. Result: {:?}", result),
-            Self::RequirementNotMet(index, name) => {
-                write!(f, "Requirement at index [{}] not met: {}", index, name)
+            Self::Completed(state) => write!(f, "Transaction completed. Result: {:?}", state),
+            Self::RequirementNotMet(index, name, state) => {
+                write!(
+                    f,
+                    "Requirement at index [{}] not met: {}. State: {:?}",
+                    index, name, state
+                )
             }
         }
     }
@@ -26,9 +30,13 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Completed(result) => write!(f, "Transaction completed. Result: {}", result),
-            Self::RequirementNotMet(index, name) => {
-                write!(f, "Requirement at index [{}] not met: {}", index, name)
+            Self::Completed(state) => write!(f, "Transaction completed. Result: {}", state),
+            Self::RequirementNotMet(index, name, state) => {
+                write!(
+                    f,
+                    "Requirement at index [{}] not met: {}. State: {}",
+                    index, name, state
+                )
             }
         }
     }

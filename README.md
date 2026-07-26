@@ -9,10 +9,10 @@ A concurrent transactional hash map for Rust with fine-grained user-defined lock
 ## Features
 
 - [**Flexible sharding**](#lock-policy) Choose the number of shards (between 8 and 128). Decide how they're locked (Mutex, RwLock or bring your own)
-- [**Transactions**](#transactions) Atomic, composable batches of modifications
+- [**Immediate Transactions**](#immediate-transactions) Immediately execute an atomic, composable batch of modifications
+- [**Parameterized Transactions**](#parameterized-transactions) Create re-usable transactions for faster parameterized execution
 - [**Guards/conditions**](#transaction-with-guards-preconditions) Declarative preconditions that must hold before a transaction runs
-- [**Parameterized transactions**](#parameterized-transactions) Optionally define a parameter type to pass into transaction closures
-- [**Builder API**](#transaction-operations) Chain operations to build transactions with a fluent interface
+- [**Fluent API**](#transaction-operations) Chain operations to build or execute transactions with a fluent interface
 
 ## License
 
@@ -33,7 +33,7 @@ txmap = "1.1.0"
 use txmap::prelude::*;
 
 // Shard counts available are [8, 16, 32, 64, 128]
-let map: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+let map: TxMap<String, u64> = TxMap::new(Shards::_8);
 ```
 
 ### Lock Policy
@@ -44,7 +44,7 @@ You can also implement your own policy by implementing [LockPolicy](./src/locks/
 
 ```rust
 // Creating a TxMap with a lock policy
-let map = TxMap::with_lock_policy::<MyLockPolicy>(ShardCount::_8);
+let map = TxMap::with_lock_policy::<MyLockPolicy>(Shards::_8);
 ```
 
 ### Key type requirements
@@ -53,142 +53,194 @@ The key type `K` must implement `Hash` and `Eq`. Some functions require `Clone`.
 
 The value type `V` has no trait bounds by default. Functions that create default values (e.g., `insert_default`) require `V: Default`.
 
-### Transactions
+### Immediate Transactions
 
-Transactions group multiple operations into an atomic unit. They are built using a fluent builder API. Use `.into_transaction()` to produce a reusable transaction, then `.execute()` to run it. They can be run as many times as you want within the lifetime of the TxMap it was created from.
-
-#### Simple transaction
+You may need to run a one-off transaction, for these cases use `map.immediate_tx()`.
 
 ```rust
 use txmap::prelude::*;
 
-let db: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+// Create a state struct for the transaction, it must implement Default
+#[derive(Default)]
+struct TransferState {
+    new_from: u64,
+    new_to: u64,
+}
+
+let db: TxMap<String, u64> = TxMap::new(Shards::_8);
 
 db.insert("alice".into(), 100);
 db.insert("bob".into(), 0);
 
-// Transfer 50 from alice to bob in one atomic transaction
-let result = db.transaction()
-    .modify("alice".into(), |_name, balance| {
+// Use the state struct as the generic type
+// The transaction will create an instance to use as the mutable state and return it wrapped in a TxResult
+let result = db.immediate_tx::<TransferState>()
+    // Transfer 50 from alice to bob in one atomic transaction
+    .modify("alice".into(), |_name, balance, state| {
         *balance -= 50;
+        state.new_from = *balance;
     })
-    .modify("bob".into(), |_name, balance| {
+    .modify("bob".into(), |_name, balance, state| {
         *balance += 50;
+        state.new_to = *balance;
     })
-    .get_copied(vec!["alice".into(), "bob".into()])
-    .into_transaction()
     .execute();
 
-match result {
-    // every .execute() call return a TxResult
-    case TxResult::Completed(balances) => {
-        assert_eq!(balances, vec![Some(50), Some(50)]);
-    },
-    _ => {}
-}
+assert!(matches!(result, TxResult::Completed(TransferState { new_from: 50, new_to: 50 })));
 ```
 
-#### Transaction with guards (preconditions)
+### Parameterized transactions
 
-Perhaps Alice doesn't have enough funds to make a transfer and you need to prevent a transfer happening.
+Some transaction might need to be run many times, or with different parameters. For these cases create a prepared transaction with `map.prepared_tx()`.
+Prepared transactions need a transaction schema, created via the macro `tx_schema`.
+
+```rust
+use txmap::prelude::*;
+
+// The example below will create 4 types to use in the transaction
+// 1. Transfer: Contains constants for SCHEMA and all key handles used in the transaction, (from and to)
+// 2. TransferKeys: Used to pass in the actual keys for each execution
+// 3. TransferParams: Used to pass in the real parameters for each execution
+// 4. TransferState: Used by the transaction to store state and is returned as part of the final result
+
+tx_schema! {
+    Transfer,               // transaction name
+    keys: [from, to],       // define all key handles the transaction will use
+    params: {               // parameters for the transaction
+        amount: u64,
+        commission: u64,
+    },
+    state: {                // define fields for the local working space, each execution will create a new one
+        total_cost: u64,
+        total_received: u64,
+        commission_paid: u64,
+    }
+}
+
+let db: TxMap<String, u64> = TxMap::new(Shards::_8);
+db.insert("alice".into(), 200);
+db.insert("bob".into(), 0);
+
+let transfer_tx = db
+    .prepared_tx(&Transfer::SCHEMA) // pass in the SCHEMA constant
+    // prepared transactions also pass in your parameters to all closures
+    .modify(
+        Transfer::from, // use the key handles available, these will populated per execution
+        |_name, balance, params, _state| {
+            // changes are safe to make separately as the whole transaction is atomic
+            *balance -= params.amount;
+        }
+    )
+    .modify(
+        Transfer::to,
+        |_name, balance, params, state| {
+            let received = params.amount * (100 - params.commission);
+            state.total_cost = params.amount;
+            state.total_received = received;
+            state.commission_paid = params.amount - received;
+            *balance += received;
+        }
+    )
+    .into_transaction();
+
+    // Execute with different parameters
+    let result1 = transfer_tx.execute(
+        TransferKeys {
+            from: "alice".into(),
+            to: "bob".into(),
+        },
+        TransferParams {
+            amount: 50,
+            commission: 0,
+        },
+    );
+    assert_eq!(
+        result1,
+        TxResult::Completed(TransferState {
+            total_cost: 100,
+            total_received: 100,
+            commission_paid: 0
+        })
+    );
+
+    let result2 = transfer_tx.execute(
+        TransferKeys {
+            from: "alice".into(),
+            to: "bob".into(),
+        },
+        TransferParams {
+            amount: 50,
+            commission: 10,
+        },
+    );
+    assert_eq!(
+        result2,
+        TxResult::Completed(TransferState {
+            total_cost: 50,
+            total_received: 45,
+            commission_paid: 5
+        })
+    );
+```
+
+### Transaction with guards (preconditions)
+
+Perhaps Alice doesn't have enough funds to make a transfer and you need to prevent a transfer causing a negative balance.
 Guards can be used to veto a transaction if they fail, in which case `TxResult::RequirementNotMet` is returned.
 
 ```rust
 use txmap::prelude::*;
 
-let db: TxMap<String, u64> = TxMap::new(ShardCount::_8);
+#[derive(Default)]
+struct TransferResult {
+    new_from: Option<u64>,
+    new_to: Option<u64>,
+}
+
+let db: TxMap<String, u64> = TxMap::new(Shards::_8);
 db.insert("alice".into(), 100);
 db.insert("bob".into(), 0);
 
 let result = db
-    .transaction()
+    .immediate_tx::<TransferResult>()
     // Add all your requirements up front
     // Requirements cannot be added after modifications
     .require(
         "Alice has sufficient funds",
-        ["alice".into()],
-        |[balance]| balance.is_some_and(|b| *b >= 250),
+        "alice".into(),
+        |_name, balance, _state| balance.is_some_and(|b| *b >= 250),
     )
     .require(
         "Bob has an account",
-        ["bob".into()],
-        |[balance]| balance.is_some(),
+        "bob".into(),
+        |_name, balance, _state| balance.is_some(),
     )
-    .modify("alice".into(), |_name, balance| {
+    .modify("alice".into(), |_name, balance, state| {
         *balance -= 250;
+        state.new_from = Some(*balance);
     })
-    .modify("bob".into(), |_name, balance| {
+    .modify("bob".into(), |_name, balance, state| {
         *balance += 250;
+        state.new_to = Some(*balance);
     })
-    .get_copied(vec!["alice".into(), "bob".into()])
-    .into_transaction()
     .execute();
 
 match result {
-    case TxResult::RequirementNotMet(guard_idx, guard_name) => {
+    TxResult::RequirementNotMet(guard_idx, guard_name, state) => {
         assert_eq!(guard_idx, 0);
         assert_eq!(guard_name, "Alice has sufficient funds");
+        assert!(
+            matches!(
+                state,
+                TransferResult {
+                    new_from: None,
+                    new_to: None
+                }
+            )
+        );
     },
     _ => {}
 }
-```
-
-#### Transaction returning a value
-
-As seen already, a completed transaction can optionally return a final value in the result. There are 6 functions like this that can be used
-
-| Final function                           | Description                | Additional bounds required |
-|------------------------------------------|----------------------------|----------------------------|
-| *none (default)*                         | Returns unit type ()       |                            |
-| `get_copied(key)`                        | Copies a value             | `V: Copy`                  |
-| `get_all_copied(keys)`                   | Copies a vec of values     | `V: Copy`                  |
-| `get_cloned(key)`                        | Clones a value             | `V: Clone`                 |
-| `get_all_cloned(keys)`                   | Clones a vec of values     | `V: Clone`                 |
-| `get_with(key, \|&K, &V\| { ... })`      | Transforms a value         |                            |
-| `get_all_with(keys, \|&K, &V\| { ... })` | Transforms a vec of values |                            |
-
-### Parameterized transactions
-
-A transaction may need to be called with different parameters.
-
-The function `with_param::<MyParams>()` lets you do this by parameterizing the transaction.
-
-```rust
-use txmap::prelude::*;
-
-#[derive(Default)]
-struct Transfer {
-    amount: u64,
-}
-
-let db: TxMap<String, u64> = TxMap::new(ShardCount::_8);
-db.insert("alice".into(), 200);
-db.insert("bob".into(), 0);
-
-let transfer = db
-    .transaction()
-    // Parameter type is set before requirements
-    .with_param::<Transfer>()
-    .require(
-        "Alice has sufficient funds",
-        ["alice".into()],
-        |[balance], params| balance.is_some_and(|b| *b >= params.amount),
-    )
-    .modify("alice".into(), |_name, balance, params| {
-        *balance -= params.amount;
-    })
-    .modify("bob".into(), |_name, balance, params| {
-        *balance += params.amount;
-    })
-    .get_all_copied(["alice".into(), "bob".into()])
-    .into_transaction();
-
-// Execute with different parameters
-let result1 = transfer.execute(&Transfer { amount: 50 });
-assert_eq!(result1, TxResult::Completed(vec![Some(150), Some(50)]));
-
-let result2 = transfer.execute(&Transfer { amount: 30 });
-assert_eq!(result2, TxResult::Completed(vec![Some(120), Some(80)]));
 ```
 
 ### Transaction operations
@@ -203,15 +255,13 @@ Available transaction operations are as follows
 | `insert_with`              | Insert a value generated from the key.                                       | `K: Clone`                 |
 | `insert_with_if_absent`    | Insert a value generated from the key, only if the key is absent.            | `K: Clone`                 |
 | `modify`                   | Mutate an existing value in-place. Does nothing if key absent.               |                            |
-| `modify_peek`              | Like `modify` while peeking at other values.                                 |                            |
-| `update`                   | Update a single entry. Return `Some(v)` to insert/replace, `None` to remove. | `K: Clone`                 |
-| `update_peek`              | Like `update` while peeking at other values.                                 | `K: Clone`                 |
 | `move_value`               | Remove a value from one key and insert it with another key.                  | `K: Clone`                 |
+| `remove`                   | Remove the given key.                                                        |                            |
+| `remove_where`             | Remove the given key if it also satisfies a condition.                       |                            |
 | `swap_value`               | Swap the values of two keys.                                                 | `K: Clone`                 |
-| `remove`                   | Remove the given keys.                                                       |                            |
-| `remove_where`             | Remove the given keys which also satisfy a condition.                        |                            |
+| `update`                   | Update a single entry. Return `Some(v)` to insert/replace, `None` to remove. | `K: Clone`                 |
 
-## TxMap operations
+### TxMap operations
 
 All transaction operations are also available on TxMap.
 In addition there are some operations that require locking the entire map which are only available on TxMap. These are as follows
