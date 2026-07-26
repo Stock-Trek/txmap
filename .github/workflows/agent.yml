@@ -437,7 +437,7 @@ jobs:
           git add .
           git commit --allow-empty -m "Commit changes made by pi"
           git push
-      - name: Reply if no code changes required
+      - name: Reply if no code changes made
         if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.check-for-code-changes.outputs.has-changes == 'false')
         uses: actions/github-script@v9
         with:
@@ -449,7 +449,7 @@ jobs:
               repo: context.repo.repo,
               body
             });
-      - name: Raise PR if code changes required
+      - name: Raise PR if code changes made
         id: raise-pr
         if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.check-for-code-changes.outputs.has-changes == 'true')
         env:
