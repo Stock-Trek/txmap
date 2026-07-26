@@ -5,6 +5,7 @@ pub mod creators;
 pub mod data;
 pub mod global;
 pub mod guards;
+pub mod immediate;
 pub mod indexer;
 pub mod insert;
 pub mod modify;
