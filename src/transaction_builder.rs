@@ -90,7 +90,6 @@ where
             _phase: PhantomData,
         }
     }
-
     pub fn insert_default(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -110,7 +109,6 @@ where
             _phase: PhantomData,
         }
     }
-
     pub fn insert_default_if_absent(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -130,7 +128,6 @@ where
             _phase: PhantomData,
         }
     }
-
     pub fn insert_with(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -151,7 +148,6 @@ where
             _phase: PhantomData,
         }
     }
-
     pub fn insert_with_if_absent(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -172,7 +168,6 @@ where
             _phase: PhantomData,
         }
     }
-
     pub fn modify(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -190,7 +185,6 @@ where
             _phase: PhantomData,
         }
     }
-
     pub fn move_value(
         mut self,
         key_selector_from: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -211,7 +205,6 @@ where
             _phase: PhantomData,
         }
     }
-
     pub fn remove(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -229,7 +222,6 @@ where
             _phase: PhantomData,
         }
     }
-
     pub fn remove_where(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -247,7 +239,6 @@ where
             _phase: PhantomData,
         }
     }
-
     pub fn swap_value(
         mut self,
         key_selector_a: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -268,7 +259,6 @@ where
             _phase: PhantomData,
         }
     }
-
     pub fn update(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
