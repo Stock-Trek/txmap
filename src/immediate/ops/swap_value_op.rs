@@ -12,11 +12,11 @@ where
     pub key_b: TxKey<K>,
 }
 
-impl<'tx, K, V, L, STATE> OpTrait<K, V, L, STATE> for SwapValueOp<K>
+impl<K, V, L, STATE> OpTrait<K, V, L, STATE> for SwapValueOp<K>
 where
-    K: Clone + Hash + Eq + 'tx,
-    V: 'tx,
-    L: LockPolicy + 'tx,
+    K: Clone + Hash + Eq,
+    V:,
+    L: LockPolicy,
 {
     fn read_write_bitmasks(&self) -> (BitMask, BitMask) {
         (

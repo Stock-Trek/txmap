@@ -11,11 +11,11 @@ where
     pub key: TxKey<K>,
 }
 
-impl<'tx, K, V, L, STATE> OpTrait<K, V, L, STATE> for InsertDefaultOp<K>
+impl<K, V, L, STATE> OpTrait<K, V, L, STATE> for InsertDefaultOp<K>
 where
-    K: Clone + Hash + Eq + 'tx,
-    V: Default + 'tx,
-    L: LockPolicy + 'tx,
+    K: Clone + Hash + Eq,
+    V: Default,
+    L: LockPolicy,
 {
     fn read_write_bitmasks(&self) -> (BitMask, BitMask) {
         (BitMask::ZERO, self.key.shard_index.bitmask())
