@@ -3,7 +3,7 @@ use std::{sync::Arc, thread};
 use txmap::{lock_policies::mutex_policy::MutexPolicy, prelude::*};
 
 fn shards(c: &mut Criterion) {
-    for shards in vec![
+    for shards in [
         Shards::_8,
         Shards::_16,
         Shards::_32,
@@ -24,7 +24,7 @@ fn concurrent_shards(c: &mut Criterion) {
     let num_threads = 8;
     let ops_per_thread = 1_000;
 
-    for shards in vec![
+    for shards in [
         Shards::_8,
         Shards::_16,
         Shards::_32,

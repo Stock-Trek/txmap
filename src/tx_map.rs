@@ -1,5 +1,5 @@
 use crate::{
-    builders::{builder_impl::TxBuilderImpl, builder_traits::TxBuilder},
+    builders::type_state::{BuilderPhase, TxBuilder},
     custodian::Custodian,
     indexer::Indexer,
     lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
@@ -187,7 +187,7 @@ where
     pub fn prepare_transaction<'tx, SCHEMA, RAW, KEYS, PARAMS, STATE>(
         &'tx self,
         _schema: &SCHEMA,
-    ) -> impl TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE>
+    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuilderPhase>
     where
         K: 'tx,
         V: 'tx,
@@ -197,9 +197,11 @@ where
         PARAMS: 'tx,
         STATE: Default + 'tx,
     {
-        TxBuilderImpl {
+        TxBuilder {
             custodian: &self.custodian,
             guards: Vec::new(),
+            ops: Vec::new(),
+            _phase: std::marker::PhantomData,
         }
     }
 
