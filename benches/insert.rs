@@ -43,28 +43,26 @@ fn insert(c: &mut Criterion) {
             let _ = tx5.execute(InsertKeys { a: key }, InsertParams {});
         });
     });
-    c.bench_function("txmap_insert_new", |b| {
+    c.bench_function("txmap_insert_immediate", |b| {
         b.iter(|| {
             let key = std::hint::black_box("key");
             let _ = map
-                .prepared_tx(&Insert::SCHEMA)
-                .insert_with(Insert::a, |_, _, _| 1)
-                .into_transaction()
-                .execute(InsertKeys { a: key }, InsertParams {});
+                .immediate_tx::<()>()
+                .insert_with(key, |_, _| 1)
+                .execute();
         });
     });
-    c.bench_function("txmap_insert_new5", |b| {
+    c.bench_function("txmap_insert_immediate5", |b| {
         b.iter(|| {
             let key = std::hint::black_box("key");
             let _ = map
-                .prepared_tx(&Insert::SCHEMA)
-                .insert_with(Insert::a, |_, _, _| 1)
-                .insert_with(Insert::a, |_, _, _| 1)
-                .insert_with(Insert::a, |_, _, _| 1)
-                .insert_with(Insert::a, |_, _, _| 1)
-                .insert_with(Insert::a, |_, _, _| 1)
-                .into_transaction()
-                .execute(InsertKeys { a: key }, InsertParams {});
+                .immediate_tx::<()>()
+                .insert_with(key, |_, _| 1)
+                .insert_with(key, |_, _| 1)
+                .insert_with(key, |_, _| 1)
+                .insert_with(key, |_, _| 1)
+                .insert_with(key, |_, _| 1)
+                .execute();
         });
     });
 }
