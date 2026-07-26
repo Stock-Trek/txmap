@@ -1,6 +1,6 @@
 use crate::{
     prelude::*,
-    tests::{creators::*, data::*, types::*},
+    tests::{creators::*, types::*},
 };
 
 #[test]
