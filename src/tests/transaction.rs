@@ -32,10 +32,7 @@ fn transaction_on_empty_map() {
         })
         .into_transaction()
         .execute(GetOneKeys { key: ALICE.into() }, GetOneParams {});
-    assert_eq!(
-        result,
-        TxResult::Completed(GetOneState { result: None })
-    );
+    assert_eq!(result, TxResult::Completed(GetOneState { result: None }));
 }
 
 #[test]
@@ -135,12 +132,7 @@ fn chained_modify_and_get() {
             s.result = c.as_ref().map(|c| c.value);
         })
         .into_transaction();
-    let result = tx.execute(
-        GetCounterKeys {
-            key: "ctr".into(),
-        },
-        GetCounterParams {},
-    );
+    let result = tx.execute(GetCounterKeys { key: "ctr".into() }, GetCounterParams {});
     assert_eq!(
         result,
         TxResult::Completed(GetCounterState { result: Some(2) })

@@ -15,18 +15,14 @@ fn param_transaction_basic() {
         .into_transaction();
     assert_eq!(
         tx.execute(
-            GetOneParamU64Keys {
-                key: ALICE.into()
-            },
+            GetOneParamU64Keys { key: ALICE.into() },
             GetOneParamU64Params { param: 50 }
         ),
         TxResult::Completed(GetOneParamU64State { result: Some(50) })
     );
     assert_eq!(
         tx.execute(
-            GetOneParamU64Keys {
-                key: ALICE.into()
-            },
+            GetOneParamU64Keys { key: ALICE.into() },
             GetOneParamU64Params { param: 30 }
         ),
         TxResult::Completed(GetOneParamU64State { result: Some(80) })
@@ -39,11 +35,9 @@ fn param_requirement_not_met() {
     map.insert("funds".into(), 100);
     let tx = map
         .prepare_transaction(&GetOneParamU64::SCHEMA)
-        .require(
-            "sufficient",
-            GetOneParamU64::key,
-            |v, p, _s| v.copied().unwrap_or(0) >= p.param,
-        )
+        .require("sufficient", GetOneParamU64::key, |v, p, _s| {
+            v.copied().unwrap_or(0) >= p.param
+        })
         .modify(GetOneParamU64::key, |_k, v, _p, _s| *v += 0)
         .into_transaction();
     assert_eq!(
@@ -78,17 +72,14 @@ fn param_insert_with() {
         .into_transaction();
     assert_eq!(
         tx.execute(
-            GetOneParamStringKeys {
-                key: ALICE.into()
-            },
+            GetOneParamStringKeys { key: ALICE.into() },
             GetOneParamStringParams {
                 param: "hello".into()
             }
         ),
         TxResult::Completed(GetOneParamStringState {
-                result: Some("hello".into())
-            }
-        )
+            result: Some("hello".into())
+        })
     );
 }
 
@@ -104,9 +95,7 @@ fn param_map_op() {
         .into_transaction();
     assert_eq!(
         tx.execute(
-            GetOneParamU64Keys {
-                key: ALICE.into()
-            },
+            GetOneParamU64Keys { key: ALICE.into() },
             GetOneParamU64Params { param: 3 }
         ),
         TxResult::Completed(GetOneParamU64State { result: Some(30) })

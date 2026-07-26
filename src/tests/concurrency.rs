@@ -37,7 +37,9 @@ fn concurrent_inserts_are_thread_safe() {
 #[test]
 fn concurrent_transactions_dont_deadlock() {
     // Start with sufficient funds to avoid underflow when subtracting
-    let map = Arc::new(map_alice_bob_chuck_dave(1_000_000, 1_000_000, 1_000_000, 1_000_000));
+    let map = Arc::new(map_alice_bob_chuck_dave(
+        1_000_000, 1_000_000, 1_000_000, 1_000_000,
+    ));
     let barrier = Arc::new(Barrier::new(THREAD_COUNT as usize));
     let mut handles = Vec::new();
     for _ in 0..THREAD_COUNT {
