@@ -28,8 +28,8 @@ runs:
               "api": "openai-completions",
               "apiKey": "${{ inputs.api-key }}",
               "models": [
-                { "id": "deepseek-chat" },
-                { "id": "deepseek-reasoner" }
+                { "id": "deepseek-v4-flash" },
+                { "id": "deepseek-v4-pro" }
               ]
             }
           }
