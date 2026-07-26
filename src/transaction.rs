@@ -12,6 +12,7 @@ where
 {
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) guards: Vec<Guard<'tx, K, V, KEYS, PARAMS, STATE>>,
+    #[allow(clippy::type_complexity)]
     pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, KEYS, PARAMS, STATE> + 'tx>>,
 }
 
@@ -22,7 +23,7 @@ where
     STATE: Default,
 {
     #[must_use]
-    pub fn execute<'ex, RAW>(&'ex self, keys: RAW, params: PARAMS) -> TxResult<STATE>
+    pub fn execute<RAW>(&self, keys: RAW, params: PARAMS) -> TxResult<STATE>
     where
         RAW: TxKeys<K, KEYS>,
     {
