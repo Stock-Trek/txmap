@@ -19,8 +19,8 @@ where
     K: Hash + Eq,
     L: LockPolicy,
 {
-    shard_count: ShardCount,
-    custodian: Custodian<K, V, L>,
+    pub(crate) shard_count: ShardCount,
+    pub(crate) custodian: Custodian<K, V, L>,
 }
 
 impl<K, V> TxMap<K, V>
