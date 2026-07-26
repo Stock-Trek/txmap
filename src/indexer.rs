@@ -1,6 +1,6 @@
 use crate::{
+    key::TxKey,
     new_types::{HashCode, ShardCount, ShardIndex},
-    params::TxKey,
 };
 use rapidhash::fast::RapidHasher;
 use std::hash::{Hash, Hasher};

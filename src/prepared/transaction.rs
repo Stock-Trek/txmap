@@ -1,6 +1,9 @@
 use crate::{
-    custodian::Custodian, guard::Guard, lock_policies::lock_policy::LockPolicy, new_types::BitMask,
-    ops::op_trait::OpTrait, params::TxKeys, result::TxResult,
+    custodian::Custodian,
+    lock_policies::lock_policy::LockPolicy,
+    new_types::BitMask,
+    prepared::{guard::Guard, ops::op_trait::OpTrait, params::TxKeys},
+    result::TxResult,
 };
 use std::hash::Hash;
 

@@ -1,25 +1,25 @@
 use crate::{
+    key::TxKey,
     lock_guards::LockGuards,
     lock_policies::lock_policy::LockPolicy,
     new_types::BitMask,
-    ops::op_trait::OpTrait,
-    params::{TxKey, TxKeySelector},
+    prepared::{ops::op_trait::OpTrait, params::TxKeySelector},
 };
 use std::hash::Hash;
 
-pub(crate) struct InsertWithOp<'tx, K, V, KEYS, PARAMS, STATE>
+pub(crate) struct RemoveOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
 {
     pub key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
     #[allow(clippy::type_complexity)]
-    pub value_generator: Box<dyn Fn(&K, &PARAMS, &mut STATE) -> V + 'tx>,
+    pub on_remove: Box<dyn Fn(Option<(K, V)>, &PARAMS, &mut STATE) + 'tx>,
 }
 
 impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
-    for InsertWithOp<'tx, K, V, KEYS, PARAMS, STATE>
+    for RemoveOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
-    K: Clone + Hash + Eq + 'tx,
+    K: Hash + Eq + 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
     KEYS: 'tx,
@@ -40,7 +40,7 @@ where
         state: &mut STATE,
     ) {
         let key = self.key_selector.get(keys);
-        let new_value = (self.value_generator)(&key.key, params, state);
-        lock_guards.insert(key, new_value);
+        let removed_entry = lock_guards.remove_entry(key);
+        (self.on_remove)(removed_entry, params, state)
     }
 }

@@ -1,4 +1,4 @@
-use crate::new_types::{HashCode, ShardCount, ShardIndex};
+use crate::new_types::ShardCount;
 use std::hash::Hash;
 
 pub trait TxSchema<K>
@@ -22,16 +22,6 @@ where
     K: Hash + Eq,
 {
     fn get<'keys>(&self, keys: &'keys KEYS) -> &'keys K;
-}
-
-#[derive(Debug, Hash, PartialEq, Eq)]
-pub struct TxKey<K>
-where
-    K: Hash + Eq,
-{
-    pub(crate) hash_code: HashCode,
-    pub(crate) shard_index: ShardIndex,
-    pub(crate) key: K,
 }
 
 #[macro_export]

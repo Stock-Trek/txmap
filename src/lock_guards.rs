@@ -1,5 +1,5 @@
 use crate::{
-    indexer::Indexer, lock_policies::lock_policy::LockPolicy, new_types::BitMask, params::TxKey,
+    indexer::Indexer, key::TxKey, lock_policies::lock_policy::LockPolicy, new_types::BitMask,
     result::MISSING_LOCK_GUARD_ERROR, shard::Shard,
 };
 use intmap::IntMap;

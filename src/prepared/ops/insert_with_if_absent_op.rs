@@ -1,24 +1,27 @@
 use crate::{
+    key::TxKey,
     lock_guards::LockGuards,
     lock_policies::lock_policy::LockPolicy,
     new_types::BitMask,
-    ops::op_trait::OpTrait,
-    params::{TxKey, TxKeySelector},
+    prepared::{ops::op_trait::OpTrait, params::TxKeySelector},
 };
 use std::hash::Hash;
 
-pub(crate) struct InsertDefaultOp<'tx, K, KEYS>
+pub(crate) struct InsertWithIfAbsentOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
+    STATE: Default,
 {
     pub key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
+    #[allow(clippy::type_complexity)]
+    pub value_generator: Box<dyn Fn(&K, &PARAMS, &mut STATE) -> V + 'tx>,
 }
 
 impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
-    for InsertDefaultOp<'tx, K, KEYS>
+    for InsertWithIfAbsentOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Clone + Hash + Eq + 'tx,
-    V: Default + 'tx,
+    V: 'tx,
     L: LockPolicy + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,
@@ -34,10 +37,10 @@ where
         &self,
         lock_guards: &mut LockGuards<'_, K, V, L>,
         keys: &KEYS,
-        _params: &PARAMS,
-        _state: &mut STATE,
+        params: &PARAMS,
+        state: &mut STATE,
     ) {
         let key = self.key_selector.get(keys);
-        lock_guards.insert(key, V::default());
+        lock_guards.insert_if_absent(key, || (self.value_generator)(&key.key, params, state));
     }
 }

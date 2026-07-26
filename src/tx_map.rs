@@ -3,8 +3,10 @@ use crate::{
     indexer::Indexer,
     lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
     new_types::{BitMask, ShardCount},
-    params::{TxKeys, TxSchema},
-    prepared_transaction_builder::{BuilderPhase, PreparedTransactionBuilder},
+    prepared::{
+        params::{TxKeys, TxSchema},
+        tx_builder::{PrepBuilderPhase, PrepTxBuilder},
+    },
     result::MISSING_LOCK_GUARD_ERROR,
     shards::Shards,
 };
@@ -187,7 +189,7 @@ where
     pub fn prepare_transaction<'tx, SCHEMA, RAW, KEYS, PARAMS, STATE>(
         &'tx self,
         _schema: &SCHEMA,
-    ) -> PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuilderPhase>
+    ) -> PrepTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PrepBuilderPhase>
     where
         K: 'tx,
         V: 'tx,
@@ -197,7 +199,7 @@ where
         PARAMS: 'tx,
         STATE: Default + 'tx,
     {
-        PreparedTransactionBuilder {
+        PrepTxBuilder {
             custodian: &self.custodian,
             guards: Vec::new(),
             ops: Vec::new(),
