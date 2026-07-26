@@ -6,13 +6,13 @@ pub mod lock_policies;
 pub mod new_types;
 pub mod ops;
 pub mod params;
+pub mod prepared_transaction_builder;
 pub mod result;
 pub mod shard;
 pub mod shards;
 #[cfg(test)]
 pub mod tests;
 pub mod transaction;
-pub mod transaction_builder;
 pub mod tx_map;
 
 pub mod prelude {
@@ -20,9 +20,9 @@ pub mod prelude {
         indexer::Indexer,
         new_types::{BitMask, HashCode, ShardCount, ShardIndex},
         params::{TxKey, TxKeySelector, TxKeys, TxSchema, tx_schema},
+        prepared_transaction_builder::{BuildablePhase, BuilderPhase, PreparedTransactionBuilder},
         result::TxResult,
         shards::Shards,
-        transaction_builder::{BuildablePhase, BuilderPhase, TxBuilder},
         tx_map::TxMap,
     };
 }

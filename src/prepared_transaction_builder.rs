@@ -10,14 +10,14 @@ use crate::{
         swap_value_op::SwapValueOp, update_op::UpdateOp,
     },
     params::{TxKey, TxKeySelector},
-    transaction::Transaction,
+    transaction::PreparedTransaction,
 };
 use std::{hash::Hash, marker::PhantomData};
 
 pub struct BuilderPhase;
 pub struct BuildablePhase;
 
-pub struct TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE = BuilderPhase>
+pub struct PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE = BuilderPhase>
 where
     K: Hash + Eq + 'tx,
     V: 'tx,
@@ -33,7 +33,8 @@ where
     pub(crate) _phase: PhantomData<PHASE>,
 }
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuilderPhase>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE>
+    PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuilderPhase>
 where
     K: Hash + Eq + 'tx,
     V: 'tx,
@@ -47,7 +48,7 @@ where
         name: impl AsRef<str>,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         condition: impl Fn(Option<&V>, &PARAMS, &mut STATE) -> bool + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuilderPhase> {
+    ) -> PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuilderPhase> {
         let guard = Guard {
             name: name.as_ref().into(),
             key_selector: Box::new(key_selector),
@@ -55,7 +56,7 @@ where
             _phantom: PhantomData,
         };
         self.guards.push(guard);
-        TxBuilder {
+        PreparedTransactionBuilder {
             custodian: self.custodian,
             guards: self.guards,
             ops: self.ops,
@@ -64,7 +65,8 @@ where
     }
 }
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE>
+    PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE>
 where
     K: Hash + Eq + 'tx,
     V: 'tx,
@@ -77,13 +79,13 @@ where
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         get: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
+    ) -> PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
         let op = GetOp {
             key_selector: Box::new(key_selector),
             get: Box::new(get),
         };
         self.ops.push(Box::new(op));
-        TxBuilder {
+        PreparedTransactionBuilder {
             custodian: self.custodian,
             guards: self.guards,
             ops: self.ops,
@@ -93,7 +95,7 @@ where
     pub fn insert_default(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+    ) -> PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
     where
         K: Clone,
         V: Default,
@@ -102,7 +104,7 @@ where
             key_selector: Box::new(key_selector),
         };
         self.ops.push(Box::new(op));
-        TxBuilder {
+        PreparedTransactionBuilder {
             custodian: self.custodian,
             guards: self.guards,
             ops: self.ops,
@@ -112,7 +114,7 @@ where
     pub fn insert_default_if_absent(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+    ) -> PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
     where
         K: Clone,
         V: Default,
@@ -121,7 +123,7 @@ where
             key_selector: Box::new(key_selector),
         };
         self.ops.push(Box::new(op));
-        TxBuilder {
+        PreparedTransactionBuilder {
             custodian: self.custodian,
             guards: self.guards,
             ops: self.ops,
@@ -132,7 +134,7 @@ where
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         value_generator: impl Fn(&K, &PARAMS, &mut STATE) -> V + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+    ) -> PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
     where
         K: Clone,
     {
@@ -141,7 +143,7 @@ where
             value_generator: Box::new(value_generator),
         };
         self.ops.push(Box::new(op));
-        TxBuilder {
+        PreparedTransactionBuilder {
             custodian: self.custodian,
             guards: self.guards,
             ops: self.ops,
@@ -152,7 +154,7 @@ where
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         value_generator: impl Fn(&K, &PARAMS, &mut STATE) -> V + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+    ) -> PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
     where
         K: Clone,
     {
@@ -161,7 +163,7 @@ where
             value_generator: Box::new(value_generator),
         };
         self.ops.push(Box::new(op));
-        TxBuilder {
+        PreparedTransactionBuilder {
             custodian: self.custodian,
             guards: self.guards,
             ops: self.ops,
@@ -172,13 +174,13 @@ where
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         mutate: impl Fn(&K, &mut V, &PARAMS, &mut STATE) + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
+    ) -> PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
         let op = ModifyOp {
             key_selector: Box::new(key_selector),
             mutate: Box::new(mutate),
         };
         self.ops.push(Box::new(op));
-        TxBuilder {
+        PreparedTransactionBuilder {
             custodian: self.custodian,
             guards: self.guards,
             ops: self.ops,
@@ -189,7 +191,7 @@ where
         mut self,
         key_selector_from: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         key_selector_to: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+    ) -> PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
     where
         K: Clone,
     {
@@ -198,7 +200,7 @@ where
             key_selector_to: Box::new(key_selector_to),
         };
         self.ops.push(Box::new(op));
-        TxBuilder {
+        PreparedTransactionBuilder {
             custodian: self.custodian,
             guards: self.guards,
             ops: self.ops,
@@ -209,13 +211,13 @@ where
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         on_remove: impl Fn(Option<(K, V)>, &PARAMS, &mut STATE) + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
+    ) -> PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
         let op = RemoveOp {
             key_selector: Box::new(key_selector),
             on_remove: Box::new(on_remove),
         };
         self.ops.push(Box::new(op));
-        TxBuilder {
+        PreparedTransactionBuilder {
             custodian: self.custodian,
             guards: self.guards,
             ops: self.ops,
@@ -226,13 +228,13 @@ where
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         condition: impl Fn(&K, &V, &PARAMS, &mut STATE) -> bool + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
+    ) -> PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
         let op = RemoveWhereOp {
             key_selector: Box::new(key_selector),
             condition: Box::new(condition),
         };
         self.ops.push(Box::new(op));
-        TxBuilder {
+        PreparedTransactionBuilder {
             custodian: self.custodian,
             guards: self.guards,
             ops: self.ops,
@@ -243,7 +245,7 @@ where
         mut self,
         key_selector_a: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         key_selector_b: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+    ) -> PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
     where
         K: Clone,
     {
@@ -252,7 +254,7 @@ where
             key_selector_b: Box::new(key_selector_b),
         };
         self.ops.push(Box::new(op));
-        TxBuilder {
+        PreparedTransactionBuilder {
             custodian: self.custodian,
             guards: self.guards,
             ops: self.ops,
@@ -263,7 +265,7 @@ where
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         transform: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) -> Option<V> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+    ) -> PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
     where
         K: Clone,
     {
@@ -272,7 +274,7 @@ where
             transform: Box::new(transform),
         };
         self.ops.push(Box::new(op));
-        TxBuilder {
+        PreparedTransactionBuilder {
             custodian: self.custodian,
             guards: self.guards,
             ops: self.ops,
@@ -281,7 +283,8 @@ where
     }
 }
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE>
+    PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
 where
     K: Hash + Eq + 'tx,
     V: 'tx,
@@ -291,8 +294,8 @@ where
     STATE: Default + 'tx,
 {
     #[must_use]
-    pub fn into_transaction(self) -> Transaction<'tx, K, V, L, KEYS, PARAMS, STATE> {
-        Transaction {
+    pub fn into_transaction(self) -> PreparedTransaction<'tx, K, V, L, KEYS, PARAMS, STATE> {
+        PreparedTransaction {
             custodian: self.custodian,
             guards: self.guards,
             ops: self.ops,

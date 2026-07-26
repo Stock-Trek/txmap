@@ -4,7 +4,7 @@ use crate::{
 };
 use std::hash::Hash;
 
-pub struct Transaction<'tx, K, V, L, KEYS, PARAMS, STATE>
+pub struct PreparedTransaction<'tx, K, V, L, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
     L: LockPolicy,
@@ -16,7 +16,7 @@ where
     pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, KEYS, PARAMS, STATE> + 'tx>>,
 }
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE> Transaction<'tx, K, V, L, KEYS, PARAMS, STATE>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE> PreparedTransaction<'tx, K, V, L, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
     L: LockPolicy,

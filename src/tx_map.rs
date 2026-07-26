@@ -4,9 +4,9 @@ use crate::{
     lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
     new_types::{BitMask, ShardCount},
     params::{TxKeys, TxSchema},
+    prepared_transaction_builder::{BuilderPhase, PreparedTransactionBuilder},
     result::MISSING_LOCK_GUARD_ERROR,
     shards::Shards,
-    transaction_builder::{BuilderPhase, TxBuilder},
 };
 use hashbrown::hash_table::Entry;
 use std::hash::Hash;
@@ -187,7 +187,7 @@ where
     pub fn prepare_transaction<'tx, SCHEMA, RAW, KEYS, PARAMS, STATE>(
         &'tx self,
         _schema: &SCHEMA,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuilderPhase>
+    ) -> PreparedTransactionBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuilderPhase>
     where
         K: 'tx,
         V: 'tx,
@@ -197,7 +197,7 @@ where
         PARAMS: 'tx,
         STATE: Default + 'tx,
     {
-        TxBuilder {
+        PreparedTransactionBuilder {
             custodian: &self.custodian,
             guards: Vec::new(),
             ops: Vec::new(),
