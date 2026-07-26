@@ -1,9 +1,5 @@
 use crate::{
-    lock_policies::lock_policy::LockPolicy,
-    new_types::{BitMask, HashCode, ShardCount, ShardIndex},
-    result::TxResult,
-    shards::Shards,
-    tx_map::TxMap,
+    lock_policies::lock_policy::LockPolicy, result::TxResult, shards::Shards, tx_map::TxMap,
 };
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
@@ -13,116 +9,6 @@ use serde::{
 use std::fmt;
 use std::hash::Hash;
 use std::marker::PhantomData;
-
-// ---------------------------------------------------------------------------
-// HashCode – transparent u64
-// ---------------------------------------------------------------------------
-
-impl Serialize for HashCode {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.0.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for HashCode {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        u64::deserialize(deserializer).map(HashCode)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// ShardCount – transparent u8
-// ---------------------------------------------------------------------------
-
-impl Serialize for ShardCount {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.0.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for ShardCount {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        u8::deserialize(deserializer).map(ShardCount)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// ShardIndex – transparent u8
-// ---------------------------------------------------------------------------
-
-impl Serialize for ShardIndex {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.0.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for ShardIndex {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        u8::deserialize(deserializer).map(ShardIndex)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// BitMask – transparent u128
-// ---------------------------------------------------------------------------
-
-impl Serialize for BitMask {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.0.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for BitMask {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        u128::deserialize(deserializer).map(BitMask)
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Shards – enum with unit variants
-// ---------------------------------------------------------------------------
-
-impl Serialize for Shards {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            Shards::_8 => serializer.serialize_unit_variant("Shards", 0, "_8"),
-            Shards::_16 => serializer.serialize_unit_variant("Shards", 1, "_16"),
-            Shards::_32 => serializer.serialize_unit_variant("Shards", 2, "_32"),
-            Shards::_64 => serializer.serialize_unit_variant("Shards", 3, "_64"),
-            Shards::_128 => serializer.serialize_unit_variant("Shards", 4, "_128"),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for Shards {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct ShardsVisitor;
-
-        impl<'de> Visitor<'de> for ShardsVisitor {
-            type Value = Shards;
-
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("one of: _8, _16, _32, _64, _128")
-            }
-
-            fn visit_str<E: de::Error>(self, value: &str) -> Result<Shards, E> {
-                match value {
-                    "_8" => Ok(Shards::_8),
-                    "_16" => Ok(Shards::_16),
-                    "_32" => Ok(Shards::_32),
-                    "_64" => Ok(Shards::_64),
-                    "_128" => Ok(Shards::_128),
-                    other => Err(de::Error::unknown_variant(
-                        other,
-                        &["_8", "_16", "_32", "_64", "_128"],
-                    )),
-                }
-            }
-        }
-
-        deserializer.deserialize_str(ShardsVisitor)
-    }
-}
 
 // ---------------------------------------------------------------------------
 // TxResult<T>
