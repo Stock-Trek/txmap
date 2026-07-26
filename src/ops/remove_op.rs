@@ -1,38 +1,46 @@
 use crate::{
-    indexed_keys::IndexedKeys, locks::lock_policy::LockPolicy, new_types::BitMask,
-    ops::op_trait::OpTrait, shard::Shard, shard_count::ShardCount,
+    lock_guards::LockGuards,
+    lock_policies::lock_policy::LockPolicy,
+    new_types::BitMask,
+    ops::op_trait::OpTrait,
+    params::{TxKey, TxKeySelector},
 };
-use intmap::IntMap;
 use std::hash::Hash;
 
-pub(crate) struct RemoveOp<K>
+pub(crate) struct RemoveOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
 {
-    indexed_keys: IndexedKeys<K>,
+    pub key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
+    #[allow(clippy::type_complexity)]
+    pub on_remove: Box<dyn Fn(Option<(K, V)>, &PARAMS, &mut STATE) + 'tx>,
 }
 
-impl<K> RemoveOp<K>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
+    for RemoveOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
-    K: Hash + Eq,
+    K: Hash + Eq + 'tx,
+    V: 'tx,
+    L: LockPolicy + 'tx,
+    KEYS: 'tx,
+    PARAMS: 'tx,
+    STATE: Default + 'tx,
 {
-    pub fn new(shard_count: u8, keys: impl IntoIterator<Item = K>) -> Self {
-        let indexed_keys = ShardCount::indexes(shard_count, keys, |k| k);
-        Self { indexed_keys }
+    fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask) {
+        (
+            BitMask::ZERO,
+            self.key_selector.get(keys).shard_index.bitmask(),
+        )
     }
-}
-
-impl<L, K, V, P> OpTrait<L, K, V, P> for RemoveOp<K>
-where
-    L: LockPolicy,
-    K: Hash + Eq,
-{
-    fn guards_bitmask(&self) -> BitMask {
-        self.indexed_keys.bitmask
-    }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>, _: &P) {
-        for indexed_key in &self.indexed_keys.indexed {
-            indexed_key.remove_entry::<L, V>(mutex_guards);
-        }
+    fn apply(
+        &self,
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        keys: &KEYS,
+        params: &PARAMS,
+        state: &mut STATE,
+    ) {
+        let key = self.key_selector.get(keys);
+        let removed_entry = lock_guards.remove_entry(key);
+        (self.on_remove)(removed_entry, params, state)
     }
 }

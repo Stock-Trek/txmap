@@ -1,9 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::tests::{
-        creators::creators::{empty_map, map_alice_bob_chuck},
-        data::data::{ALICE, BOB, CHUCK},
-    };
+    use crate::tests::{creators::*, data::*};
 
     #[test]
     fn retain_only_keeps_specified() {

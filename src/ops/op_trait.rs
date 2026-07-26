@@ -1,9 +1,18 @@
-use crate::{locks::lock_policy::LockPolicy, new_types::BitMask, shard::Shard};
-use intmap::IntMap;
+use crate::{lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy, new_types::BitMask};
+use std::hash::Hash;
 
-pub(crate) trait OpTrait<L, K, V, P> {
-    fn guards_bitmask(&self) -> BitMask;
-    fn apply(&self, mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>, params: &P)
-    where
-        L: LockPolicy;
+pub(crate) trait OpTrait<K, V, L, KEYS, PARAMS, STATE>
+where
+    K: Hash + Eq,
+    L: LockPolicy,
+    STATE: Default,
+{
+    fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask);
+    fn apply(
+        &self,
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        keys: &KEYS,
+        params: &PARAMS,
+        state: &mut STATE,
+    );
 }

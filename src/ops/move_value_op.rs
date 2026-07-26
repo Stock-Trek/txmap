@@ -1,44 +1,51 @@
 use crate::{
-    indexed_key::IndexedKey, locks::lock_policy::LockPolicy, new_types::BitMask,
-    ops::op_trait::OpTrait, shard::Shard, shard_count::ShardCount,
+    lock_guards::LockGuards,
+    lock_policies::lock_policy::LockPolicy,
+    new_types::BitMask,
+    ops::op_trait::OpTrait,
+    params::{TxKey, TxKeySelector},
 };
-use intmap::IntMap;
 use std::hash::Hash;
 
-pub(crate) struct MoveValueOp<K>
+pub(crate) struct MoveValueOp<'tx, K, KEYS>
 where
     K: Hash + Eq,
 {
-    indexed_key_from: IndexedKey<K>,
-    indexed_key_to: IndexedKey<K>,
+    pub key_selector_from: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
+    pub key_selector_to: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
 }
 
-impl<K> MoveValueOp<K>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
+    for MoveValueOp<'tx, K, KEYS>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq + 'tx,
+    V: 'tx,
+    L: LockPolicy + 'tx,
+    KEYS: 'tx,
+    PARAMS: 'tx,
+    STATE: Default + 'tx,
 {
-    pub fn new(shard_count: u8, from: K, to: K) -> Self {
-        Self {
-            indexed_key_from: ShardCount::indexed_key(shard_count, from),
-            indexed_key_to: ShardCount::indexed_key(shard_count, to),
-        }
+    fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask) {
+        (
+            BitMask::ZERO,
+            self.key_selector_from.get(keys).shard_index.bitmask()
+                | self.key_selector_to.get(keys).shard_index.bitmask(),
+        )
     }
-}
-
-impl<L, K, V, P> OpTrait<L, K, V, P> for MoveValueOp<K>
-where
-    L: LockPolicy,
-    K: Clone + Hash + Eq,
-{
-    fn guards_bitmask(&self) -> BitMask {
-        self.indexed_key_from.2 | self.indexed_key_to.2
-    }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>, _: &P) {
-        let removed = self.indexed_key_from.remove_entry::<L, V>(mutex_guards);
+    fn apply(
+        &self,
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        keys: &KEYS,
+        _: &PARAMS,
+        _: &mut STATE,
+    ) {
+        let key_from = self.key_selector_from.get(keys);
+        let key_to = self.key_selector_to.get(keys);
+        let removed = lock_guards.remove_entry(key_from);
         if let Some(entry) = removed {
-            self.indexed_key_to.insert::<L, V>(mutex_guards, entry.1);
+            lock_guards.insert(key_to, entry.1);
         } else {
-            self.indexed_key_to.remove_entry::<L, V>(mutex_guards);
+            lock_guards.remove_entry(key_to);
         }
     }
 }

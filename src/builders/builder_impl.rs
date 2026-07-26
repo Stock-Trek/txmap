@@ -1,96 +1,110 @@
 use crate::{
     builders::{
         buildable_impl::TxBuildableImpl,
-        builder_traits::{
-            TxBuildable, TxBuilder, TxGuardBuilder, TxOpBuilder, TxParamBuilder, TxParameterizer,
-        },
-        param_builder_impl::TxParamBuilderImpl,
+        builder_traits::{TxBuildable, TxBuilder, TxGuardBuilder, TxOpBuilder},
     },
     custodian::Custodian,
     guard::Guard,
-    locks::lock_policy::LockPolicy,
+    lock_policies::lock_policy::LockPolicy,
+    params::{TxKey, TxKeySelector},
 };
-use std::hash::Hash;
+use std::{hash::Hash, marker::PhantomData};
 
-pub struct TxBuilderImpl<'txmap, L, K, V>
+pub struct TxBuilderImpl<'tx, K, V, L, KEYS, PARAMS, STATE>
 where
+    K: Hash + Eq + 'tx,
+    V: 'tx,
     L: LockPolicy,
-    K: Hash + Eq,
+    KEYS: 'tx,
+    PARAMS: 'tx,
+    STATE: Default + 'tx,
 {
-    pub(crate) custodian: &'txmap Custodian<L, K, V>,
-    pub(crate) guards: Vec<Guard<K, V>>,
+    pub(crate) custodian: &'tx Custodian<K, V, L>,
+    pub(crate) guards: Vec<Guard<'tx, K, V, KEYS, PARAMS, STATE>>,
 }
 
-impl<'txmap, L, K, V> TxBuilder<'txmap, L, K, V> for TxBuilderImpl<'txmap, L, K, V>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE>
+    for TxBuilderImpl<'tx, K, V, L, KEYS, PARAMS, STATE>
 where
+    K: Hash + Eq + 'tx,
+    V: 'tx,
     L: LockPolicy,
-    K: Hash + Eq + 'static,
-    V: 'static,
+    KEYS: 'tx,
+    PARAMS: 'tx,
+    STATE: Default + 'tx,
 {
 }
 
-impl<'txmap, L, K, V> TxParameterizer<'txmap, L, K, V> for TxBuilderImpl<'txmap, L, K, V>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE> TxGuardBuilder<'tx, K, V, L, KEYS, PARAMS, STATE>
+    for TxBuilderImpl<'tx, K, V, L, KEYS, PARAMS, STATE>
 where
-    L: LockPolicy,
-    K: Hash + Eq + 'static,
-    V: 'static,
+    K: Hash + Eq + 'tx,
+    V: 'tx,
+    L: LockPolicy + 'tx,
+    KEYS: 'tx,
+    PARAMS: 'tx,
+    STATE: Default + 'tx,
 {
-    fn with_param<P>(self) -> impl TxParamBuilder<'txmap, L, K, V, P>
-    where
-        P: 'static,
-    {
-        let Self { custodian, .. } = self;
-        TxParamBuilderImpl {
-            custodian,
-            guards: Vec::new(),
-        }
-    }
-}
-
-impl<'txmap, L, K, V> TxGuardBuilder<'txmap, L, K, V> for TxBuilderImpl<'txmap, L, K, V>
-where
-    L: LockPolicy,
-    K: Hash + Eq + 'static,
-    V: 'static,
-{
-    fn require<const N: usize>(
+    fn require(
         mut self,
         name: impl AsRef<str>,
-        keys: [K; N],
-        condition: impl Fn([Option<&V>; N]) -> bool + 'static,
-    ) -> impl TxBuilder<'txmap, L, K, V> {
-        let guard = Guard::new(
-            self.custodian.shard_count,
-            name.as_ref().into(),
-            keys,
-            condition,
-        );
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        condition: impl Fn(Option<&V>, &PARAMS, &mut STATE) -> bool + 'tx,
+    ) -> impl TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE> {
+        let guard = Guard {
+            name: name.as_ref().into(),
+            key_selector: Box::new(key_selector),
+            condition: Box::new(condition),
+            _phantom: PhantomData,
+        };
         self.guards.push(guard);
         self
     }
 }
 
-impl<'txmap, L, K, V> TxOpBuilder<'txmap, L, K, V> for TxBuilderImpl<'txmap, L, K, V>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE> TxOpBuilder<'tx, K, V, L, KEYS, PARAMS, STATE>
+    for TxBuilderImpl<'tx, K, V, L, KEYS, PARAMS, STATE>
 where
-    L: LockPolicy,
-    K: Hash + Eq + 'static,
-    V: 'static,
+    K: Hash + Eq + 'tx,
+    V: 'tx,
+    L: LockPolicy + 'tx,
+    KEYS: 'tx,
+    PARAMS: 'tx,
+    STATE: Default + 'tx,
 {
-    // single key ops
-    fn insert_default(self, key: K) -> impl TxBuildable<'txmap, L, K, V>
-    where
-        K: Clone,
-        V: Default,
-    {
+    fn get(
+        self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        get: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) + 'tx,
+    ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE> {
         let Self { custodian, guards } = self;
-        let builder = TxBuildableImpl {
+        let builder = TxBuildableImpl::<'tx, K, V, L, KEYS, PARAMS, STATE> {
             custodian,
             guards,
             ops: Vec::new(),
         };
-        builder.insert_default(key)
+        builder.get(key_selector, get)
     }
-    fn insert_default_if_absent(self, key: K) -> impl TxBuildable<'txmap, L, K, V>
+    fn insert_default(
+        self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+    ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE>
+    where
+        K: Clone,
+        V: Default,
+    {
+        let Self { custodian, guards } = self;
+        let builder = TxBuildableImpl::<'tx, K, V, L, KEYS, PARAMS, STATE> {
+            custodian,
+            guards,
+            ops: Vec::new(),
+        };
+        builder.insert_default(key_selector)
+    }
+    fn insert_default_if_absent(
+        self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+    ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE>
     where
         K: Clone,
         V: Default,
@@ -101,13 +115,13 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.insert_default_if_absent(key)
+        builder.insert_default_if_absent(key_selector)
     }
     fn insert_with(
         self,
-        key: K,
-        value_generator: impl Fn(&K) -> V + 'static,
-    ) -> impl TxBuildable<'txmap, L, K, V>
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        value_generator: impl Fn(&K, &PARAMS, &mut STATE) -> V + 'tx,
+    ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE>
     where
         K: Clone,
     {
@@ -117,13 +131,13 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.insert_with(key, value_generator)
+        builder.insert_with(key_selector, value_generator)
     }
     fn insert_with_if_absent(
         self,
-        key: K,
-        value_generator: impl Fn(&K) -> V + 'static,
-    ) -> impl TxBuildable<'txmap, L, K, V>
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        value_generator: impl Fn(&K, &PARAMS, &mut STATE) -> V + 'tx,
+    ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE>
     where
         K: Clone,
     {
@@ -133,27 +147,26 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.insert_with_if_absent(key, value_generator)
+        builder.insert_with_if_absent(key_selector, value_generator)
     }
     fn modify(
         self,
-        key: K,
-        mutate: impl Fn(&K, &mut V) + 'static,
-    ) -> impl TxBuildable<'txmap, L, K, V> {
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        mutate: impl Fn(&K, &mut V, &PARAMS, &mut STATE) + 'tx,
+    ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE> {
         let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
             custodian,
             guards,
             ops: Vec::new(),
         };
-        builder.modify(key, mutate)
+        builder.modify(key_selector, mutate)
     }
-    fn modify_peek<const N: usize>(
+    fn move_value(
         self,
-        key: K,
-        peek_keys: [K; N],
-        mutate: impl Fn(&K, &mut V, [Option<&V>; N]) + 'static,
-    ) -> impl TxBuildable<'txmap, L, K, V>
+        key_selector_from: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        key_selector_to: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+    ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE>
     where
         K: Clone,
     {
@@ -163,89 +176,64 @@ where
             guards,
             ops: Vec::new(),
         };
-        builder.modify_peek(key, peek_keys, mutate)
+        builder.move_value(key_selector_from, key_selector_to)
     }
-    fn update(
+    fn remove(
         self,
-        key: K,
-        transform: impl Fn(&K, Option<&V>) -> Option<V> + 'static,
-    ) -> impl TxBuildable<'txmap, L, K, V>
-    where
-        K: Clone,
-    {
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        on_remove: impl Fn(Option<(K, V)>, &PARAMS, &mut STATE) + 'tx,
+    ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE> {
         let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
             custodian,
             guards,
             ops: Vec::new(),
         };
-        builder.update(key, transform)
-    }
-    fn update_peek<const N: usize>(
-        self,
-        key: K,
-        peek_keys: [K; N],
-        transform: impl Fn(&K, Option<&V>, [Option<&V>; N]) -> Option<V> + 'static,
-    ) -> impl TxBuildable<'txmap, L, K, V>
-    where
-        K: Clone,
-    {
-        let Self { custodian, guards } = self;
-        let builder = TxBuildableImpl {
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.update_peek(key, peek_keys, transform)
-    }
-
-    // multi key ops
-    fn move_value(self, from: K, to: K) -> impl TxBuildable<'txmap, L, K, V>
-    where
-        K: Clone,
-    {
-        let Self { custodian, guards } = self;
-        let builder = TxBuildableImpl {
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.move_value(from, to)
-    }
-    fn swap_value(self, a: K, b: K) -> impl TxBuildable<'txmap, L, K, V>
-    where
-        K: Clone,
-    {
-        let Self { custodian, guards } = self;
-        let builder = TxBuildableImpl {
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.swap_value(a, b)
-    }
-
-    // batch ops
-    fn remove(self, keys: impl IntoIterator<Item = K>) -> impl TxBuildable<'txmap, L, K, V> {
-        let Self { custodian, guards } = self;
-        let builder = TxBuildableImpl {
-            custodian,
-            guards,
-            ops: Vec::new(),
-        };
-        builder.remove(keys)
+        builder.remove(key_selector, on_remove)
     }
     fn remove_where(
         self,
-        keys: impl IntoIterator<Item = K>,
-        condition: impl Fn(&K, &V) -> bool + 'static,
-    ) -> impl TxBuildable<'txmap, L, K, V> {
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        condition: impl Fn(&K, &V, &PARAMS, &mut STATE) -> bool + 'tx,
+    ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE> {
         let Self { custodian, guards } = self;
         let builder = TxBuildableImpl {
             custodian,
             guards,
             ops: Vec::new(),
         };
-        builder.remove_where(keys, condition)
+        builder.remove_where(key_selector, condition)
+    }
+    fn swap_value(
+        self,
+        key_selector_a: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        key_selector_b: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+    ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE>
+    where
+        K: Clone,
+    {
+        let Self { custodian, guards } = self;
+        let builder = TxBuildableImpl {
+            custodian,
+            guards,
+            ops: Vec::new(),
+        };
+        builder.swap_value(key_selector_a, key_selector_b)
+    }
+    fn update(
+        self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        transform: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) -> Option<V> + 'tx,
+    ) -> impl TxBuildable<'tx, K, V, L, KEYS, PARAMS, STATE>
+    where
+        K: Clone,
+    {
+        let Self { custodian, guards } = self;
+        let builder = TxBuildableImpl {
+            custodian,
+            guards,
+            ops: Vec::new(),
+        };
+        builder.update(key_selector, transform)
     }
 }

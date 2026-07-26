@@ -1,17 +1,17 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::{sync::Arc, thread};
-use txmap::{locks::mutex_policy::MutexPolicy, prelude::*};
+use txmap::{lock_policies::mutex_policy::MutexPolicy, prelude::*};
 
 fn shards(c: &mut Criterion) {
-    for sc in vec![
-        ShardCount::_8,
-        ShardCount::_16,
-        ShardCount::_32,
-        ShardCount::_64,
-        ShardCount::_128,
+    for shards in vec![
+        Shards::_8,
+        Shards::_16,
+        Shards::_32,
+        Shards::_64,
+        Shards::_128,
     ] {
-        let txmap = TxMap::with_lock_policy::<MutexPolicy>(sc);
-        c.bench_function(&format!("txmap_insert_shards_{}", sc), |b| {
+        let txmap = TxMap::with_lock_policy::<MutexPolicy>(shards);
+        c.bench_function(&format!("txmap_insert_shards_{}", shards), |b| {
             b.iter(|| {
                 let key = std::hint::black_box("key".to_string());
                 txmap.insert(key, 42);
@@ -24,15 +24,15 @@ fn concurrent_shards(c: &mut Criterion) {
     let num_threads = 8;
     let ops_per_thread = 1_000;
 
-    for sc in vec![
-        ShardCount::_8,
-        ShardCount::_16,
-        ShardCount::_32,
-        ShardCount::_64,
-        ShardCount::_128,
+    for shards in vec![
+        Shards::_8,
+        Shards::_16,
+        Shards::_32,
+        Shards::_64,
+        Shards::_128,
     ] {
-        let map = Arc::new(TxMap::new(sc));
-        c.bench_function(&format!("txmap_concurrent_insert_shards_{}", sc), |b| {
+        let map = Arc::new(TxMap::new(shards));
+        c.bench_function(&format!("txmap_concurrent_insert_shards_{}", shards), |b| {
             b.iter(|| {
                 let handles: Vec<_> = (0..num_threads)
                     .map(|_| {

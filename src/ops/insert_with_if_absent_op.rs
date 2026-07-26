@@ -1,57 +1,46 @@
 use crate::{
-    indexed_key::IndexedKey, locks::lock_policy::LockPolicy, new_types::BitMask,
-    ops::op_trait::OpTrait, shard::Shard, shard_count::ShardCount,
+    lock_guards::LockGuards,
+    lock_policies::lock_policy::LockPolicy,
+    new_types::BitMask,
+    ops::op_trait::OpTrait,
+    params::{TxKey, TxKeySelector},
 };
-use intmap::IntMap;
 use std::hash::Hash;
 
-pub(crate) struct InsertWithIfAbsentOp<K, V, P = ()>
+pub(crate) struct InsertWithIfAbsentOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
+    STATE: Default,
 {
-    indexed_key: IndexedKey<K>,
+    pub key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
     #[allow(clippy::type_complexity)]
-    value_generator: Box<dyn Fn(&K, &P) -> V>,
+    pub value_generator: Box<dyn Fn(&K, &PARAMS, &mut STATE) -> V + 'tx>,
 }
 
-impl<K, V, P> InsertWithIfAbsentOp<K, V, P>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
+    for InsertWithIfAbsentOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq + 'tx,
+    V: 'tx,
+    L: LockPolicy + 'tx,
+    KEYS: 'tx,
+    PARAMS: 'tx,
+    STATE: Default + 'tx,
 {
-    pub fn new_with_params<G>(shard_count: u8, key: K, value_generator: G) -> Self
-    where
-        G: Fn(&K, &P) -> V + 'static,
-    {
-        Self {
-            indexed_key: ShardCount::indexed_key(shard_count, key),
-            value_generator: Box::new(value_generator),
-        }
+    fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask) {
+        (
+            BitMask::ZERO,
+            self.key_selector.get(keys).shard_index.bitmask(),
+        )
     }
-}
-
-impl<K, V> InsertWithIfAbsentOp<K, V, ()>
-where
-    K: Hash + Eq,
-{
-    pub fn new<G>(shard_count: u8, key: K, value_generator: G) -> Self
-    where
-        G: Fn(&K) -> V + 'static,
-    {
-        Self::new_with_params(shard_count, key, move |k, _| value_generator(k))
-    }
-}
-
-impl<L, K, V, P> OpTrait<L, K, V, P> for InsertWithIfAbsentOp<K, V, P>
-where
-    L: LockPolicy,
-    K: Clone + Hash + Eq,
-{
-    fn guards_bitmask(&self) -> BitMask {
-        self.indexed_key.2
-    }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>, params: &P) {
-        self.indexed_key.insert_if_absent::<L, V>(mutex_guards, || {
-            (self.value_generator)(&self.indexed_key.3, params)
-        });
+    fn apply(
+        &self,
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        keys: &KEYS,
+        params: &PARAMS,
+        state: &mut STATE,
+    ) {
+        let key = self.key_selector.get(keys);
+        lock_guards.insert_if_absent(key, || (self.value_generator)(&key.key, params, state));
     }
 }

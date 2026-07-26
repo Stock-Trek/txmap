@@ -1,39 +1,43 @@
 use crate::{
-    indexed_key::IndexedKey, locks::lock_policy::LockPolicy, new_types::BitMask,
-    ops::op_trait::OpTrait, shard::Shard, shard_count::ShardCount,
+    lock_guards::LockGuards,
+    lock_policies::lock_policy::LockPolicy,
+    new_types::BitMask,
+    ops::op_trait::OpTrait,
+    params::{TxKey, TxKeySelector},
 };
-use intmap::IntMap;
 use std::hash::Hash;
 
-pub(crate) struct InsertDefaultIfAbsentOp<K>
+pub(crate) struct InsertDefaultIfAbsentOp<'tx, K, KEYS>
 where
     K: Hash + Eq,
 {
-    indexed_key: IndexedKey<K>,
+    pub key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
 }
 
-impl<K> InsertDefaultIfAbsentOp<K>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
+    for InsertDefaultIfAbsentOp<'tx, K, KEYS>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq + 'tx,
+    V: Default + 'tx,
+    L: LockPolicy + 'tx,
+    KEYS: 'tx,
+    PARAMS: 'tx,
+    STATE: Default + 'tx,
 {
-    pub fn new(shard_count: u8, key: K) -> Self {
-        Self {
-            indexed_key: ShardCount::indexed_key(shard_count, key),
-        }
+    fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask) {
+        (
+            BitMask::ZERO,
+            self.key_selector.get(keys).shard_index.bitmask(),
+        )
     }
-}
-
-impl<L, K, V, P> OpTrait<L, K, V, P> for InsertDefaultIfAbsentOp<K>
-where
-    L: LockPolicy,
-    K: Clone + Hash + Eq,
-    V: Default,
-{
-    fn guards_bitmask(&self) -> BitMask {
-        self.indexed_key.2
-    }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>, _: &P) {
-        self.indexed_key
-            .insert_if_absent::<L, V>(mutex_guards, || V::default());
+    fn apply(
+        &self,
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        keys: &KEYS,
+        _params: &PARAMS,
+        _state: &mut STATE,
+    ) {
+        let key = self.key_selector.get(keys);
+        lock_guards.insert_if_absent(key, || V::default());
     }
 }

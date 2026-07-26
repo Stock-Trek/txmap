@@ -1,62 +1,61 @@
 use crate::{
-    indexed_key::IndexedKey, locks::lock_policy::LockPolicy, new_types::BitMask,
-    ops::op_trait::OpTrait, shard::Shard, shard_count::ShardCount,
+    lock_guards::LockGuards,
+    lock_policies::lock_policy::LockPolicy,
+    new_types::BitMask,
+    ops::op_trait::OpTrait,
+    params::{TxKey, TxKeySelector},
 };
-use intmap::IntMap;
 use std::hash::Hash;
 
-pub(crate) struct SwapValueOp<K>
+pub(crate) struct SwapValueOp<'tx, K, KEYS>
 where
     K: Hash + Eq,
 {
-    indexed_key_a: IndexedKey<K>,
-    indexed_key_b: IndexedKey<K>,
+    pub key_selector_a: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
+    pub key_selector_b: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
 }
 
-impl<K> SwapValueOp<K>
+impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
+    for SwapValueOp<'tx, K, KEYS>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq + 'tx,
+    V: 'tx,
+    L: LockPolicy + 'tx,
+    KEYS: 'tx,
+    PARAMS: 'tx,
+    STATE: Default + 'tx,
 {
-    pub fn new(shard_count: u8, a: K, b: K) -> Self {
-        Self {
-            indexed_key_a: ShardCount::indexed_key(shard_count, a),
-            indexed_key_b: ShardCount::indexed_key(shard_count, b),
-        }
+    fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask) {
+        (
+            BitMask::ZERO,
+            self.key_selector_a.get(keys).shard_index.bitmask()
+                | self.key_selector_b.get(keys).shard_index.bitmask(),
+        )
     }
-}
-
-impl<L, K, V, P> OpTrait<L, K, V, P> for SwapValueOp<K>
-where
-    L: LockPolicy,
-    K: Clone + Hash + Eq,
-{
-    fn guards_bitmask(&self) -> BitMask {
-        self.indexed_key_a.2 | self.indexed_key_b.2
-    }
-    fn apply(&self, mutex_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>, _: &P) {
-        let a = self.indexed_key_a.remove_entry::<L, V>(mutex_guards);
-        let b = self.indexed_key_b.remove_entry::<L, V>(mutex_guards);
+    fn apply(
+        &self,
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        keys: &KEYS,
+        _: &PARAMS,
+        _: &mut STATE,
+    ) {
+        let key_a = self.key_selector_a.get(keys);
+        let key_b = self.key_selector_b.get(keys);
+        let a = lock_guards.remove_entry(key_a);
+        let b = lock_guards.remove_entry(key_b);
         match a {
             Some((a_key, a_value)) => match b {
                 Some((b_key, b_value)) => {
-                    self.indexed_key_a.insert_with_duplicate_key::<L, V>(
-                        mutex_guards,
-                        a_key,
-                        b_value,
-                    );
-                    self.indexed_key_b.insert_with_duplicate_key::<L, V>(
-                        mutex_guards,
-                        b_key,
-                        a_value,
-                    );
+                    lock_guards.insert_with_duplicate_key(key_a, a_key, b_value);
+                    lock_guards.insert_with_duplicate_key(key_b, b_key, a_value);
                 }
                 None => {
-                    self.indexed_key_b.insert::<L, V>(mutex_guards, a_value);
+                    lock_guards.insert(key_b, a_value);
                 }
             },
             None => {
                 if let Some((_, b_value)) = b {
-                    self.indexed_key_a.insert::<L, V>(mutex_guards, b_value);
+                    lock_guards.insert(key_a, b_value);
                 }
             }
         }
