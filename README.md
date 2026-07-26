@@ -13,6 +13,7 @@ A concurrent transactional hash map for Rust with fine-grained user-defined lock
 - [**Parameterized Transactions**](#parameterized-transactions) Create re-usable transactions for faster parameterized execution
 - [**Guards/conditions**](#transaction-with-guards-preconditions) Declarative preconditions that must hold before a transaction runs
 - [**Fluent API**](#transaction-operations) Chain operations to build or execute transactions with a fluent interface
+- [**Optional serde support**] Use the `serde` feature to enable it
 
 ## License
 
