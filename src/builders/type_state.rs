@@ -41,7 +41,240 @@ where
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  BuilderPhase – require() + all ops
+//  Operations available in any phase (BuilderPhase or BuildablePhase)
+//  Each operation transitions to BuildablePhase.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+impl<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE>
+    TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE>
+where
+    K: Hash + Eq + 'tx,
+    V: 'tx,
+    L: LockPolicy + 'tx,
+    KEYS: 'tx,
+    PARAMS: 'tx,
+    STATE: Default + 'tx,
+{
+    pub fn get(
+        mut self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        get: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) + 'tx,
+    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
+        let op = GetOp {
+            key_selector: Box::new(key_selector),
+            get: Box::new(get),
+        };
+        self.ops.push(Box::new(op));
+        TxBuilder {
+            custodian: self.custodian,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+
+    pub fn insert_default(
+        mut self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+    where
+        K: Clone,
+        V: Default,
+    {
+        let op = InsertDefaultOp {
+            key_selector: Box::new(key_selector),
+        };
+        self.ops.push(Box::new(op));
+        TxBuilder {
+            custodian: self.custodian,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+
+    pub fn insert_default_if_absent(
+        mut self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+    where
+        K: Clone,
+        V: Default,
+    {
+        let op = InsertDefaultIfAbsentOp {
+            key_selector: Box::new(key_selector),
+        };
+        self.ops.push(Box::new(op));
+        TxBuilder {
+            custodian: self.custodian,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+
+    pub fn insert_with(
+        mut self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        value_generator: impl Fn(&K, &PARAMS, &mut STATE) -> V + 'tx,
+    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+    where
+        K: Clone,
+    {
+        let op = InsertWithOp {
+            key_selector: Box::new(key_selector),
+            value_generator: Box::new(value_generator),
+        };
+        self.ops.push(Box::new(op));
+        TxBuilder {
+            custodian: self.custodian,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+
+    pub fn insert_with_if_absent(
+        mut self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        value_generator: impl Fn(&K, &PARAMS, &mut STATE) -> V + 'tx,
+    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+    where
+        K: Clone,
+    {
+        let op = InsertWithIfAbsentOp {
+            key_selector: Box::new(key_selector),
+            value_generator: Box::new(value_generator),
+        };
+        self.ops.push(Box::new(op));
+        TxBuilder {
+            custodian: self.custodian,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+
+    pub fn modify(
+        mut self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        mutate: impl Fn(&K, &mut V, &PARAMS, &mut STATE) + 'tx,
+    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
+        let op = ModifyOp {
+            key_selector: Box::new(key_selector),
+            mutate: Box::new(mutate),
+        };
+        self.ops.push(Box::new(op));
+        TxBuilder {
+            custodian: self.custodian,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+
+    pub fn move_value(
+        mut self,
+        key_selector_from: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        key_selector_to: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+    where
+        K: Clone,
+    {
+        let op = MoveValueOp {
+            key_selector_from: Box::new(key_selector_from),
+            key_selector_to: Box::new(key_selector_to),
+        };
+        self.ops.push(Box::new(op));
+        TxBuilder {
+            custodian: self.custodian,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+
+    pub fn remove(
+        mut self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        on_remove: impl Fn(Option<(K, V)>, &PARAMS, &mut STATE) + 'tx,
+    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
+        let op = RemoveOp {
+            key_selector: Box::new(key_selector),
+            on_remove: Box::new(on_remove),
+        };
+        self.ops.push(Box::new(op));
+        TxBuilder {
+            custodian: self.custodian,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+
+    pub fn remove_where(
+        mut self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        condition: impl Fn(&K, &V, &PARAMS, &mut STATE) -> bool + 'tx,
+    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
+        let op = RemoveWhereOp {
+            key_selector: Box::new(key_selector),
+            condition: Box::new(condition),
+        };
+        self.ops.push(Box::new(op));
+        TxBuilder {
+            custodian: self.custodian,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+
+    pub fn swap_value(
+        mut self,
+        key_selector_a: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        key_selector_b: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+    where
+        K: Clone,
+    {
+        let op = SwapValueOp {
+            key_selector_a: Box::new(key_selector_a),
+            key_selector_b: Box::new(key_selector_b),
+        };
+        self.ops.push(Box::new(op));
+        TxBuilder {
+            custodian: self.custodian,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+
+    pub fn update(
+        mut self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        transform: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) -> Option<V> + 'tx,
+    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
+    where
+        K: Clone,
+    {
+        let op = UpdateOp {
+            key_selector: Box::new(key_selector),
+            transform: Box::new(transform),
+        };
+        self.ops.push(Box::new(op));
+        TxBuilder {
+            custodian: self.custodian,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  BuilderPhase – require() only
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl<'tx, K, V, L, KEYS, PARAMS, STATE> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuilderPhase>
@@ -75,260 +308,10 @@ where
             _phase: PhantomData,
         }
     }
-
-    pub fn get(
-        self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        get: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
-        let op = GetOp {
-            key_selector: Box::new(key_selector),
-            get: Box::new(get),
-        };
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops: {
-                let mut ops = self.ops;
-                ops.push(Box::new(op));
-                ops
-            },
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn insert_default(
-        self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
-    where
-        K: Clone,
-        V: Default,
-    {
-        let op = InsertDefaultOp {
-            key_selector: Box::new(key_selector),
-        };
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops: {
-                let mut ops = self.ops;
-                ops.push(Box::new(op));
-                ops
-            },
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn insert_default_if_absent(
-        self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
-    where
-        K: Clone,
-        V: Default,
-    {
-        let op = InsertDefaultIfAbsentOp {
-            key_selector: Box::new(key_selector),
-        };
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops: {
-                let mut ops = self.ops;
-                ops.push(Box::new(op));
-                ops
-            },
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn insert_with(
-        self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        value_generator: impl Fn(&K, &PARAMS, &mut STATE) -> V + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
-    where
-        K: Clone,
-    {
-        let op = InsertWithOp {
-            key_selector: Box::new(key_selector),
-            value_generator: Box::new(value_generator),
-        };
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops: {
-                let mut ops = self.ops;
-                ops.push(Box::new(op));
-                ops
-            },
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn insert_with_if_absent(
-        self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        value_generator: impl Fn(&K, &PARAMS, &mut STATE) -> V + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
-    where
-        K: Clone,
-    {
-        let op = InsertWithIfAbsentOp {
-            key_selector: Box::new(key_selector),
-            value_generator: Box::new(value_generator),
-        };
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops: {
-                let mut ops = self.ops;
-                ops.push(Box::new(op));
-                ops
-            },
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn modify(
-        self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        mutate: impl Fn(&K, &mut V, &PARAMS, &mut STATE) + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
-        let op = ModifyOp {
-            key_selector: Box::new(key_selector),
-            mutate: Box::new(mutate),
-        };
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops: {
-                let mut ops = self.ops;
-                ops.push(Box::new(op));
-                ops
-            },
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn move_value(
-        self,
-        key_selector_from: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        key_selector_to: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
-    where
-        K: Clone,
-    {
-        let op = MoveValueOp {
-            key_selector_from: Box::new(key_selector_from),
-            key_selector_to: Box::new(key_selector_to),
-        };
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops: {
-                let mut ops = self.ops;
-                ops.push(Box::new(op));
-                ops
-            },
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn remove(
-        self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        on_remove: impl Fn(Option<(K, V)>, &PARAMS, &mut STATE) + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
-        let op = RemoveOp {
-            key_selector: Box::new(key_selector),
-            on_remove: Box::new(on_remove),
-        };
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops: {
-                let mut ops = self.ops;
-                ops.push(Box::new(op));
-                ops
-            },
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn remove_where(
-        self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        condition: impl Fn(&K, &V, &PARAMS, &mut STATE) -> bool + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
-        let op = RemoveWhereOp {
-            key_selector: Box::new(key_selector),
-            condition: Box::new(condition),
-        };
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops: {
-                let mut ops = self.ops;
-                ops.push(Box::new(op));
-                ops
-            },
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn swap_value(
-        self,
-        key_selector_a: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        key_selector_b: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
-    where
-        K: Clone,
-    {
-        let op = SwapValueOp {
-            key_selector_a: Box::new(key_selector_a),
-            key_selector_b: Box::new(key_selector_b),
-        };
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops: {
-                let mut ops = self.ops;
-                ops.push(Box::new(op));
-                ops
-            },
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn update(
-        self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        transform: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) -> Option<V> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
-    where
-        K: Clone,
-    {
-        let op = UpdateOp {
-            key_selector: Box::new(key_selector),
-            transform: Box::new(transform),
-        };
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops: {
-                let mut ops = self.ops;
-                ops.push(Box::new(op));
-                ops
-            },
-            _phase: PhantomData,
-        }
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  BuildablePhase – all ops + into_transaction()
+//  BuildablePhase – into_transaction() only
 // ═══════════════════════════════════════════════════════════════════════════════
 
 impl<'tx, K, V, L, KEYS, PARAMS, STATE> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
@@ -340,210 +323,6 @@ where
     PARAMS: 'tx,
     STATE: Default + 'tx,
 {
-    pub fn get(
-        mut self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        get: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
-        let op = GetOp {
-            key_selector: Box::new(key_selector),
-            get: Box::new(get),
-        };
-        self.ops.push(Box::new(op));
-        self
-    }
-
-    pub fn insert_default(
-        self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
-    where
-        K: Clone,
-        V: Default,
-    {
-        let op = InsertDefaultOp {
-            key_selector: Box::new(key_selector),
-        };
-        let mut ops = self.ops;
-        ops.push(Box::new(op));
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops,
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn insert_default_if_absent(
-        self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
-    where
-        K: Clone,
-        V: Default,
-    {
-        let op = InsertDefaultIfAbsentOp {
-            key_selector: Box::new(key_selector),
-        };
-        let mut ops = self.ops;
-        ops.push(Box::new(op));
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops,
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn insert_with(
-        self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        value_generator: impl Fn(&K, &PARAMS, &mut STATE) -> V + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
-    where
-        K: Clone,
-    {
-        let op = InsertWithOp {
-            key_selector: Box::new(key_selector),
-            value_generator: Box::new(value_generator),
-        };
-        let mut ops = self.ops;
-        ops.push(Box::new(op));
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops,
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn insert_with_if_absent(
-        self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        value_generator: impl Fn(&K, &PARAMS, &mut STATE) -> V + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
-    where
-        K: Clone,
-    {
-        let op = InsertWithIfAbsentOp {
-            key_selector: Box::new(key_selector),
-            value_generator: Box::new(value_generator),
-        };
-        let mut ops = self.ops;
-        ops.push(Box::new(op));
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops,
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn modify(
-        mut self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        mutate: impl Fn(&K, &mut V, &PARAMS, &mut STATE) + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
-        let op = ModifyOp {
-            key_selector: Box::new(key_selector),
-            mutate: Box::new(mutate),
-        };
-        self.ops.push(Box::new(op));
-        self
-    }
-
-    pub fn move_value(
-        self,
-        key_selector_from: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        key_selector_to: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
-    where
-        K: Clone,
-    {
-        let op = MoveValueOp {
-            key_selector_from: Box::new(key_selector_from),
-            key_selector_to: Box::new(key_selector_to),
-        };
-        let mut ops = self.ops;
-        ops.push(Box::new(op));
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops,
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn remove(
-        mut self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        on_remove: impl Fn(Option<(K, V)>, &PARAMS, &mut STATE) + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
-        let op = RemoveOp {
-            key_selector: Box::new(key_selector),
-            on_remove: Box::new(on_remove),
-        };
-        self.ops.push(Box::new(op));
-        self
-    }
-
-    pub fn remove_where(
-        mut self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        condition: impl Fn(&K, &V, &PARAMS, &mut STATE) -> bool + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase> {
-        let op = RemoveWhereOp {
-            key_selector: Box::new(key_selector),
-            condition: Box::new(condition),
-        };
-        self.ops.push(Box::new(op));
-        self
-    }
-
-    pub fn swap_value(
-        self,
-        key_selector_a: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        key_selector_b: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
-    where
-        K: Clone,
-    {
-        let op = SwapValueOp {
-            key_selector_a: Box::new(key_selector_a),
-            key_selector_b: Box::new(key_selector_b),
-        };
-        let mut ops = self.ops;
-        ops.push(Box::new(op));
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops,
-            _phase: PhantomData,
-        }
-    }
-
-    pub fn update(
-        self,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        transform: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) -> Option<V> + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
-    where
-        K: Clone,
-    {
-        let op = UpdateOp {
-            key_selector: Box::new(key_selector),
-            transform: Box::new(transform),
-        };
-        let mut ops = self.ops;
-        ops.push(Box::new(op));
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops,
-            _phase: PhantomData,
-        }
-    }
-
     /// Consume the builder and produce a [`Transaction`] ready for execution.
     #[must_use]
     pub fn into_transaction(self) -> Transaction<'tx, K, V, L, KEYS, PARAMS, STATE> {
