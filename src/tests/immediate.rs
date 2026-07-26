@@ -319,10 +319,7 @@ fn immediate_param_insert_default() {
         .insert_default(ALICE.into())
         .get(ALICE.into(), |_k, v, s| s.result = v.copied())
         .execute();
-    assert_eq!(
-        result,
-        TxResult::Completed(GetOneState { result: Some(0) })
-    );
+    assert_eq!(result, TxResult::Completed(GetOneState { result: Some(0) }));
 }
 
 #[test]
@@ -398,10 +395,7 @@ fn immediate_insert_with_if_absent_does_not_overwrite_existing() {
         .insert_with_if_absent(ALICE.into(), |_k, _s| 42)
         .get(ALICE.into(), |_k, v, s| s.result = v.copied())
         .execute();
-    assert_eq!(
-        result,
-        TxResult::Completed(GetOneState { result: Some(1) })
-    );
+    assert_eq!(result, TxResult::Completed(GetOneState { result: Some(1) }));
 }
 
 #[test]
@@ -412,10 +406,7 @@ fn immediate_insert_default_creates_default_entry() {
         .insert_default(ALICE.into())
         .get(ALICE.into(), |_k, v, s| s.result = v.copied())
         .execute();
-    assert_eq!(
-        result,
-        TxResult::Completed(GetOneState { result: Some(0) })
-    );
+    assert_eq!(result, TxResult::Completed(GetOneState { result: Some(0) }));
 }
 
 #[test]
@@ -426,10 +417,7 @@ fn immediate_insert_default_overwrites_existing() {
         .insert_default(ALICE.into())
         .get(ALICE.into(), |_k, v, s| s.result = v.copied())
         .execute();
-    assert_eq!(
-        result,
-        TxResult::Completed(GetOneState { result: Some(0) })
-    );
+    assert_eq!(result, TxResult::Completed(GetOneState { result: Some(0) }));
 }
 
 #[test]
@@ -440,10 +428,7 @@ fn immediate_insert_default_if_absent_creates_default_entry() {
         .insert_default_if_absent(ALICE.into())
         .get(ALICE.into(), |_k, v, s| s.result = v.copied())
         .execute();
-    assert_eq!(
-        result,
-        TxResult::Completed(GetOneState { result: Some(0) })
-    );
+    assert_eq!(result, TxResult::Completed(GetOneState { result: Some(0) }));
 }
 
 #[test]
@@ -454,10 +439,7 @@ fn immediate_insert_default_if_absent_does_not_overwrite_existing() {
         .insert_default_if_absent(ALICE.into())
         .get(ALICE.into(), |_k, v, s| s.result = v.copied())
         .execute();
-    assert_eq!(
-        result,
-        TxResult::Completed(GetOneState { result: Some(1) })
-    );
+    assert_eq!(result, TxResult::Completed(GetOneState { result: Some(1) }));
 }
 
 // --- Modify tests (immediate versions) ---
@@ -472,10 +454,7 @@ fn immediate_modify_existing_key() {
             s.result = Some(*v);
         })
         .execute();
-    assert_eq!(
-        result,
-        TxResult::Completed(GetOneState { result: Some(6) })
-    );
+    assert_eq!(result, TxResult::Completed(GetOneState { result: Some(6) }));
 }
 
 #[test]
@@ -488,10 +467,7 @@ fn immediate_modify_missing_key_is_noop() {
             s.result = Some(*v);
         })
         .execute();
-    assert_eq!(
-        result,
-        TxResult::Completed(GetOneState { result: None })
-    );
+    assert_eq!(result, TxResult::Completed(GetOneState { result: None }));
 }
 
 #[test]
@@ -680,10 +656,7 @@ fn immediate_remove_missing_key() {
             s.result = entry.map(|(_, v)| v);
         })
         .execute();
-    assert_eq!(
-        result,
-        TxResult::Completed(GetOneState { result: None })
-    );
+    assert_eq!(result, TxResult::Completed(GetOneState { result: None }));
 }
 
 #[test]
