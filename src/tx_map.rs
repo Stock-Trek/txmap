@@ -3,12 +3,11 @@ use crate::{
     immediate::tx_builder::ImmediateTxBuilder,
     indexer::Indexer,
     lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
-    new_types::{BitMask, ShardCount},
+    new_types::ShardCount,
     prepared::{
         schema::{TxKeys, TxSchema},
         tx_builder::{PreparedBuilderPhase, PreparedTxBuilder},
     },
-    result::MISSING_LOCK_GUARD_ERROR,
     shards::Shards,
 };
 use hashbrown::hash_table::Entry;
@@ -100,31 +99,6 @@ where
         entry.map(|e| transform(&e.1))
     }
     #[must_use]
-    pub fn get_all_with<R>(
-        &self,
-        keys: impl IntoIterator<Item = K>,
-        transform: impl Fn(&K, &V) -> R,
-    ) -> Vec<Option<R>> {
-        let indexed_keys = Indexer::all_indexed_keys(self.shard_count, keys, |k| k);
-        let bitmask = indexed_keys
-            .iter()
-            .fold(BitMask::ZERO, |bitmask, indexed_key| {
-                bitmask | indexed_key.shard_index.bitmask()
-            });
-        let read_guards = self.custodian.read_guards(bitmask);
-        let mut result = Vec::with_capacity(indexed_keys.len());
-        for indexed_key in &indexed_keys {
-            let guard = read_guards
-                .get(indexed_key.shard_index.0)
-                .expect(MISSING_LOCK_GUARD_ERROR);
-            let result_value = guard
-                .find(indexed_key.hash_code.0, |k| k.0 == indexed_key.key)
-                .map(|entry| transform(&entry.0, &entry.1));
-            result.push(result_value);
-        }
-        result
-    }
-    #[must_use]
     pub fn fold<T, R>(
         &self,
         initial: R,
@@ -165,24 +139,6 @@ where
         let write_guards = self.custodian.all_write_guards();
         for (_, mut mutex_guard) in write_guards {
             mutex_guard.retain(|entry| condition(&entry.0, &entry.1))
-        }
-    }
-    pub fn retain_only(&self, keys: impl IntoIterator<Item = K>) {
-        let keys: Vec<K> = keys.into_iter().collect();
-        let write_guards = self.custodian.all_write_guards();
-        for (_, mut mutex_guard) in write_guards {
-            mutex_guard.retain(|entry| keys.contains(&entry.0));
-        }
-    }
-    pub fn retain_where(
-        &self,
-        keys: impl IntoIterator<Item = K>,
-        condition: impl Fn(&K, &V) -> bool,
-    ) {
-        let keys: Vec<K> = keys.into_iter().collect();
-        let write_guards = self.custodian.all_write_guards();
-        for (_, mut mutex_guard) in write_guards {
-            mutex_guard.retain(|entry| keys.contains(&entry.0) && condition(&entry.0, &entry.1));
         }
     }
 
@@ -233,10 +189,6 @@ where
     pub fn get_copied(&self, key: &K) -> Option<V> {
         self.get_with(key, |v| *v)
     }
-    #[must_use]
-    pub fn get_all_copied(&self, keys: impl IntoIterator<Item = K>) -> Vec<Option<V>> {
-        self.get_all_with(keys, |_k, v| *v)
-    }
 }
 
 impl<K, V, L> TxMap<K, V, L>
@@ -248,10 +200,6 @@ where
     #[must_use]
     pub fn get_cloned(&self, key: &K) -> Option<V> {
         self.get_with(key, |v| v.clone())
-    }
-    #[must_use]
-    pub fn get_all_cloned(&self, keys: impl IntoIterator<Item = K>) -> Vec<Option<V>> {
-        self.get_all_with(keys, |_k, v| v.clone())
     }
 }
 

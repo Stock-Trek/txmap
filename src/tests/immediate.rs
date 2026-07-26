@@ -293,7 +293,7 @@ fn immediate_param_move_value() {
 }
 
 #[test]
-fn immediate_param_get_all() {
+fn immediate_param_get_many() {
     let map = map_alice(10);
     let result = map
         .immediate_tx::<GetTwoParamState>()

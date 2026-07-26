@@ -8,23 +8,6 @@ use std::hash::{Hash, Hasher};
 pub struct Indexer;
 
 impl Indexer {
-    pub(crate) fn all_indexed_keys<E, K>(
-        shard_count: ShardCount,
-        keys: impl IntoIterator<Item = E>,
-        element_to_key: fn(E) -> K,
-    ) -> Vec<TxKey<K>>
-    where
-        K: Hash + Eq,
-    {
-        let iter = keys.into_iter();
-        let mut indexed = Vec::with_capacity(iter.size_hint().0);
-        for element in iter {
-            let key = element_to_key(element);
-            let indexed_key = Self::indexed_key(shard_count, key);
-            indexed.push(indexed_key);
-        }
-        indexed
-    }
     pub fn indexed_key<K>(shard_count: ShardCount, key: K) -> TxKey<K>
     where
         K: Hash + Eq,

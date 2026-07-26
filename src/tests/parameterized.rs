@@ -213,7 +213,7 @@ fn param_move_value() {
 }
 
 #[test]
-fn param_get_all() {
+fn param_get_many() {
     let map = map_alice(10);
     let tx = map
         .prepared_tx(&GetTwoParam::SCHEMA)

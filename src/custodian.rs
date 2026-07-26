@@ -35,13 +35,6 @@ where
     pub fn all_write_guards(&self) -> IntMap<u8, L::WriteGuard<'_, Shard<K, V>>> {
         self.lock_guards(BitMask::ZERO, self.all_bitmask()).write
     }
-    pub fn read_guards(&self, read: BitMask) -> IntMap<u8, L::ReadGuard<'_, Shard<K, V>>> {
-        self.lock_guards(read, BitMask::ZERO).read
-    }
-    #[allow(unused)]
-    pub fn write_guards(&self, write: BitMask) -> IntMap<u8, L::WriteGuard<'_, Shard<K, V>>> {
-        self.lock_guards(BitMask::ZERO, write).write
-    }
     fn all_bitmask(&self) -> BitMask {
         let bitmask = if self.shard_count.0 == 128 {
             !0u128
