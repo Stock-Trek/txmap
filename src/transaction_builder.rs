@@ -14,15 +14,8 @@ use crate::{
 };
 use std::{hash::Hash, marker::PhantomData};
 
-// ─── Type-state markers ───────────────────────────────────────────────────────
-
-/// State: `require()` and all ops are available, but not `into_transaction()`.
 pub struct BuilderPhase;
-
-/// State: all ops and `into_transaction()` are available.
 pub struct BuildablePhase;
-
-// ─── Single builder struct ────────────────────────────────────────────────────
 
 pub struct TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE = BuilderPhase>
 where
@@ -40,10 +33,36 @@ where
     pub(crate) _phase: PhantomData<PHASE>,
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  Operations available in any phase (BuilderPhase or BuildablePhase)
-//  Each operation transitions to BuildablePhase.
-// ═══════════════════════════════════════════════════════════════════════════════
+impl<'tx, K, V, L, KEYS, PARAMS, STATE> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuilderPhase>
+where
+    K: Hash + Eq + 'tx,
+    V: 'tx,
+    L: LockPolicy + 'tx,
+    KEYS: 'tx,
+    PARAMS: 'tx,
+    STATE: Default + 'tx,
+{
+    pub fn require(
+        mut self,
+        name: impl AsRef<str>,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        condition: impl Fn(Option<&V>, &PARAMS, &mut STATE) -> bool + 'tx,
+    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuilderPhase> {
+        let guard = Guard {
+            name: name.as_ref().into(),
+            key_selector: Box::new(key_selector),
+            condition: Box::new(condition),
+            _phantom: PhantomData,
+        };
+        self.guards.push(guard);
+        TxBuilder {
+            custodian: self.custodian,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+}
 
 impl<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE>
 where
@@ -272,47 +291,6 @@ where
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  BuilderPhase – require() only
-// ═══════════════════════════════════════════════════════════════════════════════
-
-impl<'tx, K, V, L, KEYS, PARAMS, STATE> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuilderPhase>
-where
-    K: Hash + Eq + 'tx,
-    V: 'tx,
-    L: LockPolicy + 'tx,
-    KEYS: 'tx,
-    PARAMS: 'tx,
-    STATE: Default + 'tx,
-{
-    /// Add a guard (requirement) that must be satisfied before the transaction
-    /// executes.
-    pub fn require(
-        mut self,
-        name: impl AsRef<str>,
-        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        condition: impl Fn(Option<&V>, &PARAMS, &mut STATE) -> bool + 'tx,
-    ) -> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuilderPhase> {
-        let guard = Guard {
-            name: name.as_ref().into(),
-            key_selector: Box::new(key_selector),
-            condition: Box::new(condition),
-            _phantom: PhantomData,
-        };
-        self.guards.push(guard);
-        TxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops: self.ops,
-            _phase: PhantomData,
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  BuildablePhase – into_transaction() only
-// ═══════════════════════════════════════════════════════════════════════════════
-
 impl<'tx, K, V, L, KEYS, PARAMS, STATE> TxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, BuildablePhase>
 where
     K: Hash + Eq + 'tx,
@@ -322,7 +300,6 @@ where
     PARAMS: 'tx,
     STATE: Default + 'tx,
 {
-    /// Consume the builder and produce a [`Transaction`] ready for execution.
     #[must_use]
     pub fn into_transaction(self) -> Transaction<'tx, K, V, L, KEYS, PARAMS, STATE> {
         Transaction {

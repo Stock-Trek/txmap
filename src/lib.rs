@@ -1,4 +1,3 @@
-pub mod builders;
 pub mod custodian;
 pub mod guard;
 pub mod indexer;
@@ -13,16 +12,17 @@ pub mod shards;
 #[cfg(test)]
 pub mod tests;
 pub mod transaction;
+pub mod transaction_builder;
 pub mod tx_map;
 
 pub mod prelude {
     pub use crate::{
-        builders::type_state::{BuildablePhase, BuilderPhase, TxBuilder},
         indexer::Indexer,
         new_types::{BitMask, HashCode, ShardCount, ShardIndex},
         params::{TxKey, TxKeySelector, TxKeys, TxSchema, tx_schema},
         result::TxResult,
         shards::Shards,
+        transaction_builder::{BuildablePhase, BuilderPhase, TxBuilder},
         tx_map::TxMap,
     };
 }

@@ -1,5 +1,4 @@
 use crate::{
-    builders::type_state::{BuilderPhase, TxBuilder},
     custodian::Custodian,
     indexer::Indexer,
     lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
@@ -7,6 +6,7 @@ use crate::{
     params::{TxKeys, TxSchema},
     result::MISSING_LOCK_GUARD_ERROR,
     shards::Shards,
+    transaction_builder::{BuilderPhase, TxBuilder},
 };
 use hashbrown::hash_table::Entry;
 use std::hash::Hash;
