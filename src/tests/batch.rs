@@ -36,8 +36,22 @@ fn remove_where_conditionally() {
     let tx = map
         .prepare_transaction(&RemoveMultiple::SCHEMA)
         .remove_where(RemoveMultiple::a, |k, v, _p, s| {
-            s.user.push(Some(k.clone()));
-            *v >= 2
+            let cond = *v >= 2;
+            if cond {
+                s.user.push(Some(k.clone()));
+            } else {
+                s.user.push(None);
+            }
+            cond
+        })
+        .remove_where(RemoveMultiple::b, |k, v, _p, s| {
+            let cond = *v >= 2;
+            if cond {
+                s.user.push(Some(k.clone()));
+            } else {
+                s.user.push(None);
+            }
+            cond
         })
         .into_transaction();
     assert_eq!(

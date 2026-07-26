@@ -51,7 +51,7 @@ where
             (self.get)(&key.key, value_ref, params, state)
         } else {
             let value_ref = lock_guards
-                .write
+                .read
                 .get(key.shard_index.0)
                 .expect(MISSING_LOCK_GUARD_ERROR)
                 .find(key.hash_code.0, |entry| entry.0 == key.key)

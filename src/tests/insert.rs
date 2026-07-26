@@ -1,94 +1,134 @@
 use crate::{
     prelude::*,
-    tests::{creators::*, data::*},
+    tests::{creators::*, data::*, types::*},
 };
 
 #[test]
 fn insert_with_creates_entry() {
     let map = empty_map();
     let tx = map
-        .prepare_transaction()
-        .insert_with(ALICE.into(), |_key| 42)
-        .get_copied(ALICE.into())
+        .prepare_transaction(&GetOne::SCHEMA)
+        .insert_with(GetOne::key, |_k, _p, _s| 42)
+        .get(GetOne::key, |_k, v, _p, s| {
+            s.result = v.copied();
+        })
         .into_transaction();
-    assert_eq!(tx.execute(), TxResult::Completed(Some(42)));
+    assert_eq!(
+        tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
+        TxResult::Completed(GetOneState { result: Some(42) })
+    );
 }
 
 #[test]
 fn insert_with_overwrites_existing() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction()
-        .insert_with(ALICE.into(), |_key| 42)
-        .get_copied(ALICE.into())
+        .prepare_transaction(&GetOne::SCHEMA)
+        .insert_with(GetOne::key, |_k, _p, _s| 42)
+        .get(GetOne::key, |_k, v, _p, s| {
+            s.result = v.copied();
+        })
         .into_transaction();
-    assert_eq!(tx.execute(), TxResult::Completed(Some(42)));
+    assert_eq!(
+        tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
+        TxResult::Completed(GetOneState { result: Some(42) })
+    );
 }
 
 #[test]
 fn insert_with_if_absent_creates_entry() {
     let map = empty_map();
     let tx = map
-        .prepare_transaction()
-        .insert_with_if_absent(ALICE.into(), |_key| 42)
-        .get_copied(ALICE.into())
+        .prepare_transaction(&GetOne::SCHEMA)
+        .insert_with_if_absent(GetOne::key, |_k, _p, _s| 42)
+        .get(GetOne::key, |_k, v, _p, s| {
+            s.result = v.copied();
+        })
         .into_transaction();
-    assert_eq!(tx.execute(), TxResult::Completed(Some(42)));
+    assert_eq!(
+        tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
+        TxResult::Completed(GetOneState { result: Some(42) })
+    );
 }
 
 #[test]
 fn insert_with_if_absent_does_not_overwrite_existing() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction()
-        .insert_with_if_absent(ALICE.into(), |_key| 42)
-        .get_copied(ALICE.into())
+        .prepare_transaction(&GetOne::SCHEMA)
+        .insert_with_if_absent(GetOne::key, |_k, _p, _s| 42)
+        .get(GetOne::key, |_k, v, _p, s| {
+            s.result = v.copied();
+        })
         .into_transaction();
-    assert_eq!(tx.execute(), TxResult::Completed(Some(1)));
+    assert_eq!(
+        tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
+        TxResult::Completed(GetOneState { result: Some(1) })
+    );
 }
 
 #[test]
 fn insert_default_creates_default_entry() {
     let map = empty_map();
     let tx = map
-        .prepare_transaction()
-        .insert_default(ALICE.into())
-        .get_copied(ALICE.into())
+        .prepare_transaction(&GetOne::SCHEMA)
+        .insert_default(GetOne::key)
+        .get(GetOne::key, |_k, v, _p, s| {
+            s.result = v.copied();
+        })
         .into_transaction();
-    assert_eq!(tx.execute(), TxResult::Completed(Some(0)));
+    assert_eq!(
+        tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
+        TxResult::Completed(GetOneState { result: Some(0) })
+    );
 }
 
 #[test]
 fn insert_default_overwrites_existing() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction()
-        .insert_default(ALICE.into())
-        .get_copied(ALICE.into())
+        .prepare_transaction(&GetOne::SCHEMA)
+        .insert_default(GetOne::key)
+        .get(GetOne::key, |_k, v, _p, s| {
+            s.result = v.copied();
+        })
         .into_transaction();
-    assert_eq!(tx.execute(), TxResult::Completed(Some(0)));
+    assert_eq!(
+        tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
+        TxResult::Completed(GetOneState { result: Some(0) })
+    );
 }
 
 #[test]
 fn insert_default_if_absent_creates_default_entry() {
     let map = empty_map();
     let tx = map
-        .prepare_transaction()
-        .insert_default_if_absent(ALICE.into())
-        .get_copied(ALICE.into())
+        .prepare_transaction(&GetOne::SCHEMA)
+        .insert_default_if_absent(GetOne::key)
+        .get(GetOne::key, |_k, v, _p, s| {
+            s.result = v.copied();
+        })
         .into_transaction();
-    assert_eq!(tx.execute(), TxResult::Completed(Some(0)));
+    assert_eq!(
+        tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
+        TxResult::Completed(GetOneState { result: Some(0) })
+    );
 }
 
 #[test]
 fn insert_default_if_absent_does_not_overwrite_existing() {
     let map = map_alice(1);
     let tx = map
-        .prepare_transaction()
-        .insert_default_if_absent(ALICE.into())
-        .get_copied(ALICE.into())
+        .prepare_transaction(&GetOne::SCHEMA)
+        .insert_default_if_absent(GetOne::key)
+        .get(GetOne::key, |_k, v, _p, s| {
+            s.result = v.copied();
+        })
         .into_transaction();
-    assert_eq!(tx.execute(), TxResult::Completed(Some(1)));
+    assert_eq!(
+        tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
+        TxResult::Completed(GetOneState { result: Some(1) })
+    );
 }
 
 #[test]

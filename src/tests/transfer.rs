@@ -1,6 +1,6 @@
 use crate::{
     prelude::*,
-    tests::{creators::*, data::*},
+    tests::{creators::*, data::*, types::*},
 };
 
 #[test]
@@ -18,28 +18,36 @@ fn transfer() {
         first_name: "Pam".into(),
         last_name: "Pamson".into(),
     };
+
+    // Initial setup: give Tim 150 USD
     let _ = db
-        .prepare_transaction()
-        .update(tim.clone(), |_t, _f| {
-            Some(Funds {
-                usd_and_cents: 150,
-                sterling_and_pence: 0,
-            })
+        .prepare_transaction(&Transfer::SCHEMA)
+        .insert_with(Transfer::to, |_u, _p, _s| Funds {
+            usd_and_cents: 150,
+            sterling_and_pence: 0,
         })
         .into_transaction()
-        .execute();
-    let send_1_usd_from_bob_to_tim = db
-        .prepare_transaction()
-        .require("Has available funds", [tim.clone()], |[tim_funds]| {
-            tim_funds.is_some_and(|f| f.usd_and_cents > 100)
+        .execute(
+            TransferKeys {
+                from: tim.clone(),
+                to: tim.clone(),
+            },
+            TransferParams { amount: 0 },
+        );
+
+    // Send 1 USD from Tim to Bob (using update, no params)
+    let send_1_usd = db
+        .prepare_transaction(&Transfer::SCHEMA)
+        .require("Has available funds", Transfer::from, |v, _p, _s| {
+            v.is_some_and(|f| f.usd_and_cents > 100)
         })
-        .update(tim.clone(), |_t, tim_funds| {
-            Some(Funds {
-                sterling_and_pence: tim_funds.unwrap().sterling_and_pence,
-                usd_and_cents: tim_funds.unwrap().usd_and_cents - 100,
+        .update(Transfer::from, |_t, tim_funds, _p, _s| {
+            tim_funds.map(|f| Funds {
+                sterling_and_pence: f.sterling_and_pence,
+                usd_and_cents: f.usd_and_cents - 100,
             })
         })
-        .update(bob.clone(), |_b, bob_funds| {
+        .update(Transfer::to, |_b, bob_funds, _p, _s| {
             Some(bob_funds.map_or(
                 Funds {
                     usd_and_cents: 100,
@@ -53,67 +61,120 @@ fn transfer() {
         })
         .into_transaction();
     assert_eq!(
-        send_1_usd_from_bob_to_tim.execute(),
-        TxResult::Completed(())
-    );
-    assert_ne!(
-        send_1_usd_from_bob_to_tim.execute(),
-        TxResult::Completed(())
-    );
-
-    let send_x_usd_from_bob_to_tim = db
-        .prepare_transaction()
-        .with_param::<Transfer>()
-        .require(
-            "Has available funds",
-            [tim.clone()],
-            |[tim_funds], params| {
-                tim_funds.is_some_and(|f| f.usd_and_cents >= params.usd_and_cents)
+        send_1_usd.execute(
+            TransferKeys {
+                from: tim.clone(),
+                to: bob.clone()
             },
-        )
-        .insert_default_if_absent(bob.clone())
-        .modify(bob.clone(), |_bob, funds, params| {
-            funds.usd_and_cents -= params.usd_and_cents
-        })
-        .modify(tim.clone(), |_tim, funds, params| {
-            funds.usd_and_cents += params.usd_and_cents
-        })
-        .get_all_with([bob.clone(), tim.clone()], |_user, funds| {
-            funds.usd_and_cents
-        })
-        .into_transaction();
-    assert_eq!(
-        send_x_usd_from_bob_to_tim.execute(&Transfer { usd_and_cents: 40 }),
-        TxResult::Completed(vec![Some(60), Some(90)])
+            TransferParams { amount: 0 }
+        ),
+        TxResult::Completed(TransferState { results: vec![] })
     );
     assert_ne!(
-        send_x_usd_from_bob_to_tim.execute(&Transfer { usd_and_cents: 20 }),
-        TxResult::Completed(vec![Some(40), Some(60)])
+        send_1_usd.execute(
+            TransferKeys {
+                from: tim.clone(),
+                to: bob.clone()
+            },
+            TransferParams { amount: 0 }
+        ),
+        TxResult::Completed(TransferState { results: vec![] })
     );
 
-    let add_100_usd_to_bob_if_exists = db
-        .prepare_transaction()
-        .modify(bob.clone(), |_b, bob_funds| {
-            bob_funds.usd_and_cents += 100;
+    // Send X USD from Bob to Tim (parameterized with get verification)
+    let send_x_usd = db
+        .prepare_transaction(&Transfer::SCHEMA)
+        .require("Has available funds", Transfer::from, |v, p, _s| {
+            v.is_some_and(|f| f.usd_and_cents >= p.amount)
+        })
+        .insert_default_if_absent(Transfer::to)
+        .modify(Transfer::from, |_bob, funds, p, _s| {
+            funds.usd_and_cents -= p.amount
+        })
+        .modify(Transfer::to, |_tim, funds, p, _s| {
+            funds.usd_and_cents += p.amount
+        })
+        .get(Transfer::from, |_user, funds, _p, s| {
+            s.results.push(funds.map(|f| f.usd_and_cents));
+        })
+        .get(Transfer::to, |_user, funds, _p, s| {
+            s.results.push(funds.map(|f| f.usd_and_cents));
         })
         .into_transaction();
     assert_eq!(
-        add_100_usd_to_bob_if_exists.execute(),
-        TxResult::Completed(())
-    );
-    assert_eq!(
-        add_100_usd_to_bob_if_exists.execute(),
-        TxResult::Completed(())
+        send_x_usd.execute(
+            TransferKeys {
+                from: bob.clone(),
+                to: tim.clone()
+            },
+            TransferParams { amount: 40 }
+        ),
+        TxResult::Completed(TransferState {
+            results: vec![Some(60), Some(90)]
+        })
     );
 
+    // Add 100 USD to Bob (modify existing)
+    let add_100_usd_to_bob = db
+        .prepare_transaction(&Transfer::SCHEMA)
+        .modify(Transfer::from, |_b, funds, _p, _s| {
+            funds.usd_and_cents += 100;
+        })
+        .into_transaction();
+    assert_eq!(
+        add_100_usd_to_bob.execute(
+            TransferKeys {
+                from: bob.clone(),
+                to: bob.clone()
+            },
+            TransferParams { amount: 0 }
+        ),
+        TxResult::Completed(TransferState { results: vec![] })
+    );
+    assert_eq!(
+        add_100_usd_to_bob.execute(
+            TransferKeys {
+                from: bob.clone(),
+                to: bob.clone()
+            },
+            TransferParams { amount: 0 }
+        ),
+        TxResult::Completed(TransferState { results: vec![] })
+    );
+
+    // Add 123 to Pam (insert_default_if_absent + modify + verify with get)
     let add_123_to_pam = db
-        .prepare_transaction()
-        .insert_default_if_absent(pam.clone())
-        .modify(pam.clone(), |_p, pam_funds| {
-            pam_funds.usd_and_cents += 123;
+        .prepare_transaction(&Transfer::SCHEMA)
+        .insert_default_if_absent(Transfer::from)
+        .modify(Transfer::from, |_p, funds, _p2, _s| {
+            funds.usd_and_cents += 123;
         })
-        .get_with(pam.clone(), |_user, funds| funds.usd_and_cents)
+        .get(Transfer::from, |_user, funds, _p, s| {
+            s.results.push(funds.map(|f| f.usd_and_cents));
+        })
         .into_transaction();
-    assert_eq!(add_123_to_pam.execute(), TxResult::Completed(Some(123)));
-    assert_eq!(add_123_to_pam.execute(), TxResult::Completed(Some(246)));
+    assert_eq!(
+        add_123_to_pam.execute(
+            TransferKeys {
+                from: pam.clone(),
+                to: pam.clone()
+            },
+            TransferParams { amount: 0 }
+        ),
+        TxResult::Completed(TransferState {
+            results: vec![Some(123)]
+        })
+    );
+    assert_eq!(
+        add_123_to_pam.execute(
+            TransferKeys {
+                from: pam.clone(),
+                to: pam.clone()
+            },
+            TransferParams { amount: 0 }
+        ),
+        TxResult::Completed(TransferState {
+            results: vec![Some(246)]
+        })
+    );
 }
