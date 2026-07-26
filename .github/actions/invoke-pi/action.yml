@@ -24,7 +24,7 @@ runs:
         PI_PROMPT="${PROMPT}\n\n <Start of context> ${CONTEXT} <End of context>"
         PI_RESPONSE=$(pi \
           --provider deepseek \
-          --model deepseek-chat \
+          --model deepseek-v4-flash \
           --tools read,write,edit,bash,grep,find,ls \
           --print "${PI_PROMPT}" \
           )
