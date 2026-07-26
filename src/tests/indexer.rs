@@ -3,7 +3,7 @@ use hashbrown::HashSet;
 
 #[test]
 fn shard_count_hash_distributes_across_shards() {
-    for shards in vec![
+    for shards in [
         Shards::_8,
         Shards::_16,
         Shards::_32,

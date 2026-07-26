@@ -17,9 +17,7 @@ pub mod tx_map;
 
 pub mod prelude {
     pub use crate::{
-        builders::builder_traits::{
-            IntoTransaction, TxBuildable, TxBuilder, TxGuardBuilder, TxOpBuilder,
-        },
+        builders::type_state::{BuildablePhase, BuilderPhase, TxBuilder},
         indexer::Indexer,
         new_types::{BitMask, HashCode, ShardCount, ShardIndex},
         params::{TxKey, TxKeySelector, TxKeys, TxSchema, tx_schema},
