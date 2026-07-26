@@ -36,7 +36,8 @@ fn concurrent_inserts_are_thread_safe() {
 
 #[test]
 fn concurrent_transactions_dont_deadlock() {
-    let map = Arc::new(map_alice_bob_chuck_dave(0, 0, 0, 0));
+    // Start with sufficient funds to avoid underflow when subtracting
+    let map = Arc::new(map_alice_bob_chuck_dave(1_000_000, 1_000_000, 1_000_000, 1_000_000));
     let barrier = Arc::new(Barrier::new(THREAD_COUNT as usize));
     let mut handles = Vec::new();
     for _ in 0..THREAD_COUNT {
@@ -59,7 +60,9 @@ fn concurrent_transactions_dont_deadlock() {
         h.join().unwrap();
     }
     let total = map.fold(0u64, |_, v| Some(*v), |total, v| total + v);
-    assert_eq!(total, THREAD_COUNT * LONG_LOOP * (RANDOM_NAME_COUNT as u64));
+    // Funds are conserved: each transfer subtracts 1 from `from` and adds 1 to `to`
+    // So total sum across all keys should remain equal to the initial total
+    assert_eq!(total, 4_000_000);
 }
 
 #[test]
@@ -91,7 +94,8 @@ fn concurrent_reads_and_writes() {
     reader.join().unwrap();
 
     let total = map.fold(0u64, |_, v| Some(*v), |total, v| total + v);
-    assert_eq!(total, LONG_LOOP * 2);
+    // Sum of (i * 2) for i in 0..LONG_LOOP
+    assert_eq!(total, (LONG_LOOP - 1) * LONG_LOOP);
 }
 
 #[test]
