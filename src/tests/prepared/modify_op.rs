@@ -135,7 +135,7 @@ fn modify_peek_modifies_with_peek_values() {
     let tx = map
         .prepared_tx(&GetTwo::SCHEMA)
         .modify(GetTwo::a, |_k, v, _p, _s| {
-            *v += 50; // we use the b value inline instead of peek
+            *v += 50;
         })
         .get(GetTwo::a, |_k, v, _p, s| {
             s.result_a = v.copied();
@@ -194,7 +194,7 @@ fn modify_peek_modifies_using_peeked_values() {
     let tx = map
         .prepared_tx(&GetThree::SCHEMA)
         .modify(GetThree::a, |_k, v, _p, _s| {
-            *v += 20 + 3; // bob(20) + chuck(3)
+            *v += 20 + 3;
         })
         .get(GetThree::a, |_k, v, _p, s| {
             s.results.push(v.copied());
@@ -211,6 +211,31 @@ fn modify_peek_modifies_using_peeked_values() {
         ),
         TxResult::Completed(GetThreeState {
             results: vec![Some(123)]
+        })
+    );
+}
+
+#[test]
+fn param_modify_peek() {
+    let map = map_alice_bob(10, 5);
+    let tx = map
+        .prepared_tx(&GetTwoParamU64::SCHEMA)
+        .modify(GetTwoParamU64::a, |_k, v, p, _s| *v = 5 * p.param)
+        .get(GetTwoParamU64::a, |_k, v, _p, s| {
+            s.result_a = v.copied();
+        })
+        .into_transaction();
+    assert_eq!(
+        tx.execute(
+            GetTwoParamU64Keys {
+                a: ALICE.into(),
+                b: BOB.into()
+            },
+            GetTwoParamU64Params { param: 3 }
+        ),
+        TxResult::Completed(GetTwoParamU64State {
+            result_a: Some(15),
+            result_b: None
         })
     );
 }

@@ -75,3 +75,49 @@ fn update_peek_modifies_based_on_peek() {
         })
     );
 }
+
+#[test]
+fn param_map_op() {
+    let map = map_alice(10);
+    let tx = map
+        .prepared_tx(&GetOneParamU64::SCHEMA)
+        .update(GetOneParamU64::key, |_k, v, p, _s| v.map(|x| x * p.param))
+        .get(GetOneParamU64::key, |_k, v, _p, s| {
+            s.result = v.copied();
+        })
+        .into_transaction();
+    assert_eq!(
+        tx.execute(
+            GetOneParamU64Keys { key: ALICE.into() },
+            GetOneParamU64Params { param: 3 }
+        ),
+        TxResult::Completed(GetOneParamU64State { result: Some(30) })
+    );
+}
+
+#[test]
+fn param_update_peek() {
+    let map = map_alice_bob(10, 5);
+    let tx = map
+        .prepared_tx(&GetTwoParamU64::SCHEMA)
+        .update(GetTwoParamU64::a, |_k, v, p, _s| {
+            v.map(|x| (x + 5) * p.param)
+        })
+        .get(GetTwoParamU64::a, |_k, v, _p, s| {
+            s.result_a = v.copied();
+        })
+        .into_transaction();
+    assert_eq!(
+        tx.execute(
+            GetTwoParamU64Keys {
+                a: ALICE.into(),
+                b: BOB.into()
+            },
+            GetTwoParamU64Params { param: 2 }
+        ),
+        TxResult::Completed(GetTwoParamU64State {
+            result_a: Some(30),
+            result_b: None
+        })
+    );
+}

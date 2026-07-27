@@ -1,5 +1,11 @@
 use crate::prelude::*;
 
+fn shards_to_bitmask(shards: Shards) -> BitMask {
+    let shard_count = ShardCount::from(shards);
+    let max_shard_index = ShardIndex(shard_count.0 - 1);
+    max_shard_index.bitmask()
+}
+
 #[test]
 fn shard_indexes() {
     assert_eq!(ShardCount::from(Shards::_8).0, 8);
@@ -16,12 +22,6 @@ fn bitmasks() {
     assert_eq!(shards_to_bitmask(Shards::_32).0, 1 << 31);
     assert_eq!(shards_to_bitmask(Shards::_64).0, 1 << 63);
     assert_eq!(shards_to_bitmask(Shards::_128).0, 1 << 127);
-}
-
-fn shards_to_bitmask(shards: Shards) -> BitMask {
-    let shard_count = ShardCount::from(shards);
-    let max_shard_index = ShardIndex(shard_count.0 - 1);
-    max_shard_index.bitmask()
 }
 
 #[test]

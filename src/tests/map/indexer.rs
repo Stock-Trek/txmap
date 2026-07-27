@@ -16,7 +16,6 @@ fn shard_count_hash_distributes_across_shards() {
             let index = ShardIndex(i).bitmask();
             seen.insert(index);
         }
-        // With all possible shard indices, we should hit all shards
         assert!(
             seen.len() >= shard_count.0 as usize,
             "should hit all shards, got {}, expected at least {}",
