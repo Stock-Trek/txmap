@@ -186,7 +186,7 @@ where
         match entry {
             Entry::Occupied(occupied) => {
                 let (found_key, found_value) = occupied.get();
-                if condition(&found_key, &found_value) {
+                if condition(found_key, found_value) {
                     Some(occupied.remove().0.1)
                 } else {
                     None
@@ -249,7 +249,7 @@ where
         match entry {
             Entry::Occupied(occupied) => {
                 let (found_key, found_value) = occupied.get();
-                match transform(&found_key, Some(found_value)) {
+                match transform(found_key, Some(found_value)) {
                     Some(new_value) => {
                         occupied.replace_entry_with(|entry| Some((entry.0, new_value)));
                     }
@@ -258,12 +258,11 @@ where
                     }
                 }
             }
-            Entry::Vacant(vacant) => match transform(&key, None) {
-                Some(new_value) => {
+            Entry::Vacant(vacant) => {
+                if let Some(new_value) = transform(&key, None) {
                     vacant.insert((key, new_value));
                 }
-                None => {}
-            },
+            }
         }
     }
 
