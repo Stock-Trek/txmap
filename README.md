@@ -8,12 +8,17 @@ A concurrent transactional hash map for Rust with fine-grained user-defined lock
 
 ## Features
 
+- [**Proven performance**](#benchmarks) One of the fastest concurrent map implementations available
 - [**Flexible sharding**](#lock-policy) Choose the number of shards (between 8 and 128). Decide how they're locked (Mutex, RwLock or bring your own)
 - [**Immediate Transactions**](#immediate-transactions) Immediately execute an atomic, composable batch of modifications
 - [**Parameterized Transactions**](#parameterized-transactions) Create re-usable transactions for faster parameterized execution
 - [**Guards/conditions**](#transaction-with-guards-preconditions) Declarative preconditions that must hold before a transaction runs
 - [**Fluent API**](#transaction-operations) Chain operations to build or execute transactions with a fluent interface
 - **Optional serde support** Use the `serde` feature to enable it
+
+### Benchmarks
+
+Benchmarks for txmap and other similar crates [can be found here](https://github.com/Stock-Trek/map-benchmarks)
 
 ## License
 
