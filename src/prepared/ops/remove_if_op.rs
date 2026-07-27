@@ -8,7 +8,7 @@ use crate::{
 };
 use std::hash::Hash;
 
-pub(crate) struct RemoveWhereOp<'tx, K, V, KEYS, PARAMS, STATE>
+pub(crate) struct RemoveIfOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
 {
@@ -18,7 +18,7 @@ where
 }
 
 impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
-    for RemoveWhereOp<'tx, K, V, KEYS, PARAMS, STATE>
+    for RemoveIfOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq + 'tx,
     V: 'tx,

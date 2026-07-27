@@ -4,7 +4,7 @@ use crate::{
 };
 use std::hash::Hash;
 
-pub(crate) struct RemoveWhereOp<'tx, K, V, STATE>
+pub(crate) struct RemoveIfOp<'tx, K, V, STATE>
 where
     K: Hash + Eq,
 {
@@ -13,7 +13,7 @@ where
     pub condition: Box<dyn Fn(&K, &V, &mut STATE) -> bool + 'tx>,
 }
 
-impl<'tx, K, V, L, STATE> OpTrait<K, V, L, STATE> for RemoveWhereOp<'tx, K, V, STATE>
+impl<'tx, K, V, L, STATE> OpTrait<K, V, L, STATE> for RemoveIfOp<'tx, K, V, STATE>
 where
     K: Hash + Eq + 'tx,
     V: 'tx,

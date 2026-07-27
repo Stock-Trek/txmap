@@ -6,7 +6,7 @@ pub mod insert_with_op;
 pub mod modify_op;
 pub mod move_value_op;
 pub mod op_trait;
+pub mod remove_if_op;
 pub mod remove_op;
-pub mod remove_where_op;
 pub mod swap_value_op;
 pub mod update_op;

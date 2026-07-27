@@ -31,11 +31,11 @@ fn remove_multiple_keys() {
 }
 
 #[test]
-fn remove_where_conditionally() {
+fn remove_if() {
     let map = map_alice_bob(1, 2);
     let tx = map
         .prepared_tx(&RemoveMultiple::SCHEMA)
-        .remove_where(RemoveMultiple::a, |k, v, _p, s| {
+        .remove_if(RemoveMultiple::a, |k, v, _p, s| {
             let cond = *v >= 2;
             if cond {
                 s.user.push(Some(k.clone()));
@@ -44,7 +44,7 @@ fn remove_where_conditionally() {
             }
             cond
         })
-        .remove_where(RemoveMultiple::b, |k, v, _p, s| {
+        .remove_if(RemoveMultiple::b, |k, v, _p, s| {
             let cond = *v >= 2;
             if cond {
                 s.user.push(Some(k.clone()));

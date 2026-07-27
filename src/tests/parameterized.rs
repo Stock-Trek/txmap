@@ -103,12 +103,12 @@ fn param_map_op() {
 }
 
 #[test]
-fn param_remove_where() {
+fn param_remove_if() {
     let map = map_alice_bob(5, 15);
     let tx = map
         .prepared_tx(&GetTwoParamU64::SCHEMA)
-        .remove_where(GetTwoParamU64::a, |_k, v, p, _s| *v > p.param)
-        .remove_where(GetTwoParamU64::b, |_k, v, p, _s| *v > p.param)
+        .remove_if(GetTwoParamU64::a, |_k, v, p, _s| *v > p.param)
+        .remove_if(GetTwoParamU64::b, |_k, v, p, _s| *v > p.param)
         .get(GetTwoParamU64::a, |_k, v, _p, s| {
             s.result_a = v.copied();
         })

@@ -217,13 +217,13 @@ fn immediate_param_map_op() {
 }
 
 #[test]
-fn immediate_param_remove_where() {
+fn immediate_param_remove_if() {
     let map = map_alice_bob(5, 15);
     let threshold = 10u64;
     let result = map
         .immediate_tx::<GetTwoParamU64State>()
-        .remove_where(ALICE.into(), move |_k, v, _s| *v > threshold)
-        .remove_where(BOB.into(), move |_k, v, _s| *v > threshold)
+        .remove_if(ALICE.into(), move |_k, v, _s| *v > threshold)
+        .remove_if(BOB.into(), move |_k, v, _s| *v > threshold)
         .get(ALICE.into(), |_k, v, s| s.result_a = v.copied())
         .execute();
     assert_eq!(
@@ -660,12 +660,12 @@ fn immediate_remove_missing_key() {
 }
 
 #[test]
-fn immediate_remove_where_condition_not_met() {
+fn immediate_remove_if_condition_not_met() {
     let map = map_alice(5);
     let threshold = 10u64;
     let result = map
         .immediate_tx::<GetOneState>()
-        .remove_where(ALICE.into(), move |_k, v, _s| *v > threshold)
+        .remove_if(ALICE.into(), move |_k, v, _s| *v > threshold)
         .execute();
     assert_eq!(result, TxResult::Completed(GetOneState { result: None }));
     assert_eq!(map.len(), 1);

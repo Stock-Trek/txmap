@@ -25,7 +25,7 @@ Add `txmap` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-txmap = "2.1.1"
+txmap = "2.2.0"
 ```
 
 ### Creating a `TxMap`
@@ -252,6 +252,7 @@ Available transaction operations are as follows
 
 | Transaction operation      | Description                                                                  | Additional required bounds |
 |----------------------------|------------------------------------------------------------------------------|----------------------------|
+| `get`                      | Reads a value, allows updating state without making any changes.             |                            |
 | `insert_default`           | Insert `V::default()` for the key.                                           | `K: Clone` `V: Default`    |
 | `insert_default_if_absent` | Insert `V::default()` for the key, only if the key is absent.                | `K: Clone` `V: Default`    |
 | `insert_with`              | Insert a value generated from the key.                                       | `K: Clone`                 |
@@ -259,19 +260,20 @@ Available transaction operations are as follows
 | `modify`                   | Mutate an existing value in-place. Does nothing if key absent.               |                            |
 | `move_value`               | Remove a value from one key and insert it with another key.                  | `K: Clone`                 |
 | `remove`                   | Remove the given key.                                                        |                            |
-| `remove_where`             | Remove the given key if it also satisfies a condition.                       |                            |
+| `remove_if`                | Remove the given key if it also satisfies a condition.                       |                            |
 | `swap_value`               | Swap the values of two keys.                                                 | `K: Clone`                 |
 | `update`                   | Update a single entry. Return `Some(v)` to insert/replace, `None` to remove. | `K: Clone`                 |
 
 ### TxMap operations
 
-All transaction operations are also available on TxMap.
-In addition there are some operations that require locking the entire map which are only available on TxMap. These are as follows
+All transaction operations (or variations of them) are also available on TxMap.
+There are also some additional operations which require map level locking and therefore are only available on TxMap.
+These are as follows
 
-| TxMap operation | Description                                                |
-|-----------------|------------------------------------------------------------|
-| `clear`         | Removes all entries                                        |
-| `remove_if`     | Removes any entry which satisfies a condition              |
-| `retain_only`   | Retains only keys specified                                |
-| `retain_where`  | Retains only keys specified which also satisfy a condition |
-| `retain`        | Retains any entry which satisfies a condition              |
+| TxMap operation | Description                                   |
+|-----------------|-----------------------------------------------|
+| `clear`         | Removes all entries                           |
+| `len`           | Returns how many entries the map contains     |
+| `is_empty`      | Returns if the map is empty                   |
+| `fold`          | Performs a fold on all the entries            |
+| `retain`        | Retains any entry which satisfies a condition |

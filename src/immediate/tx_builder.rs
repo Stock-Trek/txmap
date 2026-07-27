@@ -6,7 +6,7 @@ use crate::{
             get_op::GetOp, insert_default_if_absent_op::InsertDefaultIfAbsentOp,
             insert_default_op::InsertDefaultOp, insert_with_if_absent_op::InsertWithIfAbsentOp,
             insert_with_op::InsertWithOp, modify_op::ModifyOp, move_value_op::MoveValueOp,
-            op_trait::OpTrait, remove_op::RemoveOp, remove_where_op::RemoveWhereOp,
+            op_trait::OpTrait, remove_if_op::RemoveIfOp, remove_op::RemoveOp,
             swap_value_op::SwapValueOp, update_op::UpdateOp,
         },
         transaction::ImmediateTransaction,
@@ -219,12 +219,12 @@ where
             _phase: PhantomData,
         }
     }
-    pub fn remove_where(
+    pub fn remove_if(
         mut self,
         key: K,
         condition: impl Fn(&K, &V, &mut STATE) -> bool + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
-        let op = RemoveWhereOp {
+        let op = RemoveIfOp {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             condition: Box::new(condition),
         };
