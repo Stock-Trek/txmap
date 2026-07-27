@@ -30,7 +30,7 @@ Add `txmap` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-txmap = "2.2.0"
+txmap = "2.2.1"
 ```
 
 ### Creating a `TxMap`
