@@ -31,7 +31,6 @@ fn concurrent_inserts_are_thread_safe() {
 
 #[test]
 fn concurrent_transactions_dont_deadlock() {
-    // Start with sufficient funds to avoid underflow when subtracting
     let map = Arc::new(map_alice_bob_chuck_dave(
         1_000_000, 1_000_000, 1_000_000, 1_000_000,
     ));
@@ -57,8 +56,6 @@ fn concurrent_transactions_dont_deadlock() {
         h.join().unwrap();
     }
     let total = map.fold(0u64, |_, v| Some(*v), |total, v| total + v);
-    // Funds are conserved: each transfer subtracts 1 from `from` and adds 1 to `to`
-    // So total sum across all keys should remain equal to the initial total
     assert_eq!(total, 4_000_000);
 }
 
@@ -68,7 +65,6 @@ fn concurrent_reads_and_writes() {
     let map = Arc::new(empty_typed_map::<u64, u64>());
     let done = Arc::new(AtomicBool::new(false));
 
-    // Writer thread
     let mw = map.clone();
     let dw = done.clone();
     let writer = thread::spawn(move || {
@@ -78,7 +74,6 @@ fn concurrent_reads_and_writes() {
         dw.store(true, Ordering::SeqCst);
     });
 
-    // Reader thread
     let mr = map.clone();
     let dr = done.clone();
     let reader = thread::spawn(move || {
@@ -91,7 +86,6 @@ fn concurrent_reads_and_writes() {
     reader.join().unwrap();
 
     let total = map.fold(0u64, |_, v| Some(*v), |total, v| total + v);
-    // Sum of (i * 2) for i in 0..LONG_LOOP
     assert_eq!(total, (LONG_LOOP - 1) * LONG_LOOP);
 }
 

@@ -74,3 +74,31 @@ fn swap_value_same_key() {
         TxResult::Completed(GetOneState { result: Some(7) })
     );
 }
+
+#[test]
+fn param_swap_value() {
+    let map = map_alice_bob(1, 2);
+    let tx = map
+        .prepared_tx(&GetTwoParam::SCHEMA)
+        .swap_value(GetTwoParam::a, GetTwoParam::b)
+        .get(GetTwoParam::a, |_k, v, _p, s| {
+            s.result_a = v.copied();
+        })
+        .get(GetTwoParam::b, |_k, v, _p, s| {
+            s.result_b = v.copied();
+        })
+        .into_transaction();
+    assert_eq!(
+        tx.execute(
+            GetTwoParamKeys {
+                a: ALICE.into(),
+                b: BOB.into()
+            },
+            GetTwoParamParams { _p: () }
+        ),
+        TxResult::Completed(GetTwoParamState {
+            result_a: Some(2),
+            result_b: Some(1)
+        })
+    );
+}

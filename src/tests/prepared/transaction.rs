@@ -169,3 +169,29 @@ fn chained_ops_on_multiple_keys() {
         })
     );
 }
+
+#[test]
+fn param_transaction_basic() {
+    let map = map_alice(0);
+    let tx = map
+        .prepared_tx(&GetOneParamU64::SCHEMA)
+        .modify(GetOneParamU64::key, |_k, v, p, _s| *v += p.param)
+        .get(GetOneParamU64::key, |_k, v, _p, s| {
+            s.result = v.copied();
+        })
+        .into_transaction();
+    assert_eq!(
+        tx.execute(
+            GetOneParamU64Keys { key: ALICE.into() },
+            GetOneParamU64Params { param: 50 }
+        ),
+        TxResult::Completed(GetOneParamU64State { result: Some(50) })
+    );
+    assert_eq!(
+        tx.execute(
+            GetOneParamU64Keys { key: ALICE.into() },
+            GetOneParamU64Params { param: 30 }
+        ),
+        TxResult::Completed(GetOneParamU64State { result: Some(80) })
+    );
+}
