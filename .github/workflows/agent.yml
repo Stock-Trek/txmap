@@ -430,7 +430,7 @@ jobs:
             echo "has-changes=true" >> $GITHUB_OUTPUT
           fi
       - name: Commit and push code changes
-        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.check-for-code-changes.outputs.has-changes == 'true')
+        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY')
         run: |
           git config --global user.email "agent@stock-trek.com"
           git config --global user.name "Stock-Trek Agent"
