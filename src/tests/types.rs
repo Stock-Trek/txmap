@@ -55,7 +55,6 @@ tx_schema! {
     },
 }
 
-// Schema for one-key operations with u64 values, captures one result
 tx_schema! {
     GetOne,
     keys: [
@@ -68,7 +67,6 @@ tx_schema! {
     },
 }
 
-// Schema for one-key operations with u64 param, captures one result
 tx_schema! {
     GetOneParamU64,
     keys: [
@@ -82,7 +80,6 @@ tx_schema! {
     },
 }
 
-// Schema for one-key operations with String param, captures one result
 tx_schema! {
     GetOneParamString,
     keys: [
@@ -96,7 +93,6 @@ tx_schema! {
     },
 }
 
-// Schema for two-key operations, captures two results
 tx_schema! {
     GetTwo,
     keys: [
@@ -111,7 +107,6 @@ tx_schema! {
     },
 }
 
-// Schema for two-key operations with () param, captures two results
 tx_schema! {
     GetTwoParam,
     keys: [
@@ -127,7 +122,6 @@ tx_schema! {
     },
 }
 
-// Schema for two-key operations with u64 param, captures two results
 tx_schema! {
     GetTwoParamU64,
     keys: [
@@ -143,7 +137,6 @@ tx_schema! {
     },
 }
 
-// Schema for three-key operations, captures results in a vec
 tx_schema! {
     GetThree,
     keys: [
@@ -158,7 +151,6 @@ tx_schema! {
     },
 }
 
-// Schema for two-key operations with Vec<u64> param
 tx_schema! {
     GetVecParam,
     keys: [
@@ -173,7 +165,6 @@ tx_schema! {
     },
 }
 
-// Schema for one-key Counter operations, captures counter value
 tx_schema! {
     GetCounter,
     keys: [
@@ -186,7 +177,6 @@ tx_schema! {
     },
 }
 
-// Schema for single-key operations with u64 value and no state needed
 tx_schema! {
     SetOne,
     keys: [

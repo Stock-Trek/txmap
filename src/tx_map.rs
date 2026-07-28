@@ -54,24 +54,6 @@ where
     K: Hash + Eq,
     L: LockPolicy,
 {
-    /// Returns an iterator over all key-value pairs in the map.
-    ///
-    /// The iterator acquires read locks on all shards at creation time,
-    /// providing a consistent snapshot of the map's contents. While the
-    /// iterator lives, all shards remain locked for reading.
-    #[must_use]
-    pub fn iter(&self) -> Iter<'_, K, V, L> {
-        let guards = self.custodian.all_read_guards();
-        let remaining: usize = guards.iter().map(|(_, guard)| guard.len()).sum();
-        Iter {
-            _guards: guards,
-            shard_index: 0,
-            bucket_index: 0,
-            shard_count: self.shard_count.0,
-            remaining,
-        }
-    }
-
     #[must_use]
     pub fn get_with<R>(&self, key: &K, transform: impl FnOnce(&V) -> R) -> Option<R> {
         let hash_code = Indexer::hash(&key);
@@ -351,6 +333,18 @@ where
             .flat_map(|guard| guard.1.iter())
             .filter_map(|(key, value)| convert(key, value))
             .fold(initial, accumulate)
+    }
+    #[must_use]
+    pub fn iter(&self) -> Iter<'_, K, V, L> {
+        let guards = self.custodian.all_read_guards();
+        let remaining: usize = guards.iter().map(|(_, guard)| guard.len()).sum();
+        Iter {
+            _guards: guards,
+            shard_index: 0,
+            bucket_index: 0,
+            shard_count: self.shard_count.0,
+            remaining,
+        }
     }
     pub fn retain(&self, condition: impl Fn(&K, &V) -> bool) {
         let write_guards = self.custodian.all_write_guards();

@@ -2,25 +2,16 @@ use crate::{lock_policies::lock_policy::LockPolicy, shard::Shard, tx_map::TxMap}
 use intmap::IntMap;
 use std::hash::Hash;
 
-/// An iterator over the key-value pairs of a [`TxMap`].
-///
-/// This struct is created by the [`iter`](TxMap::iter) method on [`TxMap`] or by calling
-/// [`IntoIterator`] on a reference to a [`TxMap`].
 pub struct Iter<'a, K, V, L>
 where
     K: Hash + Eq + 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
-    /// Guards keep the shard data alive and locked for the lifetime of the iterator.
     pub(crate) _guards: IntMap<u8, L::ReadGuard<'a, Shard<K, V>>>,
-    /// The current shard index being iterated.
     pub(crate) shard_index: u8,
-    /// The current bucket index within the current shard.
     pub(crate) bucket_index: usize,
-    /// Total number of shards.
     pub(crate) shard_count: u8,
-    /// Number of remaining entries (for size_hint).
     pub(crate) remaining: usize,
 }
 
@@ -51,7 +42,6 @@ where
                     self.bucket_index += 1;
                 }
             }
-            // Move to the next shard.
             self.shard_index += 1;
             self.bucket_index = 0;
         }

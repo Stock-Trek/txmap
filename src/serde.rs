@@ -10,10 +10,6 @@ use std::fmt;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-// ---------------------------------------------------------------------------
-// TxResult<T>
-// ---------------------------------------------------------------------------
-
 impl<T: Serialize> Serialize for TxResult<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
@@ -72,12 +68,6 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for TxResult<T> {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// TxMap<K, V, L>
-//
-// Serialised as a map of key → value entries.
-// ---------------------------------------------------------------------------
 
 impl<K, V, L> Serialize for TxMap<K, V, L>
 where
