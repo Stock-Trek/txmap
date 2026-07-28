@@ -1,8 +1,4 @@
-use crate::{
-    lock_policies::lock_policy::LockPolicy,
-    shard::Shard,
-    tx_map::TxMap,
-};
+use crate::{lock_policies::lock_policy::LockPolicy, shard::Shard, tx_map::TxMap};
 use intmap::IntMap;
 use std::hash::Hash;
 

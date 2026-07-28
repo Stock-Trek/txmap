@@ -49,8 +49,6 @@ where
     }
 }
 
-
-
 impl<K, V, L> TxMap<K, V, L>
 where
     K: Hash + Eq,
