@@ -41,5 +41,6 @@ pub mod map {
     pub mod global;
     pub mod indexer;
     pub mod insert;
+    pub mod iterator;
     pub mod shard_counts;
 }

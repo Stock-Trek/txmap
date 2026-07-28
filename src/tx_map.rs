@@ -2,6 +2,7 @@ use crate::{
     custodian::Custodian,
     immediate::tx_builder::ImmediateTxBuilder,
     indexer::Indexer,
+    iter::Iter,
     lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
     new_types::{BitMask, ShardCount},
     prepared::{
@@ -53,6 +54,32 @@ where
     K: Hash + Eq,
     L: LockPolicy,
 {
+    /// Returns an iterator over all key-value pairs in the map.
+    ///
+    /// The iterator acquires read locks on all shards at creation time,
+    /// providing a consistent snapshot of the map's contents. While the
+    /// iterator lives, all shards remain locked for reading.
+    #[must_use]
+    pub fn iter(&self) -> Iter<'_, K, V, L> {
+        let guards = self.custodian.all_read_guards();
+        // Compute capacity from the already-locked guards to avoid re-locking.
+        let capacity: usize = guards.iter().map(|(_, guard)| guard.len()).sum();
+        let mut entries: Vec<*const (K, V)> = Vec::with_capacity(capacity);
+        for i in 0..self.shard_count.0 {
+            if let Some(guard) = guards.get(i) {
+                for entry in guard.iter() {
+                    let ptr: *const (K, V) = entry;
+                    entries.push(ptr);
+                }
+            }
+        }
+        Iter {
+            _guards: guards,
+            entries,
+            index: 0,
+        }
+    }
+
     #[must_use]
     pub fn get_with<R>(&self, key: &K, transform: impl FnOnce(&V) -> R) -> Option<R> {
         let hash_code = Indexer::hash(&key);
