@@ -14,10 +14,14 @@ where
 {
     /// Guards keep the shard data alive and locked for the lifetime of the iterator.
     pub(crate) _guards: IntMap<u8, L::ReadGuard<'a, Shard<K, V>>>,
-    /// Raw pointers to all key-value pairs across all shards.
-    /// The data lives as long as `_guards` (and thus as long as this struct).
-    pub(crate) entries: Vec<*const (K, V)>,
-    pub(crate) index: usize,
+    /// The current shard index being iterated.
+    pub(crate) shard_index: u8,
+    /// The current bucket index within the current shard.
+    pub(crate) bucket_index: usize,
+    /// Total number of shards.
+    pub(crate) shard_count: u8,
+    /// Number of remaining entries (for size_hint).
+    pub(crate) remaining: usize,
 }
 
 impl<'a, K, V, L> Iterator for Iter<'a, K, V, L>
@@ -29,22 +33,33 @@ where
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index < self.entries.len() {
-            let entry = self.entries[self.index];
-            self.index += 1;
-            // SAFETY: The entry pointer points into a `HashTable` behind a
-            // `ReadGuard` stored in `self._guards`. The guards keep the data
-            // alive for `'a`, and this iterator cannot outlive the struct.
-            let entry_ref = unsafe { &*entry };
-            Some((&entry_ref.0, &entry_ref.1))
-        } else {
-            None
+        while (self.shard_index as usize) < self.shard_count as usize {
+            if let Some(guard) = self._guards.get(self.shard_index) {
+                let num_buckets = guard.num_buckets();
+                while self.bucket_index < num_buckets {
+                    if let Some(entry) = guard.get_bucket(self.bucket_index) {
+                        self.bucket_index += 1;
+                        self.remaining -= 1;
+                        // SAFETY: The guard is stored in `self._guards` and has
+                        // lifetime `'a`. The entry reference obtained from
+                        // `get_bucket` borrows the guard, but we extend it to `'a`
+                        // because the guard keeps the shard data locked and alive
+                        // for the entire lifetime of this iterator.
+                        let entry_ref = unsafe { &*(entry as *const (K, V)) };
+                        return Some((&entry_ref.0, &entry_ref.1));
+                    }
+                    self.bucket_index += 1;
+                }
+            }
+            // Move to the next shard.
+            self.shard_index += 1;
+            self.bucket_index = 0;
         }
+        None
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.entries.len() - self.index;
-        (remaining, Some(remaining))
+        (self.remaining, Some(self.remaining))
     }
 }
 

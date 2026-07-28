@@ -62,21 +62,13 @@ where
     #[must_use]
     pub fn iter(&self) -> Iter<'_, K, V, L> {
         let guards = self.custodian.all_read_guards();
-        // Compute capacity from the already-locked guards to avoid re-locking.
-        let capacity: usize = guards.iter().map(|(_, guard)| guard.len()).sum();
-        let mut entries: Vec<*const (K, V)> = Vec::with_capacity(capacity);
-        for i in 0..self.shard_count.0 {
-            if let Some(guard) = guards.get(i) {
-                for entry in guard.iter() {
-                    let ptr: *const (K, V) = entry;
-                    entries.push(ptr);
-                }
-            }
-        }
+        let remaining: usize = guards.iter().map(|(_, guard)| guard.len()).sum();
         Iter {
             _guards: guards,
-            entries,
-            index: 0,
+            shard_index: 0,
+            bucket_index: 0,
+            shard_count: self.shard_count.0,
+            remaining,
         }
     }
 
