@@ -1,6 +1,7 @@
 pub mod custodian;
 pub mod immediate;
 pub mod indexer;
+pub mod iter;
 pub mod key;
 pub mod lock_guards;
 pub mod lock_policies;
