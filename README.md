@@ -30,7 +30,7 @@ Add `txmap` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-txmap = "2.2.1"
+txmap = "2.2.2"
 ```
 
 ### Creating a `TxMap`
@@ -281,4 +281,5 @@ These are as follows
 | `len`           | Returns how many entries the map contains     |
 | `is_empty`      | Returns if the map is empty                   |
 | `fold`          | Performs a fold on all the entries            |
+| `iter`          | Creates an iterator over all the entries      |
 | `retain`        | Retains any entry which satisfies a condition |
