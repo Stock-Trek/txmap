@@ -3,15 +3,7 @@ use crate::{
     key::TxKey,
     lock_policies::lock_policy::LockPolicy,
     prepared::{
-        guard::Guard,
-        ops::{
-            get_op::GetOp, insert_default_if_absent_op::InsertDefaultIfAbsentOp,
-            insert_default_op::InsertDefaultOp, insert_with_if_absent_op::InsertWithIfAbsentOp,
-            insert_with_op::InsertWithOp, modify_op::ModifyOp, move_value_op::MoveValueOp,
-            op_trait::PreparedOp, remove_if_op::RemoveIfOp, remove_op::RemoveOp,
-            swap_value_op::SwapValueOp, update_op::UpdateOp,
-        },
-        schema::TxKeySelector,
+        guard::Guard, ops::op_trait::PreparedOp, schema::TxKeySelector,
         transaction::PreparedTransaction,
     },
 };
@@ -83,12 +75,11 @@ where
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         get: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) + 'tx,
     ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase> {
-        let op = GetOp {
-            key_selector: Box::new(key_selector),
-            get: Box::new(get),
-        };
         self.ops
-            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::Get(op));
+            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::Get {
+                key_selector: Box::new(key_selector),
+                get: Box::new(get),
+            });
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -104,13 +95,10 @@ where
         K: Clone,
         V: Default,
     {
-        let op = InsertDefaultOp {
-            key_selector: Box::new(key_selector),
-        };
         self.ops
-            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::InsertDefault(
-                op,
-            ));
+            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::InsertDefault {
+                key_selector: Box::new(key_selector),
+            });
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -126,11 +114,11 @@ where
         K: Clone,
         V: Default,
     {
-        let op = InsertDefaultIfAbsentOp {
-            key_selector: Box::new(key_selector),
-        };
-        self.ops
-            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::InsertDefaultIfAbsent(op));
+        self.ops.push(
+            PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::InsertDefaultIfAbsent {
+                key_selector: Box::new(key_selector),
+            },
+        );
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -146,12 +134,11 @@ where
     where
         K: Clone,
     {
-        let op = InsertWithOp {
-            key_selector: Box::new(key_selector),
-            value_generator: Box::new(value_generator),
-        };
         self.ops
-            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::InsertWith(op));
+            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::InsertWith {
+                key_selector: Box::new(key_selector),
+                value_generator: Box::new(value_generator),
+            });
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -167,12 +154,12 @@ where
     where
         K: Clone,
     {
-        let op = InsertWithIfAbsentOp {
-            key_selector: Box::new(key_selector),
-            value_generator: Box::new(value_generator),
-        };
-        self.ops
-            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::InsertWithIfAbsent(op));
+        self.ops.push(
+            PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::InsertWithIfAbsent {
+                key_selector: Box::new(key_selector),
+                value_generator: Box::new(value_generator),
+            },
+        );
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -185,12 +172,11 @@ where
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         mutate: impl Fn(&K, &mut V, &PARAMS, &mut STATE) + 'tx,
     ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase> {
-        let op = ModifyOp {
-            key_selector: Box::new(key_selector),
-            mutate: Box::new(mutate),
-        };
         self.ops
-            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::Modify(op));
+            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::Modify {
+                key_selector: Box::new(key_selector),
+                mutate: Box::new(mutate),
+            });
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -206,12 +192,11 @@ where
     where
         K: Clone,
     {
-        let op = MoveValueOp {
-            key_selector_from: Box::new(key_selector_from),
-            key_selector_to: Box::new(key_selector_to),
-        };
         self.ops
-            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::MoveValue(op));
+            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::MoveValue {
+                key_selector_from: Box::new(key_selector_from),
+                key_selector_to: Box::new(key_selector_to),
+            });
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -224,12 +209,11 @@ where
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         on_remove: impl Fn(Option<(K, V)>, &PARAMS, &mut STATE) + 'tx,
     ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase> {
-        let op = RemoveOp {
-            key_selector: Box::new(key_selector),
-            on_remove: Box::new(on_remove),
-        };
         self.ops
-            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::Remove(op));
+            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::Remove {
+                key_selector: Box::new(key_selector),
+                on_remove: Box::new(on_remove),
+            });
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -242,12 +226,11 @@ where
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         condition: impl Fn(&K, &V, &PARAMS, &mut STATE) -> bool + 'tx,
     ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase> {
-        let op = RemoveIfOp {
-            key_selector: Box::new(key_selector),
-            condition: Box::new(condition),
-        };
         self.ops
-            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::RemoveIf(op));
+            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::RemoveIf {
+                key_selector: Box::new(key_selector),
+                condition: Box::new(condition),
+            });
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -263,12 +246,11 @@ where
     where
         K: Clone,
     {
-        let op = SwapValueOp {
-            key_selector_a: Box::new(key_selector_a),
-            key_selector_b: Box::new(key_selector_b),
-        };
         self.ops
-            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::SwapValue(op));
+            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::SwapValue {
+                key_selector_a: Box::new(key_selector_a),
+                key_selector_b: Box::new(key_selector_b),
+            });
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -284,12 +266,11 @@ where
     where
         K: Clone,
     {
-        let op = UpdateOp {
-            key_selector: Box::new(key_selector),
-            transform: Box::new(transform),
-        };
         self.ops
-            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::Update(op));
+            .push(PreparedOp::<K, V, L, KEYS, PARAMS, STATE>::Update {
+                key_selector: Box::new(key_selector),
+                transform: Box::new(transform),
+            });
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
