@@ -189,7 +189,9 @@ where
                         .map(|(_key, value)| value);
                     let new_value = (transform)(&key.key, value_ref, state);
                     match new_value {
-                        Some(v) => lock_guards.insert(key, v),
+                        Some(v) => {
+                            lock_guards.insert(key, v);
+                        }
                         None => {
                             lock_guards.remove_entry(key);
                         }
@@ -203,7 +205,9 @@ where
                         .map(|(_key, value)| value);
                     let new_value = (transform)(&key.key, value_ref, state);
                     match new_value {
-                        Some(v) => lock_guards.insert(key, v),
+                        Some(v) => {
+                            lock_guards.insert(key, v);
+                        }
                         None => {
                             lock_guards.remove_entry(key);
                         }

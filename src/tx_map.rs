@@ -1,5 +1,6 @@
 use crate::{
     custodian::Custodian,
+    immediate::op::ImmediateOp,
     immediate::tx_builder::ImmediateTxBuilder,
     indexer::Indexer,
     iter::Iter,
@@ -9,10 +10,8 @@ use crate::{
         schema::{TxKeys, TxSchema},
         tx_builder::{PreparedBuilderPhase, PreparedTxBuilder},
     },
-    result::MISSING_LOCK_GUARD_ERROR,
     tx_map_builder::TxMapBuilder,
 };
-use hashbrown::hash_table::Entry;
 use std::hash::Hash;
 
 pub struct TxMap<K, V, L = MutexPolicy>
@@ -57,208 +56,70 @@ where
         entry.map(|e| transform(&e.1))
     }
     pub fn insert(&self, key: K, value: V) -> Option<V> {
-        let hash_code = Indexer::hash(&key);
-        let shard_index = Indexer::shard_index(self.shard_count, hash_code);
-        let mut write_guard = self.custodian.write_guard_at(shard_index);
-        let entry = write_guard.entry(
-            hash_code.0,
-            |entry| entry.0 == key,
-            |entry| Indexer::hash(&entry.0).0,
-        );
-        match entry {
-            Entry::Occupied(occupied) => {
-                let ((old_key, old_value), vacant) = occupied.remove();
-                vacant.insert((old_key, value));
-                Some(old_value)
-            }
-            Entry::Vacant(vacant) => {
-                vacant.insert((key, value));
-                None
-            }
-        }
+        let tx_key = Indexer::indexed_key(self.shard_count, key);
+        let mut lock_guards = self
+            .custodian
+            .lock_guards(BitMask::ZERO, tx_key.shard_index.bitmask());
+        lock_guards.insert(&tx_key, value)
     }
     pub fn insert_with_if_absent(&self, key: K, value_generator: impl FnOnce() -> V) -> bool {
-        let hash_code = Indexer::hash(&key);
-        let shard_index = Indexer::shard_index(self.shard_count, hash_code);
-        let mut write_guard = self.custodian.write_guard_at(shard_index);
-        let entry = write_guard.entry(
-            hash_code.0,
-            |entry| entry.0 == key,
-            |entry| Indexer::hash(&entry.0).0,
-        );
-        match entry {
-            Entry::Occupied(_occupied) => false,
-            Entry::Vacant(vacant) => {
-                vacant.insert((key, value_generator()));
-                true
-            }
-        }
+        let tx_key = Indexer::indexed_key(self.shard_count, key);
+        let mut lock_guards = self
+            .custodian
+            .lock_guards(BitMask::ZERO, tx_key.shard_index.bitmask());
+        lock_guards.insert_if_absent(&tx_key, value_generator)
     }
     pub fn modify(&self, key: &K, mutate: impl FnOnce(&K, &mut V)) -> bool {
-        let hash_code = Indexer::hash(&key);
-        let shard_index = Indexer::shard_index(self.shard_count, hash_code);
-        let mut write_guard = self.custodian.write_guard_at(shard_index);
-        let entry = write_guard.entry(
-            hash_code.0,
-            |entry| entry.0 == *key,
-            |entry| Indexer::hash(&entry.0).0,
-        );
-        match entry {
-            Entry::Occupied(mut occupied) => {
-                let entry = occupied.get_mut();
-                mutate(&entry.0, &mut entry.1);
-                true
-            }
-            Entry::Vacant(_vacant) => false,
-        }
+        let tx_key = Indexer::indexed_key(self.shard_count, key.clone());
+        let mut lock_guards = self
+            .custodian
+            .lock_guards(BitMask::ZERO, tx_key.shard_index.bitmask());
+        lock_guards.modify(&tx_key, mutate)
     }
     pub fn move_value(&self, key_from: &K, key_to: K) {
-        let tx_key_from = Indexer::indexed_key(self.shard_count, key_from);
+        let tx_key_from = Indexer::indexed_key(self.shard_count, key_from.clone());
         let tx_key_to = Indexer::indexed_key(self.shard_count, key_to);
-        let write_bitmasks = tx_key_from.shard_index.bitmask() | tx_key_from.shard_index.bitmask();
-        let mut lock_guards = self.custodian.lock_guards(BitMask::ZERO, write_bitmasks);
-        let removed_entry_from = lock_guards
-            .write
-            .get_mut(tx_key_from.shard_index.0)
-            .expect(MISSING_LOCK_GUARD_ERROR)
-            .find_entry(tx_key_from.hash_code.0, |entry| entry.0 == *tx_key_from.key)
-            .ok()
-            .map(|entry| entry.remove().0);
-        if let Some((_removed_key_from, removed_value_from)) = removed_entry_from {
-            let entry_to = lock_guards
-                .write
-                .get_mut(tx_key_to.shard_index.0)
-                .expect(MISSING_LOCK_GUARD_ERROR)
-                .entry(
-                    tx_key_to.hash_code.0,
-                    |entry| entry.0 == tx_key_to.key,
-                    |entry| Indexer::hash(&entry.0).0,
-                );
-            match entry_to {
-                Entry::Occupied(occupied) => {
-                    occupied.replace_entry_with(|e| Some((e.0, removed_value_from)));
-                }
-                Entry::Vacant(vacant) => {
-                    vacant.insert((tx_key_to.key, removed_value_from));
-                }
-            }
-        } else {
-            lock_guards
-                .write
-                .get_mut(tx_key_to.shard_index.0)
-                .expect(MISSING_LOCK_GUARD_ERROR)
-                .find_entry(tx_key_to.hash_code.0, |entry| entry.0 == tx_key_to.key)
-                .ok()
-                .map(|entry| entry.remove().0);
-        }
+        let op = ImmediateOp::MoveValue {
+            key_from: tx_key_from,
+            key_to: tx_key_to,
+        };
+        let (_, write) = op.read_write_bitmasks();
+        let mut lock_guards = self.custodian.lock_guards(BitMask::ZERO, write);
+        let mut state = ();
+        op.apply(&mut lock_guards, &mut state);
     }
     pub fn remove(&self, key: &K) -> Option<V> {
-        let hash_code = Indexer::hash(&key);
-        let shard_index = Indexer::shard_index(self.shard_count, hash_code);
-        let mut write_guard = self.custodian.write_guard_at(shard_index);
-        let entry = write_guard.entry(
-            hash_code.0,
-            |entry| entry.0 == *key,
-            |entry| Indexer::hash(&entry.0).0,
-        );
-        match entry {
-            Entry::Occupied(occupied) => {
-                let ((_, old_value), _) = occupied.remove();
-                Some(old_value)
-            }
-            Entry::Vacant(_) => None,
-        }
+        let tx_key = Indexer::indexed_key(self.shard_count, key.clone());
+        let mut lock_guards = self
+            .custodian
+            .lock_guards(BitMask::ZERO, tx_key.shard_index.bitmask());
+        lock_guards.remove_entry(&tx_key).map(|(_, v)| v)
     }
     pub fn remove_if(&self, key: &K, condition: impl FnOnce(&K, &V) -> bool) -> Option<V> {
-        let hash_code = Indexer::hash(&key);
-        let shard_index = Indexer::shard_index(self.shard_count, hash_code);
-        let mut write_guard = self.custodian.write_guard_at(shard_index);
-        let entry = write_guard.entry(
-            hash_code.0,
-            |entry| entry.0 == *key,
-            |entry| Indexer::hash(&entry.0).0,
-        );
-        match entry {
-            Entry::Occupied(occupied) => {
-                let (found_key, found_value) = occupied.get();
-                if condition(found_key, found_value) {
-                    Some(occupied.remove().0.1)
-                } else {
-                    None
-                }
-            }
-            Entry::Vacant(_) => None,
-        }
+        let tx_key = Indexer::indexed_key(self.shard_count, key.clone());
+        let mut lock_guards = self
+            .custodian
+            .lock_guards(BitMask::ZERO, tx_key.shard_index.bitmask());
+        lock_guards.remove_if(&tx_key, condition)
     }
     pub fn swap_value(&self, key_a: K, key_b: K) {
         let tx_key_a = Indexer::indexed_key(self.shard_count, key_a);
         let tx_key_b = Indexer::indexed_key(self.shard_count, key_b);
-        let write_bitmasks = tx_key_a.shard_index.bitmask() | tx_key_a.shard_index.bitmask();
-        let mut lock_guards = self.custodian.lock_guards(BitMask::ZERO, write_bitmasks);
-        let a = lock_guards.remove_entry(&tx_key_a);
-        let b = lock_guards.remove_entry(&tx_key_b);
-        match a {
-            Some((a_key, a_value)) => match b {
-                Some((b_key, b_value)) => {
-                    lock_guards.insert_with_duplicate_key(&tx_key_a, a_key, b_value);
-                    lock_guards.insert_with_duplicate_key(&tx_key_b, b_key, a_value);
-                }
-                None => {
-                    lock_guards
-                        .write
-                        .get_mut(tx_key_b.shard_index.0)
-                        .expect(MISSING_LOCK_GUARD_ERROR)
-                        .entry(
-                            tx_key_b.hash_code.0,
-                            |entry| entry.0 == tx_key_b.key,
-                            |entry| Indexer::hash(&entry.0).0,
-                        )
-                        .insert((tx_key_b.key, a_value));
-                }
-            },
-            None => {
-                if let Some((_, b_value)) = b {
-                    lock_guards
-                        .write
-                        .get_mut(tx_key_a.shard_index.0)
-                        .expect(MISSING_LOCK_GUARD_ERROR)
-                        .entry(
-                            tx_key_a.hash_code.0,
-                            |entry| entry.0 == tx_key_a.key,
-                            |entry| Indexer::hash(&entry.0).0,
-                        )
-                        .insert((tx_key_a.key, b_value));
-                }
-            }
-        }
+        let op = ImmediateOp::SwapValue {
+            key_a: tx_key_a,
+            key_b: tx_key_b,
+        };
+        let (_, write) = op.read_write_bitmasks();
+        let mut lock_guards = self.custodian.lock_guards(BitMask::ZERO, write);
+        let mut state = ();
+        op.apply(&mut lock_guards, &mut state);
     }
     pub fn update(&self, key: K, transform: impl FnOnce(&K, Option<&V>) -> Option<V>) {
-        let hash_code = Indexer::hash(&key);
-        let shard_index = Indexer::shard_index(self.shard_count, hash_code);
-        let mut write_guard = self.custodian.write_guard_at(shard_index);
-        let entry = write_guard.entry(
-            hash_code.0,
-            |entry| entry.0 == key,
-            |entry| Indexer::hash(&entry.0).0,
-        );
-        match entry {
-            Entry::Occupied(occupied) => {
-                let (found_key, found_value) = occupied.get();
-                match transform(found_key, Some(found_value)) {
-                    Some(new_value) => {
-                        occupied.replace_entry_with(|entry| Some((entry.0, new_value)));
-                    }
-                    None => {
-                        occupied.remove();
-                    }
-                }
-            }
-            Entry::Vacant(vacant) => {
-                if let Some(new_value) = transform(&key, None) {
-                    vacant.insert((key, new_value));
-                }
-            }
-        }
+        let tx_key = Indexer::indexed_key(self.shard_count, key);
+        let mut lock_guards = self
+            .custodian
+            .lock_guards(BitMask::ZERO, tx_key.shard_index.bitmask());
+        lock_guards.update(&tx_key, transform);
     }
 
     #[must_use]
