@@ -33,7 +33,8 @@ fn concurrent_shards(c: &mut Criterion) {
         Shards::_64,
         Shards::_128,
     ] {
-        let map = Arc::new(TxMapBuilder::new().with_shards(shards).build());
+        let map: Arc<TxMap<String, u64>> =
+            Arc::new(TxMapBuilder::new().with_shards(shards).build());
         c.bench_function(&format!("txmap_concurrent_insert_shards_{}", shards), |b| {
             b.iter(|| {
                 let handles: Vec<_> = (0..num_threads)
