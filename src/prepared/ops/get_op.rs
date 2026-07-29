@@ -8,6 +8,42 @@ use crate::{
 };
 use std::hash::Hash;
 
+pub(crate) struct GetOpApply;
+
+impl GetOpApply {
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn apply<K, V, L, KEYS, PARAMS, STATE>(
+        key_selector: &dyn TxKeySelector<TxKey<K>, KEYS>,
+        get: &dyn Fn(&K, Option<&V>, &PARAMS, &mut STATE),
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        keys: &KEYS,
+        params: &PARAMS,
+        state: &mut STATE,
+    ) where
+        K: Hash + Eq,
+        L: LockPolicy,
+    {
+        let key = key_selector.get(keys);
+        if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
+            let value_ref = lock_guards
+                .write
+                .get(key.shard_index.0)
+                .expect(MISSING_LOCK_GUARD_ERROR)
+                .find(key.hash_code.0, |entry| entry.0 == key.key)
+                .map(|(_, value)| value);
+            (get)(&key.key, value_ref, params, state)
+        } else {
+            let value_ref = lock_guards
+                .read
+                .get(key.shard_index.0)
+                .expect(MISSING_LOCK_GUARD_ERROR)
+                .find(key.hash_code.0, |entry| entry.0 == key.key)
+                .map(|(_, value)| value);
+            (get)(&key.key, value_ref, params, state)
+        }
+    }
+}
+
 pub(crate) struct GetOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
@@ -40,23 +76,13 @@ where
         params: &PARAMS,
         state: &mut STATE,
     ) {
-        let key = self.key_selector.get(keys);
-        if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
-            let value_ref = lock_guards
-                .write
-                .get(key.shard_index.0)
-                .expect(MISSING_LOCK_GUARD_ERROR)
-                .find(key.hash_code.0, |entry| entry.0 == key.key)
-                .map(|(_, value)| value);
-            (self.get)(&key.key, value_ref, params, state)
-        } else {
-            let value_ref = lock_guards
-                .read
-                .get(key.shard_index.0)
-                .expect(MISSING_LOCK_GUARD_ERROR)
-                .find(key.hash_code.0, |entry| entry.0 == key.key)
-                .map(|(_, value)| value);
-            (self.get)(&key.key, value_ref, params, state)
-        }
+        GetOpApply::apply(
+            &*self.key_selector,
+            &*self.get,
+            lock_guards,
+            keys,
+            params,
+            state,
+        )
     }
 }

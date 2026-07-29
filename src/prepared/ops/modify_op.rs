@@ -8,6 +8,31 @@ use crate::{
 };
 use std::hash::Hash;
 
+pub(crate) struct ModifyOpApply;
+
+impl ModifyOpApply {
+    pub(crate) fn apply<K, V, L, KEYS, PARAMS, STATE>(
+        key_selector: &dyn TxKeySelector<TxKey<K>, KEYS>,
+        mutate: &dyn Fn(&K, &mut V, &PARAMS, &mut STATE),
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        keys: &KEYS,
+        params: &PARAMS,
+        state: &mut STATE,
+    ) where
+        K: Hash + Eq,
+        L: LockPolicy,
+    {
+        let key = key_selector.get(keys);
+        let write_guard = lock_guards
+            .write
+            .get_mut(key.shard_index.0)
+            .expect(MISSING_LOCK_GUARD_ERROR);
+        if let Some(mut_entry) = write_guard.find_mut(key.hash_code.0, |entry| entry.0 == key.key) {
+            (mutate)(&mut_entry.0, &mut mut_entry.1, params, state)
+        }
+    }
+}
+
 pub(crate) struct ModifyOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
@@ -41,13 +66,13 @@ where
         params: &PARAMS,
         state: &mut STATE,
     ) {
-        let key = self.key_selector.get(keys);
-        let write_guard = lock_guards
-            .write
-            .get_mut(key.shard_index.0)
-            .expect(MISSING_LOCK_GUARD_ERROR);
-        if let Some(mut_entry) = write_guard.find_mut(key.hash_code.0, |entry| entry.0 == key.key) {
-            (self.mutate)(&mut_entry.0, &mut mut_entry.1, params, state)
-        }
+        ModifyOpApply::apply(
+            &*self.key_selector,
+            &*self.mutate,
+            lock_guards,
+            keys,
+            params,
+            state,
+        )
     }
 }

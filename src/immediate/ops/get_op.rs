@@ -4,6 +4,38 @@ use crate::{
 };
 use std::hash::Hash;
 
+pub(crate) struct GetOpApply;
+
+impl GetOpApply {
+    pub(crate) fn apply<K, V, L, STATE>(
+        key: &TxKey<K>,
+        get: &dyn Fn(&K, Option<&V>, &mut STATE),
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        state: &mut STATE,
+    ) where
+        K: Hash + Eq,
+        L: LockPolicy,
+    {
+        if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
+            let value_ref = lock_guards
+                .write
+                .get(key.shard_index.0)
+                .expect(MISSING_LOCK_GUARD_ERROR)
+                .find(key.hash_code.0, |entry| entry.0 == key.key)
+                .map(|(_, value)| value);
+            (get)(&key.key, value_ref, state)
+        } else {
+            let value_ref = lock_guards
+                .read
+                .get(key.shard_index.0)
+                .expect(MISSING_LOCK_GUARD_ERROR)
+                .find(key.hash_code.0, |entry| entry.0 == key.key)
+                .map(|(_, value)| value);
+            (get)(&key.key, value_ref, state)
+        }
+    }
+}
+
 pub(crate) struct GetOp<'tx, K, V, STATE>
 where
     K: Hash + Eq,
@@ -23,22 +55,6 @@ where
         (self.key.shard_index.bitmask(), BitMask::ZERO)
     }
     fn apply(&self, lock_guards: &mut LockGuards<'_, K, V, L>, state: &mut STATE) {
-        if (self.key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
-            let value_ref = lock_guards
-                .write
-                .get(self.key.shard_index.0)
-                .expect(MISSING_LOCK_GUARD_ERROR)
-                .find(self.key.hash_code.0, |entry| entry.0 == self.key.key)
-                .map(|(_, value)| value);
-            (self.get)(&self.key.key, value_ref, state)
-        } else {
-            let value_ref = lock_guards
-                .read
-                .get(self.key.shard_index.0)
-                .expect(MISSING_LOCK_GUARD_ERROR)
-                .find(self.key.hash_code.0, |entry| entry.0 == self.key.key)
-                .map(|(_, value)| value);
-            (self.get)(&self.key.key, value_ref, state)
-        }
+        GetOpApply::apply(&self.key, &*self.get, lock_guards, state)
     }
 }

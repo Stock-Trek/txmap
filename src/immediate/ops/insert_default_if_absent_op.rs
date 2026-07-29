@@ -4,6 +4,19 @@ use crate::{
 };
 use std::hash::Hash;
 
+pub(crate) struct InsertDefaultIfAbsentOpApply;
+
+impl InsertDefaultIfAbsentOpApply {
+    pub(crate) fn apply<K, V, L>(key: &TxKey<K>, lock_guards: &mut LockGuards<'_, K, V, L>)
+    where
+        K: Clone + Hash + Eq,
+        V: Default,
+        L: LockPolicy,
+    {
+        lock_guards.insert_if_absent(key, || V::default());
+    }
+}
+
 pub(crate) struct InsertDefaultIfAbsentOp<K>
 where
     K: Hash + Eq,
@@ -21,6 +34,6 @@ where
         (BitMask::ZERO, self.key.shard_index.bitmask())
     }
     fn apply(&self, lock_guards: &mut LockGuards<'_, K, V, L>, _state: &mut STATE) {
-        lock_guards.insert_if_absent(&self.key, || V::default());
+        InsertDefaultIfAbsentOpApply::apply::<K, V, L>(&self.key, lock_guards)
     }
 }
