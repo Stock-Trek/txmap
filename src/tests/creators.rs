@@ -6,11 +6,11 @@ pub(crate) fn empty_typed_map<K, V>() -> TxMap<K, V>
 where
     K: Hash + Eq,
 {
-    TxMapBuilder::new().with_shards(Shards::_8).build()
+    TxMapBuilder::default().with_shards(Shards::_8).build()
 }
 
 pub(crate) fn empty_map() -> TxMap<String, u64> {
-    TxMapBuilder::new().with_shards(Shards::_8).build()
+    TxMapBuilder::default().with_shards(Shards::_8).build()
 }
 
 pub(crate) fn map_alice(alice: u64) -> TxMap<String, u64> {

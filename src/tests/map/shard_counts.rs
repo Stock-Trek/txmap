@@ -33,7 +33,7 @@ fn sanity_check() {
         Shards::_64,
         Shards::_128,
     ] {
-        let map: TxMap<u64, u64> = TxMapBuilder::new().with_shards(shards).build();
+        let map: TxMap<u64, u64> = TxMapBuilder::default().with_shards(shards).build();
         assert!(map.is_empty());
         map.insert(1, 10);
         assert_eq!(map.len(), 1);

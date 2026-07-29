@@ -5,26 +5,44 @@ use crate::{
     shards::Shards,
     tx_map::TxMap,
 };
-use std::hash::{Hash, RandomState};
+use std::{hash::Hash, marker::PhantomData};
 
-pub struct TxMapBuilder<L = MutexPolicy>
+pub struct TxMapBuilder<L>
 where
     L: LockPolicy,
 {
-    build_hasher: RandomState,
-    capacity: usize,
-    #[allow(dead_code)]
-    lock_policy: L,
+    _phantom_l: PhantomData<L>,
     shards: Shards,
+    capacity: usize,
 }
 
 impl<L> TxMapBuilder<L>
 where
-    L: LockPolicy + Default,
+    L: LockPolicy,
 {
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    pub fn with_capacity(mut self, capacity: usize) -> Self {
+        self.capacity = capacity;
+        self
+    }
+    #[must_use]
+    pub fn with_shards(mut self, shards: Shards) -> Self {
+        self.shards = shards;
+        self
+    }
+    #[must_use]
+    pub fn with_lock_policy<LP>(self) -> TxMapBuilder<LP>
+    where
+        LP: LockPolicy,
+    {
+        let Self {
+            capacity, shards, ..
+        } = self;
+        TxMapBuilder::<LP> {
+            capacity,
+            shards,
+            _phantom_l: PhantomData,
+        }
     }
     #[must_use]
     pub fn build<K, V>(self) -> TxMap<K, V, L>
@@ -37,33 +55,14 @@ where
             custodian: Custodian::new(shard_count),
         }
     }
-    #[must_use]
-    pub fn with_capacity(mut self, capacity: usize) -> Self {
-        self.capacity = capacity;
-        self
-    }
-    #[must_use]
-    pub fn with_shards(mut self, shards: Shards) -> Self {
-        self.shards = shards;
-        self
-    }
-    #[must_use]
-    pub fn with_hasher(mut self, build_hasher: RandomState) -> Self {
-        self.build_hasher = build_hasher;
-        self
-    }
 }
 
-impl<L> Default for TxMapBuilder<L>
-where
-    L: LockPolicy + Default,
-{
+impl Default for TxMapBuilder<MutexPolicy> {
     fn default() -> Self {
         Self {
-            build_hasher: RandomState::new(),
             capacity: 0,
-            lock_policy: L::default(),
             shards: Shards::_32,
+            _phantom_l: PhantomData,
         }
     }
 }

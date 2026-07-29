@@ -29,18 +29,17 @@ where
     K: Hash + Eq,
 {
     #[must_use]
-    pub fn new() -> Self {
-        TxMapBuilder::default().build()
+    pub fn new() -> TxMap<K, V, MutexPolicy> {
+        TxMap::default()
     }
 }
 
-impl<K, V, L> Default for TxMap<K, V, L>
+impl<K, V> Default for TxMap<K, V, MutexPolicy>
 where
     K: Hash + Eq,
-    L: LockPolicy + Default,
 {
     fn default() -> Self {
-        TxMapBuilder::<L>::default().build()
+        TxMapBuilder::default().build()
     }
 }
 

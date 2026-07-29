@@ -9,7 +9,7 @@ A concurrent transactional hash map for Rust with fine-grained user-defined lock
 ## Features
 
 - [**Proven performance**](#benchmarks) One of the fastest concurrent map implementations available
-- [**Flexible sharding**](#lock-policy) Choose the number of shards (between 8 and 128). Decide how they're locked (Mutex, RwLock or bring your own)
+- [**Customizable**](#creating-a-txmap) Choose the number of shards, shard locking policy (Mutex, RwLock or bring your own) and capacity
 - [**Immediate Transactions**](#immediate-transactions) Immediately execute an atomic, composable batch of modifications
 - [**Parameterized Transactions**](#parameterized-transactions) Create re-usable transactions for faster parameterized execution
 - [**Guards/conditions**](#transaction-with-guards-preconditions) Declarative preconditions that must hold before a transaction runs
@@ -38,19 +38,27 @@ txmap = "2.2.2"
 ```rust
 use txmap::prelude::*;
 
-// Shard counts available are [8, 16, 32, 64, 128]
-let map: TxMap<String, u64> = TxMapBuilder::new().with_shards(Shards::_8).build();
+let map = TxMap::new();
 ```
 
-### Lock Policy
+This creates a map using the default options. To customise these options you can use a map builder which allows configuring them.
 
-The lock policy can be set via the builder using `TxMapBuilder::<RwLockPolicy>::new()`.
-Two policies are provided: [MutexPolicy](./src/lock_policies/mutex_policy.rs) (default) and [RwLockPolicy](./src/lock_policies/rwlock_policy.rs).
+| Option            | Default                       |
+|-------------------|-------------------------------|
+| Shard count       | 32                            |
+| Lock policy       | MutexPolicy                   |
+| Initial capacity  | 0                             |
+
+Two shard locking policies are provided: [MutexPolicy](./src/lock_policies/mutex_policy.rs) (default) and [RwLockPolicy](./src/lock_policies/rwlock_policy.rs).
 You can also use your own policy by implementing [LockPolicy](./src/lock_policies/lock_policy.rs).
 
 ```rust
-// Creating a TxMap with a lock policy
-let map = TxMapBuilder::<RwLockPolicy>::new().with_shards(Shards::_8).build();
+// Creating a TxMap via a builder
+let map = TxMapBuilder::default()
+            .with_shards(Shards::_8)
+            .with_lock_policy(RwLockPolicy)
+            .with_capacity(10_000)
+            .build();
 ```
 
 ### Key type requirements
@@ -73,7 +81,7 @@ struct TransferState {
     new_to: u64,
 }
 
-let db: TxMap<String, u64> = TxMapBuilder::new().with_shards(Shards::_8).build();
+let db: TxMap<String, u64> = TxMap::new();
 
 db.insert("alice".into(), 100);
 db.insert("bob".into(), 0);
@@ -123,7 +131,7 @@ tx_schema! {
     }
 }
 
-let db: TxMap<String, u64> = TxMapBuilder::new().with_shards(Shards::_8).build();
+let db: TxMap<String, u64> = TxMap::new();
 db.insert("alice".into(), 200);
 db.insert("bob".into(), 0);
 
@@ -204,7 +212,7 @@ struct TransferResult {
     new_to: Option<u64>,
 }
 
-let db: TxMap<String, u64> = TxMapBuilder::new().with_shards(Shards::_8).build();
+let db: TxMap<String, u64> = TxMap::new();
 db.insert("alice".into(), 100);
 db.insert("bob".into(), 0);
 
