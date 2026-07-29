@@ -1,7 +1,4 @@
-use crate::{
-    immediate::ops::op_trait::OpTrait, key::TxKey, lock_guards::LockGuards,
-    lock_policies::lock_policy::LockPolicy, new_types::BitMask,
-};
+use crate::{key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy};
 use std::hash::Hash;
 
 pub(crate) struct SwapValueOpApply;
@@ -42,21 +39,4 @@ where
 {
     pub key_a: TxKey<K>,
     pub key_b: TxKey<K>,
-}
-
-impl<K, V, L, STATE> OpTrait<K, V, L, STATE> for SwapValueOp<K>
-where
-    K: Clone + Hash + Eq,
-    V:,
-    L: LockPolicy,
-{
-    fn read_write_bitmasks(&self) -> (BitMask, BitMask) {
-        (
-            BitMask::ZERO,
-            self.key_a.shard_index.bitmask() | self.key_b.shard_index.bitmask(),
-        )
-    }
-    fn apply(&self, lock_guards: &mut LockGuards<'_, K, V, L>, _: &mut STATE) {
-        SwapValueOpApply::apply::<K, V, L>(&self.key_a, &self.key_b, lock_guards)
-    }
 }

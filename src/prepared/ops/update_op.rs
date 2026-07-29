@@ -1,10 +1,6 @@
 use crate::{
-    key::TxKey,
-    lock_guards::LockGuards,
-    lock_policies::lock_policy::LockPolicy,
-    new_types::BitMask,
-    prepared::{ops::op_trait::OpTrait, schema::TxKeySelector},
-    result::MISSING_LOCK_GUARD_ERROR,
+    key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
+    new_types::BitMask, prepared::schema::TxKeySelector, result::MISSING_LOCK_GUARD_ERROR,
 };
 use std::hash::Hash;
 
@@ -63,38 +59,4 @@ where
     pub key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
     #[allow(clippy::type_complexity)]
     pub transform: Box<dyn Fn(&K, Option<&V>, &PARAMS, &mut STATE) -> Option<V> + 'tx>,
-}
-
-impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
-    for UpdateOp<'tx, K, V, KEYS, PARAMS, STATE>
-where
-    K: Clone + Hash + Eq + 'tx,
-    V: 'tx,
-    L: LockPolicy + 'tx,
-    KEYS: 'tx,
-    PARAMS: 'tx,
-    STATE: Default + 'tx,
-{
-    fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask) {
-        (
-            BitMask::ZERO,
-            self.key_selector.get(keys).shard_index.bitmask(),
-        )
-    }
-    fn apply(
-        &self,
-        lock_guards: &mut LockGuards<'_, K, V, L>,
-        keys: &KEYS,
-        params: &PARAMS,
-        state: &mut STATE,
-    ) {
-        UpdateOpApply::apply(
-            &*self.key_selector,
-            &*self.transform,
-            lock_guards,
-            keys,
-            params,
-            state,
-        )
-    }
 }

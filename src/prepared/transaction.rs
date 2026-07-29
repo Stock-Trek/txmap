@@ -2,7 +2,7 @@ use crate::{
     custodian::Custodian,
     lock_policies::lock_policy::LockPolicy,
     new_types::BitMask,
-    prepared::{guard::Guard, ops::op_trait::OpTrait, schema::TxKeys},
+    prepared::{guard::Guard, ops::op_trait::PreparedOp, schema::TxKeys},
     result::TxResult,
 };
 use std::hash::Hash;
@@ -16,12 +16,13 @@ where
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) guards: Vec<Guard<'tx, K, V, KEYS, PARAMS, STATE>>,
     #[allow(clippy::type_complexity)]
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, KEYS, PARAMS, STATE> + 'tx>>,
+    pub(crate) ops: Vec<PreparedOp<'tx, K, V, L, KEYS, PARAMS, STATE>>,
 }
 
 impl<'tx, K, V, L, KEYS, PARAMS, STATE> PreparedTransaction<'tx, K, V, L, KEYS, PARAMS, STATE>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
+    V: Default,
     L: LockPolicy,
     STATE: Default,
 {

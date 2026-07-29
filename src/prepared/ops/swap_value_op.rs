@@ -1,9 +1,6 @@
 use crate::{
-    key::TxKey,
-    lock_guards::LockGuards,
-    lock_policies::lock_policy::LockPolicy,
-    new_types::BitMask,
-    prepared::{ops::op_trait::OpTrait, schema::TxKeySelector},
+    key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
+    prepared::schema::TxKeySelector,
 };
 use std::hash::Hash;
 
@@ -48,37 +45,4 @@ where
 {
     pub key_selector_a: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
     pub key_selector_b: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
-}
-
-impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
-    for SwapValueOp<'tx, K, KEYS>
-where
-    K: Clone + Hash + Eq + 'tx,
-    V: 'tx,
-    L: LockPolicy + 'tx,
-    KEYS: 'tx,
-    PARAMS: 'tx,
-    STATE: Default + 'tx,
-{
-    fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask) {
-        (
-            BitMask::ZERO,
-            self.key_selector_a.get(keys).shard_index.bitmask()
-                | self.key_selector_b.get(keys).shard_index.bitmask(),
-        )
-    }
-    fn apply(
-        &self,
-        lock_guards: &mut LockGuards<'_, K, V, L>,
-        keys: &KEYS,
-        _: &PARAMS,
-        _: &mut STATE,
-    ) {
-        SwapValueOpApply::apply::<K, V, L, KEYS>(
-            &*self.key_selector_a,
-            &*self.key_selector_b,
-            lock_guards,
-            keys,
-        )
-    }
 }
