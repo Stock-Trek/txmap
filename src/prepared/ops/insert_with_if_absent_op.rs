@@ -7,6 +7,25 @@ use crate::{
 };
 use std::hash::Hash;
 
+pub(crate) struct InsertWithIfAbsentOpApply;
+
+impl InsertWithIfAbsentOpApply {
+    pub(crate) fn apply<K, V, L, KEYS, PARAMS, STATE>(
+        key_selector: &dyn TxKeySelector<TxKey<K>, KEYS>,
+        value_generator: &dyn Fn(&K, &PARAMS, &mut STATE) -> V,
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        keys: &KEYS,
+        params: &PARAMS,
+        state: &mut STATE,
+    ) where
+        K: Clone + Hash + Eq,
+        L: LockPolicy,
+    {
+        let key = key_selector.get(keys);
+        lock_guards.insert_if_absent(key, || (value_generator)(&key.key, params, state));
+    }
+}
+
 pub(crate) struct InsertWithIfAbsentOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
@@ -40,7 +59,13 @@ where
         params: &PARAMS,
         state: &mut STATE,
     ) {
-        let key = self.key_selector.get(keys);
-        lock_guards.insert_if_absent(key, || (self.value_generator)(&key.key, params, state));
+        InsertWithIfAbsentOpApply::apply(
+            &*self.key_selector,
+            &*self.value_generator,
+            lock_guards,
+            keys,
+            params,
+            state,
+        )
     }
 }

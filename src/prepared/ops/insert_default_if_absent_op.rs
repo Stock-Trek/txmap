@@ -7,6 +7,23 @@ use crate::{
 };
 use std::hash::Hash;
 
+pub(crate) struct InsertDefaultIfAbsentOpApply;
+
+impl InsertDefaultIfAbsentOpApply {
+    pub(crate) fn apply<K, V, L, KEYS>(
+        key_selector: &dyn TxKeySelector<TxKey<K>, KEYS>,
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        keys: &KEYS,
+    ) where
+        K: Clone + Hash + Eq,
+        V: Default,
+        L: LockPolicy,
+    {
+        let key = key_selector.get(keys);
+        lock_guards.insert_if_absent(key, || V::default());
+    }
+}
+
 pub(crate) struct InsertDefaultIfAbsentOp<'tx, K, KEYS>
 where
     K: Hash + Eq,
@@ -37,7 +54,6 @@ where
         _params: &PARAMS,
         _state: &mut STATE,
     ) {
-        let key = self.key_selector.get(keys);
-        lock_guards.insert_if_absent(key, || V::default());
+        InsertDefaultIfAbsentOpApply::apply::<K, V, L, KEYS>(&*self.key_selector, lock_guards, keys)
     }
 }

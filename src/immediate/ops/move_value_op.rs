@@ -4,6 +4,26 @@ use crate::{
 };
 use std::hash::Hash;
 
+pub(crate) struct MoveValueOpApply;
+
+impl MoveValueOpApply {
+    pub(crate) fn apply<K, V, L>(
+        key_from: &TxKey<K>,
+        key_to: &TxKey<K>,
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+    ) where
+        K: Clone + Hash + Eq,
+        L: LockPolicy,
+    {
+        let removed = lock_guards.remove_entry(key_from);
+        if let Some(entry) = removed {
+            lock_guards.insert(key_to, entry.1);
+        } else {
+            lock_guards.remove_entry(key_to);
+        }
+    }
+}
+
 pub(crate) struct MoveValueOp<K>
 where
     K: Hash + Eq,
@@ -25,11 +45,6 @@ where
         )
     }
     fn apply(&self, lock_guards: &mut LockGuards<'_, K, V, L>, _: &mut STATE) {
-        let removed = lock_guards.remove_entry(&self.key_from);
-        if let Some(entry) = removed {
-            lock_guards.insert(&self.key_to, entry.1);
-        } else {
-            lock_guards.remove_entry(&self.key_to);
-        }
+        MoveValueOpApply::apply::<K, V, L>(&self.key_from, &self.key_to, lock_guards)
     }
 }
