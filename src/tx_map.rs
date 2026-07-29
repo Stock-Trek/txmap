@@ -10,7 +10,7 @@ use crate::{
         tx_builder::{PreparedBuilderPhase, PreparedTxBuilder},
     },
     result::MISSING_LOCK_GUARD_ERROR,
-    shards::Shards,
+    tx_map_builder::TxMapBuilder,
 };
 use hashbrown::hash_table::Entry;
 use std::hash::Hash;
@@ -29,23 +29,17 @@ where
     K: Hash + Eq,
 {
     #[must_use]
-    pub fn new(shards: Shards) -> Self {
-        let shard_count = shards.into();
-        Self {
-            shard_count,
-            custodian: Custodian::new(shard_count),
-        }
+    pub fn new() -> TxMap<K, V, MutexPolicy> {
+        TxMap::default()
     }
-    #[must_use]
-    pub fn with_lock_policy<L>(shards: Shards) -> TxMap<K, V, L>
-    where
-        L: LockPolicy,
-    {
-        let shard_count = shards.into();
-        TxMap::<K, V, L> {
-            shard_count,
-            custodian: Custodian::new(shard_count),
-        }
+}
+
+impl<K, V> Default for TxMap<K, V, MutexPolicy>
+where
+    K: Hash + Eq,
+{
+    fn default() -> Self {
+        TxMapBuilder::default().build()
     }
 }
 

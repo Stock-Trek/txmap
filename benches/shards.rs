@@ -1,6 +1,6 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::{sync::Arc, thread};
-use txmap::{lock_policies::mutex_policy::MutexPolicy, prelude::*};
+use txmap::prelude::*;
 
 fn shards(c: &mut Criterion) {
     for shards in [
@@ -10,7 +10,7 @@ fn shards(c: &mut Criterion) {
         Shards::_64,
         Shards::_128,
     ] {
-        let txmap = TxMap::with_lock_policy::<MutexPolicy>(shards);
+        let txmap = TxMapBuilder::default().with_shards(shards).build();
         c.bench_function(&format!("txmap_insert_shards_{}", shards), |b| {
             b.iter(|| {
                 let key = std::hint::black_box("key".to_string());
@@ -31,7 +31,8 @@ fn concurrent_shards(c: &mut Criterion) {
         Shards::_64,
         Shards::_128,
     ] {
-        let map = Arc::new(TxMap::new(shards));
+        let map: Arc<TxMap<String, u64>> =
+            Arc::new(TxMapBuilder::default().with_shards(shards).build());
         c.bench_function(&format!("txmap_concurrent_insert_shards_{}", shards), |b| {
             b.iter(|| {
                 let handles: Vec<_> = (0..num_threads)

@@ -15,6 +15,7 @@ pub mod shards;
 #[cfg(test)]
 pub mod tests;
 pub mod tx_map;
+pub mod tx_map_builder;
 
 pub mod prelude {
     pub use crate::{
@@ -36,6 +37,7 @@ pub mod prelude {
         result::TxResult,
         shards::Shards,
         tx_map::TxMap,
+        tx_map_builder::TxMapBuilder,
     };
 }
 pub use pastey::paste as _paste;
