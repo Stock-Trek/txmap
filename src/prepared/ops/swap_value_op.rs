@@ -5,7 +5,7 @@ use crate::{
     new_types::BitMask,
     prepared::{ops::op_trait::OpTrait, schema::TxKeySelector},
 };
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 
 pub(crate) struct SwapValueOp<'tx, K, KEYS>
 where
@@ -15,12 +15,13 @@ where
     pub key_selector_b: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
 }
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
+impl<'tx, K, V, L, S, KEYS, PARAMS, STATE> OpTrait<K, V, L, S, KEYS, PARAMS, STATE>
     for SwapValueOp<'tx, K, KEYS>
 where
     K: Clone + Hash + Eq + 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
+    S: BuildHasher + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,
     STATE: Default + 'tx,
@@ -34,10 +35,10 @@ where
     }
     fn apply(
         &self,
-        lock_guards: &mut LockGuards<'_, K, V, L>,
+        lock_guards: &mut LockGuards<'_, K, V, L, S>,
         keys: &KEYS,
-        _: &PARAMS,
-        _: &mut STATE,
+        _params: &PARAMS,
+        _state: &mut STATE,
     ) {
         let key_a = self.key_selector_a.get(keys);
         let key_b = self.key_selector_b.get(keys);

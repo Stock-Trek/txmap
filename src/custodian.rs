@@ -6,20 +6,24 @@ use crate::{
 };
 use hashbrown::HashTable;
 use intmap::IntMap;
+use std::hash::BuildHasher;
 
-pub(crate) struct Custodian<K, V, L>
+pub(crate) struct Custodian<K, V, L, S>
 where
     L: LockPolicy,
+    S: BuildHasher,
 {
     pub(crate) shard_count: ShardCount,
     pub(crate) shards: Vec<L::Lock<Shard<K, V>>>,
+    pub(crate) hash_builder: S,
 }
 
-impl<K, V, L> Custodian<K, V, L>
+impl<K, V, L, S> Custodian<K, V, L, S>
 where
     L: LockPolicy,
+    S: BuildHasher,
 {
-    pub fn new(shard_count: ShardCount) -> Self {
+    pub fn new(shard_count: ShardCount, hash_builder: S) -> Self {
         let mut shards = Vec::with_capacity(shard_count.0 as usize);
         for _ in 0..shard_count.0 {
             shards.push(L::new(HashTable::new()));
@@ -27,6 +31,7 @@ where
         Self {
             shard_count,
             shards,
+            hash_builder,
         }
     }
     pub fn all_read_guards(&self) -> IntMap<u8, L::ReadGuard<'_, Shard<K, V>>> {
@@ -43,7 +48,11 @@ where
         };
         BitMask(bitmask)
     }
-    pub fn lock_guards<'ex>(&'ex self, read: BitMask, write: BitMask) -> LockGuards<'ex, K, V, L> {
+    pub fn lock_guards<'ex>(
+        &'ex self,
+        read: BitMask,
+        write: BitMask,
+    ) -> LockGuards<'ex, K, V, L, S> {
         let mut read_guards = IntMap::new();
         let mut write_guards = IntMap::new();
         for i in 0..self.shard_count.0 {
@@ -57,10 +66,11 @@ where
                 read_guards.insert(i, read_guard);
             };
         }
-        LockGuards::<'ex, K, V, L> {
+        LockGuards::<'ex, K, V, L, S> {
             read: read_guards,
             write: write_guards,
             write_bitmask: write,
+            hash_builder: &self.hash_builder,
         }
     }
     pub fn read_guard_at(&self, shard_index: ShardIndex) -> L::ReadGuard<'_, Shard<K, V>> {

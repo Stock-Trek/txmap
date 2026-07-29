@@ -3,24 +3,27 @@ use crate::{
     result::MISSING_LOCK_GUARD_ERROR, shard::Shard,
 };
 use intmap::IntMap;
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 
-pub(crate) struct LockGuards<'ex, K, V, L>
+pub(crate) struct LockGuards<'ex, K, V, L, S>
 where
     K: 'ex,
     V: 'ex,
     L: LockPolicy + 'ex,
+    S: BuildHasher + 'ex,
 {
     pub read: IntMap<u8, L::ReadGuard<'ex, Shard<K, V>>>,
     pub write: IntMap<u8, L::WriteGuard<'ex, Shard<K, V>>>,
     pub write_bitmask: BitMask,
+    pub hash_builder: &'ex S,
 }
 
-impl<'ex, K, V, L> LockGuards<'ex, K, V, L>
+impl<'ex, K, V, L, S> LockGuards<'ex, K, V, L, S>
 where
     K: 'ex,
     V: 'ex,
     L: LockPolicy + 'ex,
+    S: BuildHasher + 'ex,
 {
     pub fn insert(&mut self, key: &TxKey<K>, value: V)
     where
@@ -33,7 +36,7 @@ where
             .entry(
                 key.hash_code.0,
                 |entry| entry.0 == key.key,
-                |entry| Indexer::hash(&entry.0).0,
+                |entry| Indexer::hash(&entry.0, self.hash_builder).0,
             )
             .insert((key.key.clone(), value));
     }
@@ -48,7 +51,7 @@ where
             .entry(
                 key.hash_code.0,
                 |entry| entry.0 == key.key,
-                |entry| Indexer::hash(&entry.0).0,
+                |entry| Indexer::hash(&entry.0, self.hash_builder).0,
             )
             .or_insert_with(|| (key.key.clone(), value_gen()));
     }
@@ -63,7 +66,7 @@ where
             .entry(
                 key.hash_code.0,
                 |entry| entry.0 == key.key,
-                |entry| Indexer::hash(&entry.0).0,
+                |entry| Indexer::hash(&entry.0, self.hash_builder).0,
             )
             .insert((duplicate_key, value));
     }

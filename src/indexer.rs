@@ -2,17 +2,17 @@ use crate::{
     key::TxKey,
     new_types::{HashCode, ShardCount, ShardIndex},
 };
-use rapidhash::fast::RapidHasher;
-use std::hash::{Hash, Hasher};
+use std::hash::{BuildHasher, Hash};
 
 pub struct Indexer;
 
 impl Indexer {
-    pub fn indexed_key<K>(shard_count: ShardCount, key: K) -> TxKey<K>
+    pub fn indexed_key<K, S>(shard_count: ShardCount, key: K, hash_builder: &S) -> TxKey<K>
     where
         K: Hash + Eq,
+        S: BuildHasher,
     {
-        let hash_code = Self::hash(&key);
+        let hash_code = Self::hash(&key, hash_builder);
         let shard_index = Self::shard_index(shard_count, hash_code);
         TxKey {
             hash_code,
@@ -23,12 +23,11 @@ impl Indexer {
     pub(crate) fn shard_index(shard_count: ShardCount, hash_code: HashCode) -> ShardIndex {
         ShardIndex((hash_code.0 & (shard_count.0 as u64 - 1)) as u8)
     }
-    pub(crate) fn hash<K>(key: &K) -> HashCode
+    pub(crate) fn hash<K, S>(key: &K, hash_builder: &S) -> HashCode
     where
         K: Hash,
+        S: BuildHasher,
     {
-        let mut state = RapidHasher::default();
-        key.hash(&mut state);
-        HashCode(state.finish())
+        HashCode(hash_builder.hash_one(key))
     }
 }

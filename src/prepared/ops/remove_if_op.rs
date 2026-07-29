@@ -6,7 +6,7 @@ use crate::{
     prepared::{ops::op_trait::OpTrait, schema::TxKeySelector},
     result::MISSING_LOCK_GUARD_ERROR,
 };
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 
 pub(crate) struct RemoveIfOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
@@ -17,12 +17,13 @@ where
     pub condition: Box<dyn Fn(&K, &V, &PARAMS, &mut STATE) -> bool + 'tx>,
 }
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
+impl<'tx, K, V, L, S, KEYS, PARAMS, STATE> OpTrait<K, V, L, S, KEYS, PARAMS, STATE>
     for RemoveIfOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq + 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
+    S: BuildHasher + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,
     STATE: Default + 'tx,
@@ -35,13 +36,12 @@ where
     }
     fn apply(
         &self,
-        lock_guards: &mut LockGuards<'_, K, V, L>,
+        lock_guards: &mut LockGuards<'_, K, V, L, S>,
         keys: &KEYS,
         params: &PARAMS,
         state: &mut STATE,
     ) {
         let key = self.key_selector.get(keys);
-
         if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
             let value_ref = lock_guards
                 .write

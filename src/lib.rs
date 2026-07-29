@@ -39,5 +39,9 @@ pub mod prelude {
         tx_map::TxMap,
         tx_map_builder::TxMapBuilder,
     };
+    pub use std::{
+        collections::hash_map::RandomState,
+        hash::{BuildHasher, Hash},
+    };
 }
 pub use pastey::paste as _paste;

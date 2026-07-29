@@ -2,7 +2,7 @@ use crate::{
     immediate::ops::op_trait::OpTrait, key::TxKey, lock_guards::LockGuards,
     lock_policies::lock_policy::LockPolicy, new_types::BitMask,
 };
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 
 pub(crate) struct SwapValueOp<K>
 where
@@ -12,11 +12,12 @@ where
     pub key_b: TxKey<K>,
 }
 
-impl<K, V, L, STATE> OpTrait<K, V, L, STATE> for SwapValueOp<K>
+impl<K, V, L, S, STATE> OpTrait<K, V, L, S, STATE> for SwapValueOp<K>
 where
     K: Clone + Hash + Eq,
     V:,
     L: LockPolicy,
+    S: BuildHasher,
 {
     fn read_write_bitmasks(&self) -> (BitMask, BitMask) {
         (
@@ -24,7 +25,7 @@ where
             self.key_a.shard_index.bitmask() | self.key_b.shard_index.bitmask(),
         )
     }
-    fn apply(&self, lock_guards: &mut LockGuards<'_, K, V, L>, _: &mut STATE) {
+    fn apply(&self, lock_guards: &mut LockGuards<'_, K, V, L, S>, _: &mut STATE) {
         let a = lock_guards.remove_entry(&self.key_a);
         let b = lock_guards.remove_entry(&self.key_b);
         match a {

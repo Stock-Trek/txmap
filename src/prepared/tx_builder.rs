@@ -15,33 +15,35 @@ use crate::{
         transaction::PreparedTransaction,
     },
 };
-use std::{hash::Hash, marker::PhantomData};
+use std::{hash::BuildHasher, hash::Hash, marker::PhantomData};
 
 pub struct PreparedBuilderPhase;
 pub struct PreparedBuildablePhase;
 
-pub struct PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE = PreparedBuilderPhase>
+pub struct PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PHASE = PreparedBuilderPhase>
 where
     K: Hash + Eq + 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
+    S: BuildHasher + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,
     STATE: Default + 'tx,
 {
-    pub(crate) custodian: &'tx Custodian<K, V, L>,
+    pub(crate) custodian: &'tx Custodian<K, V, L, S>,
     pub(crate) guards: Vec<Guard<'tx, K, V, KEYS, PARAMS, STATE>>,
     #[allow(clippy::type_complexity)]
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, KEYS, PARAMS, STATE> + 'tx>>,
+    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, S, KEYS, PARAMS, STATE> + 'tx>>,
     pub(crate) _phase: PhantomData<PHASE>,
 }
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE>
-    PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuilderPhase>
+impl<'tx, K, V, L, S, KEYS, PARAMS, STATE>
+    PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuilderPhase>
 where
     K: Hash + Eq + 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
+    S: BuildHasher + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,
     STATE: Default + 'tx,
@@ -51,7 +53,7 @@ where
         name: impl AsRef<str>,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         condition: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) -> bool + 'tx,
-    ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuilderPhase> {
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuilderPhase> {
         let guard = Guard {
             name: name.as_ref().into(),
             key_selector: Box::new(key_selector),
@@ -68,12 +70,13 @@ where
     }
 }
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE>
-    PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PHASE>
+impl<'tx, K, V, L, S, KEYS, PARAMS, STATE, PHASE>
+    PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PHASE>
 where
     K: Hash + Eq + 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
+    S: BuildHasher + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,
     STATE: Default + 'tx,
@@ -82,7 +85,7 @@ where
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         get: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) + 'tx,
-    ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase> {
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase> {
         let op = GetOp {
             key_selector: Box::new(key_selector),
             get: Box::new(get),
@@ -98,7 +101,7 @@ where
     pub fn insert_default(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase>
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase>
     where
         K: Clone,
         V: Default,
@@ -117,7 +120,7 @@ where
     pub fn insert_default_if_absent(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase>
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase>
     where
         K: Clone,
         V: Default,
@@ -137,7 +140,7 @@ where
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         value_generator: impl Fn(&K, &PARAMS, &mut STATE) -> V + 'tx,
-    ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase>
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase>
     where
         K: Clone,
     {
@@ -157,7 +160,7 @@ where
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         value_generator: impl Fn(&K, &PARAMS, &mut STATE) -> V + 'tx,
-    ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase>
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase>
     where
         K: Clone,
     {
@@ -177,7 +180,7 @@ where
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         mutate: impl Fn(&K, &mut V, &PARAMS, &mut STATE) + 'tx,
-    ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase> {
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase> {
         let op = ModifyOp {
             key_selector: Box::new(key_selector),
             mutate: Box::new(mutate),
@@ -194,7 +197,7 @@ where
         mut self,
         key_selector_from: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         key_selector_to: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase>
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase>
     where
         K: Clone,
     {
@@ -214,7 +217,7 @@ where
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         on_remove: impl Fn(Option<(K, V)>, &PARAMS, &mut STATE) + 'tx,
-    ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase> {
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase> {
         let op = RemoveOp {
             key_selector: Box::new(key_selector),
             on_remove: Box::new(on_remove),
@@ -231,7 +234,7 @@ where
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         condition: impl Fn(&K, &V, &PARAMS, &mut STATE) -> bool + 'tx,
-    ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase> {
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase> {
         let op = RemoveIfOp {
             key_selector: Box::new(key_selector),
             condition: Box::new(condition),
@@ -248,7 +251,7 @@ where
         mut self,
         key_selector_a: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         key_selector_b: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-    ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase>
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase>
     where
         K: Clone,
     {
@@ -268,7 +271,7 @@ where
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         transform: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) -> Option<V> + 'tx,
-    ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase>
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase>
     where
         K: Clone,
     {
@@ -286,18 +289,19 @@ where
     }
 }
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE>
-    PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase>
+impl<'tx, K, V, L, S, KEYS, PARAMS, STATE>
+    PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase>
 where
     K: Hash + Eq + 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
+    S: BuildHasher + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,
     STATE: Default + 'tx,
 {
     #[must_use]
-    pub fn into_transaction(self) -> PreparedTransaction<'tx, K, V, L, KEYS, PARAMS, STATE> {
+    pub fn into_transaction(self) -> PreparedTransaction<'tx, K, V, L, S, KEYS, PARAMS, STATE> {
         PreparedTransaction {
             custodian: self.custodian,
             guards: self.guards,

@@ -5,24 +5,26 @@ use crate::{
     prepared::{guard::Guard, ops::op_trait::OpTrait, schema::TxKeys},
     result::TxResult,
 };
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 
-pub struct PreparedTransaction<'tx, K, V, L, KEYS, PARAMS, STATE>
+pub struct PreparedTransaction<'tx, K, V, L, S, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
     L: LockPolicy,
+    S: BuildHasher,
     STATE: Default,
 {
-    pub(crate) custodian: &'tx Custodian<K, V, L>,
+    pub(crate) custodian: &'tx Custodian<K, V, L, S>,
     pub(crate) guards: Vec<Guard<'tx, K, V, KEYS, PARAMS, STATE>>,
     #[allow(clippy::type_complexity)]
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, KEYS, PARAMS, STATE> + 'tx>>,
+    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, S, KEYS, PARAMS, STATE> + 'tx>>,
 }
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE> PreparedTransaction<'tx, K, V, L, KEYS, PARAMS, STATE>
+impl<'tx, K, V, L, S, KEYS, PARAMS, STATE> PreparedTransaction<'tx, K, V, L, S, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
     L: LockPolicy,
+    S: BuildHasher,
     STATE: Default,
 {
     #[must_use]
@@ -30,7 +32,7 @@ where
     where
         RAW: TxKeys<K, KEYS>,
     {
-        let keys = keys.into_indexed(self.custodian.shard_count);
+        let keys = keys.into_indexed(self.custodian.shard_count, &self.custodian.hash_builder);
         let mut total_read_bitmask = BitMask::ZERO;
         let mut total_write_bitmask = BitMask::ZERO;
 
@@ -51,7 +53,7 @@ where
             .lock_guards(total_read_bitmask, total_write_bitmask);
         let mut state = STATE::default();
         for (i, guard) in self.guards.iter().enumerate() {
-            if !guard.is_condition_met::<L>(&mut lock_guards, &keys, &params, &mut state) {
+            if !guard.is_condition_met::<L, S>(&mut lock_guards, &keys, &params, &mut state) {
                 return TxResult::RequirementNotMet(i, guard.name.clone(), state);
             }
         }

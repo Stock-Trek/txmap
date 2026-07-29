@@ -1,25 +1,29 @@
 use crate::{lock_policies::lock_policy::LockPolicy, shard::Shard, tx_map::TxMap};
 use intmap::IntMap;
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
+use std::marker::PhantomData;
 
-pub struct Iter<'a, K, V, L>
+pub struct Iter<'a, K, V, L, S>
 where
     K: Hash + Eq + 'a,
     V: 'a,
     L: LockPolicy + 'a,
+    S: BuildHasher + 'a,
 {
     pub(crate) _guards: IntMap<u8, L::ReadGuard<'a, Shard<K, V>>>,
     pub(crate) shard_index: u8,
     pub(crate) bucket_index: usize,
     pub(crate) shard_count: u8,
     pub(crate) remaining: usize,
+    pub(crate) _phantom: PhantomData<S>,
 }
 
-impl<'a, K, V, L> Iterator for Iter<'a, K, V, L>
+impl<'a, K, V, L, S> Iterator for Iter<'a, K, V, L, S>
 where
     K: Hash + Eq + 'a,
     V: 'a,
     L: LockPolicy + 'a,
+    S: BuildHasher + 'a,
 {
     type Item = (&'a K, &'a V);
 
@@ -53,14 +57,15 @@ where
     }
 }
 
-impl<'a, K, V, L> IntoIterator for &'a TxMap<K, V, L>
+impl<'a, K, V, L, S> IntoIterator for &'a TxMap<K, V, L, S>
 where
     K: Hash + Eq + 'a,
     V: 'a,
     L: LockPolicy + 'a,
+    S: BuildHasher + 'a,
 {
     type Item = (&'a K, &'a V);
-    type IntoIter = Iter<'a, K, V, L>;
+    type IntoIter = Iter<'a, K, V, L, S>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()

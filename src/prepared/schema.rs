@@ -1,5 +1,5 @@
 use crate::new_types::ShardCount;
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 
 pub trait TxSchema<K>
 where
@@ -14,7 +14,8 @@ pub trait TxKeys<K, IndexedKeys>
 where
     K: Hash + Eq,
 {
-    fn into_indexed(self, shard_count: ShardCount) -> IndexedKeys;
+    fn into_indexed<S: BuildHasher>(self, shard_count: ShardCount, hash_builder: &S)
+    -> IndexedKeys;
 }
 
 pub trait TxKeySelector<K, KEYS>
@@ -119,10 +120,10 @@ macro_rules! tx_schema {
                 where
                     K: std::hash::Hash + Eq,
                 {
-                    fn into_indexed(self, shard_count: $crate::prelude::ShardCount) -> [<$name IndexedKeys>]<K> {
+                    fn into_indexed<S: std::hash::BuildHasher>(self, shard_count: $crate::prelude::ShardCount, hash_builder: &S) -> [<$name IndexedKeys>]<K> {
                         [<$name IndexedKeys>] {
                             $(
-                                $key: $crate::prelude::Indexer::indexed_key(shard_count, self.$key),
+                                $key: $crate::prelude::Indexer::indexed_key(shard_count, self.$key, hash_builder),
                             )*
                         }
                     }

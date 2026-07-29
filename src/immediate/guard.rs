@@ -2,7 +2,7 @@ use crate::{
     key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
     new_types::BitMask, result::MISSING_LOCK_GUARD_ERROR,
 };
-use std::{hash::Hash, marker::PhantomData};
+use std::{hash::BuildHasher, hash::Hash, marker::PhantomData};
 
 pub(crate) struct Guard<'tx, K, V, STATE>
 where
@@ -22,13 +22,14 @@ where
     pub fn read_bitmask(&self) -> BitMask {
         self.key.shard_index.bitmask()
     }
-    pub fn is_condition_met<L>(
+    pub fn is_condition_met<L, S>(
         &self,
-        lock_guards: &mut LockGuards<'_, K, V, L>,
+        lock_guards: &mut LockGuards<'_, K, V, L, S>,
         state: &mut STATE,
     ) -> bool
     where
         L: LockPolicy,
+        S: BuildHasher,
     {
         if (self.key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
             let value_ref = lock_guards

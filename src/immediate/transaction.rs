@@ -5,23 +5,25 @@ use crate::{
     new_types::BitMask,
     result::TxResult,
 };
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 
-pub struct ImmediateTransaction<'tx, K, V, L, STATE>
+pub struct ImmediateTransaction<'tx, K, V, L, S, STATE>
 where
     K: Hash + Eq,
     L: LockPolicy,
+    S: BuildHasher,
 {
-    pub(crate) custodian: &'tx Custodian<K, V, L>,
+    pub(crate) custodian: &'tx Custodian<K, V, L, S>,
     pub(crate) guards: Vec<Guard<'tx, K, V, STATE>>,
     #[allow(clippy::type_complexity)]
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, STATE> + 'tx>>,
+    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, S, STATE> + 'tx>>,
 }
 
-impl<'tx, K, V, L, STATE> ImmediateTransaction<'tx, K, V, L, STATE>
+impl<'tx, K, V, L, S, STATE> ImmediateTransaction<'tx, K, V, L, S, STATE>
 where
     K: Hash + Eq,
     L: LockPolicy,
+    S: BuildHasher,
     STATE: Default,
 {
     #[must_use]
@@ -46,7 +48,7 @@ where
             .lock_guards(total_read_bitmask, total_write_bitmask);
         let mut state = STATE::default();
         for (i, guard) in self.guards.iter().enumerate() {
-            if !guard.is_condition_met::<L>(&mut lock_guards, &mut state) {
+            if !guard.is_condition_met::<L, S>(&mut lock_guards, &mut state) {
                 return TxResult::RequirementNotMet(i, guard.name.clone(), state);
             }
         }

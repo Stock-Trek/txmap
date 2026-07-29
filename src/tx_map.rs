@@ -13,15 +13,18 @@ use crate::{
     tx_map_builder::TxMapBuilder,
 };
 use hashbrown::hash_table::Entry;
-use std::hash::Hash;
+use std::collections::hash_map::RandomState;
+use std::hash::{BuildHasher, Hash};
+use std::marker::PhantomData;
 
-pub struct TxMap<K, V, L = MutexPolicy>
+pub struct TxMap<K, V, L = MutexPolicy, S = RandomState>
 where
     K: Hash + Eq,
     L: LockPolicy,
+    S: BuildHasher,
 {
     pub(crate) shard_count: ShardCount,
-    pub(crate) custodian: Custodian<K, V, L>,
+    pub(crate) custodian: Custodian<K, V, L, S>,
 }
 
 impl<K, V> TxMap<K, V>
@@ -29,12 +32,12 @@ where
     K: Hash + Eq,
 {
     #[must_use]
-    pub fn new() -> TxMap<K, V, MutexPolicy> {
+    pub fn new() -> TxMap<K, V, MutexPolicy, RandomState> {
         TxMap::default()
     }
 }
 
-impl<K, V> Default for TxMap<K, V, MutexPolicy>
+impl<K, V> Default for TxMap<K, V, MutexPolicy, RandomState>
 where
     K: Hash + Eq,
 {
@@ -43,27 +46,28 @@ where
     }
 }
 
-impl<K, V, L> TxMap<K, V, L>
+impl<K, V, L, S> TxMap<K, V, L, S>
 where
     K: Hash + Eq,
     L: LockPolicy,
+    S: BuildHasher,
 {
     #[must_use]
     pub fn get_with<R>(&self, key: &K, transform: impl FnOnce(&V) -> R) -> Option<R> {
-        let hash_code = Indexer::hash(&key);
+        let hash_code = Indexer::hash(&key, &self.custodian.hash_builder);
         let shard_index = Indexer::shard_index(self.shard_count, hash_code);
         let read_guard = self.custodian.read_guard_at(shard_index);
         let entry = read_guard.find(hash_code.0, |entry| entry.0 == *key);
         entry.map(|e| transform(&e.1))
     }
     pub fn insert(&self, key: K, value: V) -> Option<V> {
-        let hash_code = Indexer::hash(&key);
+        let hash_code = Indexer::hash(&key, &self.custodian.hash_builder);
         let shard_index = Indexer::shard_index(self.shard_count, hash_code);
         let mut write_guard = self.custodian.write_guard_at(shard_index);
         let entry = write_guard.entry(
             hash_code.0,
             |entry| entry.0 == key,
-            |entry| Indexer::hash(&entry.0).0,
+            |entry| Indexer::hash(&entry.0, &self.custodian.hash_builder).0,
         );
         match entry {
             Entry::Occupied(occupied) => {
@@ -78,13 +82,13 @@ where
         }
     }
     pub fn insert_with_if_absent(&self, key: K, value_generator: impl FnOnce() -> V) -> bool {
-        let hash_code = Indexer::hash(&key);
+        let hash_code = Indexer::hash(&key, &self.custodian.hash_builder);
         let shard_index = Indexer::shard_index(self.shard_count, hash_code);
         let mut write_guard = self.custodian.write_guard_at(shard_index);
         let entry = write_guard.entry(
             hash_code.0,
             |entry| entry.0 == key,
-            |entry| Indexer::hash(&entry.0).0,
+            |entry| Indexer::hash(&entry.0, &self.custodian.hash_builder).0,
         );
         match entry {
             Entry::Occupied(_occupied) => false,
@@ -95,13 +99,13 @@ where
         }
     }
     pub fn modify(&self, key: &K, mutate: impl FnOnce(&K, &mut V)) -> bool {
-        let hash_code = Indexer::hash(&key);
+        let hash_code = Indexer::hash(&key, &self.custodian.hash_builder);
         let shard_index = Indexer::shard_index(self.shard_count, hash_code);
         let mut write_guard = self.custodian.write_guard_at(shard_index);
         let entry = write_guard.entry(
             hash_code.0,
             |entry| entry.0 == *key,
-            |entry| Indexer::hash(&entry.0).0,
+            |entry| Indexer::hash(&entry.0, &self.custodian.hash_builder).0,
         );
         match entry {
             Entry::Occupied(mut occupied) => {
@@ -113,8 +117,10 @@ where
         }
     }
     pub fn move_value(&self, key_from: &K, key_to: K) {
-        let tx_key_from = Indexer::indexed_key(self.shard_count, key_from);
-        let tx_key_to = Indexer::indexed_key(self.shard_count, key_to);
+        let tx_key_from =
+            Indexer::indexed_key(self.shard_count, key_from, &self.custodian.hash_builder);
+        let tx_key_to =
+            Indexer::indexed_key(self.shard_count, key_to, &self.custodian.hash_builder);
         let write_bitmasks = tx_key_from.shard_index.bitmask() | tx_key_from.shard_index.bitmask();
         let mut lock_guards = self.custodian.lock_guards(BitMask::ZERO, write_bitmasks);
         let removed_entry_from = lock_guards
@@ -132,7 +138,7 @@ where
                 .entry(
                     tx_key_to.hash_code.0,
                     |entry| entry.0 == tx_key_to.key,
-                    |entry| Indexer::hash(&entry.0).0,
+                    |entry| Indexer::hash(&entry.0, lock_guards.hash_builder).0,
                 );
             match entry_to {
                 Entry::Occupied(occupied) => {
@@ -153,13 +159,13 @@ where
         }
     }
     pub fn remove(&self, key: &K) -> Option<V> {
-        let hash_code = Indexer::hash(&key);
+        let hash_code = Indexer::hash(&key, &self.custodian.hash_builder);
         let shard_index = Indexer::shard_index(self.shard_count, hash_code);
         let mut write_guard = self.custodian.write_guard_at(shard_index);
         let entry = write_guard.entry(
             hash_code.0,
             |entry| entry.0 == *key,
-            |entry| Indexer::hash(&entry.0).0,
+            |entry| Indexer::hash(&entry.0, &self.custodian.hash_builder).0,
         );
         match entry {
             Entry::Occupied(occupied) => {
@@ -170,13 +176,13 @@ where
         }
     }
     pub fn remove_if(&self, key: &K, condition: impl FnOnce(&K, &V) -> bool) -> Option<V> {
-        let hash_code = Indexer::hash(&key);
+        let hash_code = Indexer::hash(&key, &self.custodian.hash_builder);
         let shard_index = Indexer::shard_index(self.shard_count, hash_code);
         let mut write_guard = self.custodian.write_guard_at(shard_index);
         let entry = write_guard.entry(
             hash_code.0,
             |entry| entry.0 == *key,
-            |entry| Indexer::hash(&entry.0).0,
+            |entry| Indexer::hash(&entry.0, &self.custodian.hash_builder).0,
         );
         match entry {
             Entry::Occupied(occupied) => {
@@ -191,8 +197,8 @@ where
         }
     }
     pub fn swap_value(&self, key_a: K, key_b: K) {
-        let tx_key_a = Indexer::indexed_key(self.shard_count, key_a);
-        let tx_key_b = Indexer::indexed_key(self.shard_count, key_b);
+        let tx_key_a = Indexer::indexed_key(self.shard_count, key_a, &self.custodian.hash_builder);
+        let tx_key_b = Indexer::indexed_key(self.shard_count, key_b, &self.custodian.hash_builder);
         let write_bitmasks = tx_key_a.shard_index.bitmask() | tx_key_a.shard_index.bitmask();
         let mut lock_guards = self.custodian.lock_guards(BitMask::ZERO, write_bitmasks);
         let a = lock_guards.remove_entry(&tx_key_a);
@@ -211,7 +217,7 @@ where
                         .entry(
                             tx_key_b.hash_code.0,
                             |entry| entry.0 == tx_key_b.key,
-                            |entry| Indexer::hash(&entry.0).0,
+                            |entry| Indexer::hash(&entry.0, lock_guards.hash_builder).0,
                         )
                         .insert((tx_key_b.key, a_value));
                 }
@@ -225,7 +231,7 @@ where
                         .entry(
                             tx_key_a.hash_code.0,
                             |entry| entry.0 == tx_key_a.key,
-                            |entry| Indexer::hash(&entry.0).0,
+                            |entry| Indexer::hash(&entry.0, lock_guards.hash_builder).0,
                         )
                         .insert((tx_key_a.key, b_value));
                 }
@@ -233,13 +239,13 @@ where
         }
     }
     pub fn update(&self, key: K, transform: impl FnOnce(&K, Option<&V>) -> Option<V>) {
-        let hash_code = Indexer::hash(&key);
+        let hash_code = Indexer::hash(&key, &self.custodian.hash_builder);
         let shard_index = Indexer::shard_index(self.shard_count, hash_code);
         let mut write_guard = self.custodian.write_guard_at(shard_index);
         let entry = write_guard.entry(
             hash_code.0,
             |entry| entry.0 == key,
-            |entry| Indexer::hash(&entry.0).0,
+            |entry| Indexer::hash(&entry.0, &self.custodian.hash_builder).0,
         );
         match entry {
             Entry::Occupied(occupied) => {
@@ -262,10 +268,11 @@ where
     }
 
     #[must_use]
-    pub fn immediate_tx<'tx, STATE>(&'tx self) -> ImmediateTxBuilder<'tx, K, V, L, STATE>
+    pub fn immediate_tx<'tx, STATE>(&'tx self) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE>
     where
         K: 'tx,
         V: 'tx,
+        S: 'tx,
         STATE: Default + 'tx,
     {
         ImmediateTxBuilder {
@@ -279,10 +286,11 @@ where
     pub fn prepared_tx<'tx, SCHEMA, RAW, KEYS, PARAMS, STATE>(
         &'tx self,
         _schema: &SCHEMA,
-    ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuilderPhase>
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuilderPhase>
     where
         K: 'tx,
         V: 'tx,
+        S: 'tx,
         SCHEMA: TxSchema<K, Keys = RAW, IndexedKeys = KEYS, Params = PARAMS, State = STATE> + 'tx,
         RAW: TxKeys<K, KEYS> + 'tx,
         KEYS: 'tx,
@@ -329,7 +337,7 @@ where
             .fold(initial, accumulate)
     }
     #[must_use]
-    pub fn iter(&self) -> Iter<'_, K, V, L> {
+    pub fn iter(&self) -> Iter<'_, K, V, L, S> {
         let guards = self.custodian.all_read_guards();
         let remaining: usize = guards.iter().map(|(_, guard)| guard.len()).sum();
         Iter {
@@ -338,6 +346,7 @@ where
             bucket_index: 0,
             shard_count: self.shard_count.0,
             remaining,
+            _phantom: PhantomData,
         }
     }
     pub fn retain(&self, condition: impl Fn(&K, &V) -> bool) {
@@ -348,11 +357,12 @@ where
     }
 }
 
-impl<K, V, L> TxMap<K, V, L>
+impl<K, V, L, S> TxMap<K, V, L, S>
 where
     K: Hash + Eq,
     V: Copy,
     L: LockPolicy,
+    S: BuildHasher,
 {
     #[must_use]
     pub fn get_copied(&self, key: &K) -> Option<V> {
@@ -360,11 +370,12 @@ where
     }
 }
 
-impl<K, V, L> TxMap<K, V, L>
+impl<K, V, L, S> TxMap<K, V, L, S>
 where
     K: Hash + Eq,
     V: Clone,
     L: LockPolicy,
+    S: BuildHasher,
 {
     #[must_use]
     pub fn get_cloned(&self, key: &K) -> Option<V> {
@@ -372,11 +383,12 @@ where
     }
 }
 
-impl<K, V, L> TxMap<K, V, L>
+impl<K, V, L, S> TxMap<K, V, L, S>
 where
     K: Hash + Eq,
     V: Default,
     L: LockPolicy,
+    S: BuildHasher,
 {
     pub fn insert_default(&self, key: K) -> Option<V> {
         self.insert(key, V::default())
@@ -386,11 +398,12 @@ where
     }
 }
 
-impl<K, V, L> Clone for TxMap<K, V, L>
+impl<K, V, L, S> Clone for TxMap<K, V, L, S>
 where
     K: Clone + Hash + Eq,
     V: Clone,
     L: LockPolicy,
+    S: BuildHasher + Clone,
 {
     fn clone(&self) -> Self {
         let shard_count = self.shard_count;
@@ -402,6 +415,7 @@ where
         let custodian = Custodian {
             shard_count,
             shards,
+            hash_builder: self.custodian.hash_builder.clone(),
         };
         TxMap {
             shard_count,

@@ -5,24 +5,24 @@ use crate::{
     new_types::BitMask,
     prepared::{ops::op_trait::OpTrait, schema::TxKeySelector},
 };
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 
 pub(crate) struct InsertWithIfAbsentOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Hash + Eq,
-    STATE: Default,
 {
     pub key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
     #[allow(clippy::type_complexity)]
     pub value_generator: Box<dyn Fn(&K, &PARAMS, &mut STATE) -> V + 'tx>,
 }
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE> OpTrait<K, V, L, KEYS, PARAMS, STATE>
+impl<'tx, K, V, L, S, KEYS, PARAMS, STATE> OpTrait<K, V, L, S, KEYS, PARAMS, STATE>
     for InsertWithIfAbsentOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Clone + Hash + Eq + 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
+    S: BuildHasher + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,
     STATE: Default + 'tx,
@@ -35,7 +35,7 @@ where
     }
     fn apply(
         &self,
-        lock_guards: &mut LockGuards<'_, K, V, L>,
+        lock_guards: &mut LockGuards<'_, K, V, L, S>,
         keys: &KEYS,
         params: &PARAMS,
         state: &mut STATE,
