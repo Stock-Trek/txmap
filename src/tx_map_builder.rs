@@ -11,9 +11,9 @@ pub struct TxMapBuilder<L>
 where
     L: LockPolicy,
 {
-    _phantom_l: PhantomData<L>,
     shards: Shards,
     capacity: usize,
+    _phantom_l: PhantomData<L>,
 }
 
 impl<L> TxMapBuilder<L>
