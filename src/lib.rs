@@ -6,6 +6,7 @@ pub mod key;
 pub mod lock_guards;
 pub mod lock_policies;
 pub mod new_types;
+pub(crate) mod ops;
 pub mod prepared;
 pub mod result;
 #[cfg(feature = "serde")]

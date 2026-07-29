@@ -1,6 +1,6 @@
 use crate::{
     custodian::Custodian,
-    immediate::{guard::Guard, ops::op_trait::OpTrait},
+    immediate::{guard::Guard, ops::op_trait::Op},
     lock_policies::lock_policy::LockPolicy,
     new_types::BitMask,
     result::TxResult,
@@ -14,13 +14,13 @@ where
 {
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) guards: Vec<Guard<'tx, K, V, STATE>>,
-    #[allow(clippy::type_complexity)]
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, STATE> + 'tx>>,
+    pub(crate) ops: Vec<Op<'tx, K, V, STATE>>,
 }
 
 impl<'tx, K, V, L, STATE> ImmediateTransaction<'tx, K, V, L, STATE>
 where
-    K: Hash + Eq,
+    K: Hash + Eq + Clone,
+    V: Default,
     L: LockPolicy,
     STATE: Default,
 {

@@ -6,7 +6,7 @@ use crate::{
             get_op::GetOp, insert_default_if_absent_op::InsertDefaultIfAbsentOp,
             insert_default_op::InsertDefaultOp, insert_with_if_absent_op::InsertWithIfAbsentOp,
             insert_with_op::InsertWithOp, modify_op::ModifyOp, move_value_op::MoveValueOp,
-            op_trait::OpTrait, remove_if_op::RemoveIfOp, remove_op::RemoveOp,
+            op_trait::Op, remove_if_op::RemoveIfOp, remove_op::RemoveOp,
             swap_value_op::SwapValueOp, update_op::UpdateOp,
         },
         transaction::ImmediateTransaction,
@@ -30,7 +30,7 @@ where
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) guards: Vec<Guard<'tx, K, V, STATE>>,
     #[allow(clippy::type_complexity)]
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, STATE> + 'tx>>,
+    pub(crate) ops: Vec<Op<'tx, K, V, STATE>>,
     pub(crate) _phase: PhantomData<PHASE>,
 }
 
@@ -79,7 +79,7 @@ where
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             get: Box::new(get),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::Get(op));
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -98,7 +98,7 @@ where
         let op = InsertDefaultOp {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::InsertDefault(op));
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -117,7 +117,7 @@ where
         let op = InsertDefaultIfAbsentOp {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::InsertDefaultIfAbsent(op));
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -137,7 +137,7 @@ where
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             value_generator: Box::new(value_generator),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::InsertWith(op));
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -157,7 +157,7 @@ where
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             value_generator: Box::new(value_generator),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::InsertWithIfAbsent(op));
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -174,7 +174,7 @@ where
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             mutate: Box::new(mutate),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::Modify(op));
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -194,7 +194,7 @@ where
             key_from: Indexer::indexed_key(self.custodian.shard_count, key_from),
             key_to: Indexer::indexed_key(self.custodian.shard_count, key_to),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::MoveValue(op));
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -211,7 +211,7 @@ where
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             on_remove: Box::new(on_remove),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::Remove(op));
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -228,7 +228,7 @@ where
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             condition: Box::new(condition),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::RemoveIf(op));
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -248,7 +248,7 @@ where
             key_a: Indexer::indexed_key(self.custodian.shard_count, key_a),
             key_b: Indexer::indexed_key(self.custodian.shard_count, key_b),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::SwapValue(op));
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -268,7 +268,7 @@ where
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             transform: Box::new(transform),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::Update(op));
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -280,8 +280,8 @@ where
 
 impl<'tx, K, V, L, STATE> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase>
 where
-    K: Hash + Eq + 'tx,
-    V: 'tx,
+    K: Hash + Eq + Clone + 'tx,
+    V: 'tx + Default,
     L: LockPolicy + 'tx,
     STATE: Default + 'tx,
 {

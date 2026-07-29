@@ -8,7 +8,7 @@ use crate::{
             get_op::GetOp, insert_default_if_absent_op::InsertDefaultIfAbsentOp,
             insert_default_op::InsertDefaultOp, insert_with_if_absent_op::InsertWithIfAbsentOp,
             insert_with_op::InsertWithOp, modify_op::ModifyOp, move_value_op::MoveValueOp,
-            op_trait::OpTrait, remove_if_op::RemoveIfOp, remove_op::RemoveOp,
+            op_trait::Op, remove_if_op::RemoveIfOp, remove_op::RemoveOp,
             swap_value_op::SwapValueOp, update_op::UpdateOp,
         },
         schema::TxKeySelector,
@@ -32,7 +32,7 @@ where
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) guards: Vec<Guard<'tx, K, V, KEYS, PARAMS, STATE>>,
     #[allow(clippy::type_complexity)]
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, KEYS, PARAMS, STATE> + 'tx>>,
+    pub(crate) ops: Vec<Op<'tx, K, V, KEYS, PARAMS, STATE>>,
     pub(crate) _phase: PhantomData<PHASE>,
 }
 
@@ -87,7 +87,7 @@ where
             key_selector: Box::new(key_selector),
             get: Box::new(get),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::Get(op));
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -106,7 +106,7 @@ where
         let op = InsertDefaultOp {
             key_selector: Box::new(key_selector),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::InsertDefault(op));
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -125,7 +125,7 @@ where
         let op = InsertDefaultIfAbsentOp {
             key_selector: Box::new(key_selector),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::InsertDefaultIfAbsent(op));
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -145,7 +145,7 @@ where
             key_selector: Box::new(key_selector),
             value_generator: Box::new(value_generator),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::InsertWith(op));
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -165,7 +165,7 @@ where
             key_selector: Box::new(key_selector),
             value_generator: Box::new(value_generator),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::InsertWithIfAbsent(op));
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -182,7 +182,7 @@ where
             key_selector: Box::new(key_selector),
             mutate: Box::new(mutate),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::Modify(op));
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -202,7 +202,7 @@ where
             key_selector_from: Box::new(key_selector_from),
             key_selector_to: Box::new(key_selector_to),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::MoveValue(op));
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -219,7 +219,7 @@ where
             key_selector: Box::new(key_selector),
             on_remove: Box::new(on_remove),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::Remove(op));
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -236,7 +236,7 @@ where
             key_selector: Box::new(key_selector),
             condition: Box::new(condition),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::RemoveIf(op));
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -256,7 +256,7 @@ where
             key_selector_a: Box::new(key_selector_a),
             key_selector_b: Box::new(key_selector_b),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::SwapValue(op));
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -276,7 +276,7 @@ where
             key_selector: Box::new(key_selector),
             transform: Box::new(transform),
         };
-        self.ops.push(Box::new(op));
+        self.ops.push(Op::Update(op));
         PreparedTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
