@@ -13,7 +13,68 @@ use crate::{
     shards::Shards,
 };
 use hashbrown::hash_table::Entry;
-use std::hash::Hash;
+use std::hash::{Hash, RandomState};
+
+pub struct TxMapBuilder<L = MutexPolicy>
+where
+    L: LockPolicy,
+{
+    build_hasher: RandomState,
+    capacity: usize,
+    #[allow(dead_code)]
+    lock_policy: L,
+    shards: Shards,
+}
+
+impl<L> TxMapBuilder<L>
+where
+    L: LockPolicy + Default,
+{
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+    #[must_use]
+    pub fn build<K, V>(self) -> TxMap<K, V, L>
+    where
+        K: Hash + Eq,
+    {
+        let shard_count: ShardCount = self.shards.into();
+        TxMap {
+            shard_count,
+            custodian: Custodian::new(shard_count),
+        }
+    }
+    #[must_use]
+    pub fn with_capacity(mut self, capacity: usize) -> Self {
+        self.capacity = capacity;
+        self
+    }
+    #[must_use]
+    pub fn with_shards(mut self, shards: Shards) -> Self {
+        self.shards = shards;
+        self
+    }
+    #[must_use]
+    pub fn with_hasher(mut self, build_hasher: RandomState) -> Self {
+        self.build_hasher = build_hasher;
+        self
+    }
+}
+
+impl<L> Default for TxMapBuilder<L>
+where
+    L: LockPolicy + Default,
+{
+    fn default() -> Self {
+        Self {
+            build_hasher: RandomState::new(),
+            capacity: 0,
+            lock_policy: L::default(),
+            shards: Shards::_32,
+        }
+    }
+}
 
 pub struct TxMap<K, V, L = MutexPolicy>
 where
@@ -29,23 +90,18 @@ where
     K: Hash + Eq,
 {
     #[must_use]
-    pub fn new(shards: Shards) -> Self {
-        let shard_count = shards.into();
-        Self {
-            shard_count,
-            custodian: Custodian::new(shard_count),
-        }
+    pub fn new() -> Self {
+        TxMapBuilder::default().build()
     }
-    #[must_use]
-    pub fn with_lock_policy<L>(shards: Shards) -> TxMap<K, V, L>
-    where
-        L: LockPolicy,
-    {
-        let shard_count = shards.into();
-        TxMap::<K, V, L> {
-            shard_count,
-            custodian: Custodian::new(shard_count),
-        }
+}
+
+impl<K, V, L> Default for TxMap<K, V, L>
+where
+    K: Hash + Eq,
+    L: LockPolicy + Default,
+{
+    fn default() -> Self {
+        TxMapBuilder::<L>::default().build()
     }
 }
 

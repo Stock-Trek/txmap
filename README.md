@@ -39,18 +39,18 @@ txmap = "2.2.2"
 use txmap::prelude::*;
 
 // Shard counts available are [8, 16, 32, 64, 128]
-let map: TxMap<String, u64> = TxMap::new(Shards::_8);
+let map: TxMap<String, u64> = TxMapBuilder::new().with_shards(Shards::_8).build();
 ```
 
 ### Lock Policy
 
-The lock policy can be set using the `with_lock_policy` constructor.
-Two policies are provided: [MutexLockPolicy](./src/locks/mutex_policy.rs) and [RwLockPolicy](./src/locks/rwlock_policy.rs). The default is MutexLockPolicy.
-You can also use your own policy by implementing [LockPolicy](./src/locks/lock_policy.rs).
+The lock policy can be set via the builder using `TxMapBuilder::<RwLockPolicy>::new()`.
+Two policies are provided: [MutexPolicy](./src/lock_policies/mutex_policy.rs) (default) and [RwLockPolicy](./src/lock_policies/rwlock_policy.rs).
+You can also use your own policy by implementing [LockPolicy](./src/lock_policies/lock_policy.rs).
 
 ```rust
 // Creating a TxMap with a lock policy
-let map = TxMap::with_lock_policy::<MyLockPolicy>(Shards::_8);
+let map = TxMapBuilder::<RwLockPolicy>::new().with_shards(Shards::_8).build();
 ```
 
 ### Key type requirements
@@ -73,7 +73,7 @@ struct TransferState {
     new_to: u64,
 }
 
-let db: TxMap<String, u64> = TxMap::new(Shards::_8);
+let db: TxMap<String, u64> = TxMapBuilder::new().with_shards(Shards::_8).build();
 
 db.insert("alice".into(), 100);
 db.insert("bob".into(), 0);
@@ -123,7 +123,7 @@ tx_schema! {
     }
 }
 
-let db: TxMap<String, u64> = TxMap::new(Shards::_8);
+let db: TxMap<String, u64> = TxMapBuilder::new().with_shards(Shards::_8).build();
 db.insert("alice".into(), 200);
 db.insert("bob".into(), 0);
 
@@ -204,7 +204,7 @@ struct TransferResult {
     new_to: Option<u64>,
 }
 
-let db: TxMap<String, u64> = TxMap::new(Shards::_8);
+let db: TxMap<String, u64> = TxMapBuilder::new().with_shards(Shards::_8).build();
 db.insert("alice".into(), 100);
 db.insert("bob".into(), 0);
 

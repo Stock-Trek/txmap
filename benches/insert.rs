@@ -5,7 +5,7 @@ use txmap::prelude::*;
 
 fn insert(c: &mut Criterion) {
     let mut hashbrownmap = HashMap::new();
-    let map = TxMap::new(Shards::_8);
+    let map = TxMapBuilder::new().with_shards(Shards::_8).build();
     let tx = map
         .prepared_tx(&Insert::SCHEMA)
         .insert_with(Insert::a, |_, _, _| 1)
@@ -77,7 +77,7 @@ tx_schema! {
 fn concurrent_insert(c: &mut Criterion) {
     let num_threads = 8;
     let ops_per_thread = 10_000;
-    let map = Arc::new(TxMap::new(Shards::_8));
+    let map = Arc::new(TxMapBuilder::new().with_shards(Shards::_8).build());
 
     c.bench_function("txmap_concurrent_insert", |b| {
         b.iter(|| {

@@ -3,6 +3,12 @@ use parking_lot::RwLock;
 
 pub struct RwLockPolicy;
 
+impl Default for RwLockPolicy {
+    fn default() -> Self {
+        Self
+    }
+}
+
 impl LockPolicy for RwLockPolicy {
     type Lock<T> = RwLock<T>;
 

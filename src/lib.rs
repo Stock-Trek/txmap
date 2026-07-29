@@ -35,7 +35,7 @@ pub mod prelude {
         },
         result::TxResult,
         shards::Shards,
-        tx_map::TxMap,
+        tx_map::{TxMap, TxMapBuilder},
     };
 }
 pub use pastey::paste as _paste;

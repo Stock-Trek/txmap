@@ -3,6 +3,12 @@ use parking_lot::Mutex;
 
 pub struct MutexPolicy;
 
+impl Default for MutexPolicy {
+    fn default() -> Self {
+        Self
+    }
+}
+
 impl LockPolicy for MutexPolicy {
     type Lock<T> = Mutex<T>;
 
