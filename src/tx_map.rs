@@ -372,20 +372,6 @@ where
     }
 }
 
-impl<K, V, L> TxMap<K, V, L>
-where
-    K: Clone + Hash + Eq,
-    V: Default,
-    L: LockPolicy,
-{
-    pub fn insert_default(&self, key: K) -> Option<V> {
-        self.insert(key, V::default())
-    }
-    pub fn insert_default_if_absent(&self, key: K) -> bool {
-        self.insert_with_if_absent(key, || V::default())
-    }
-}
-
 impl<K, V, L> Clone for TxMap<K, V, L>
 where
     K: Clone + Hash + Eq,
