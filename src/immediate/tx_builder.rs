@@ -1,16 +1,6 @@
 use crate::{
     custodian::Custodian,
-    immediate::{
-        guard::Guard,
-        ops::{
-            get_op::GetOp, insert_default_if_absent_op::InsertDefaultIfAbsentOp,
-            insert_default_op::InsertDefaultOp, insert_with_if_absent_op::InsertWithIfAbsentOp,
-            insert_with_op::InsertWithOp, modify_op::ModifyOp, move_value_op::MoveValueOp,
-            op_trait::OpTrait, remove_if_op::RemoveIfOp, remove_op::RemoveOp,
-            swap_value_op::SwapValueOp, update_op::UpdateOp,
-        },
-        transaction::ImmediateTransaction,
-    },
+    immediate::{guard::Guard, ops::op_trait::ImmediateOp, transaction::ImmediateTransaction},
     indexer::Indexer,
     lock_policies::lock_policy::LockPolicy,
     result::TxResult,
@@ -30,7 +20,7 @@ where
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) guards: Vec<Guard<'tx, K, V, STATE>>,
     #[allow(clippy::type_complexity)]
-    pub(crate) ops: Vec<Box<dyn OpTrait<K, V, L, STATE> + 'tx>>,
+    pub(crate) ops: Vec<ImmediateOp<'tx, K, V, L, STATE>>,
     pub(crate) _phase: PhantomData<PHASE>,
 }
 
@@ -75,11 +65,10 @@ where
         key: K,
         get: impl Fn(&K, Option<&V>, &mut STATE) + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
-        let op = GetOp {
+        self.ops.push(ImmediateOp::<K, V, L, STATE>::Get {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             get: Box::new(get),
-        };
-        self.ops.push(Box::new(op));
+        });
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -95,10 +84,9 @@ where
         K: Clone,
         V: Default,
     {
-        let op = InsertDefaultOp {
+        self.ops.push(ImmediateOp::<K, V, L, STATE>::InsertDefault {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
-        };
-        self.ops.push(Box::new(op));
+        });
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -114,10 +102,10 @@ where
         K: Clone,
         V: Default,
     {
-        let op = InsertDefaultIfAbsentOp {
-            key: Indexer::indexed_key(self.custodian.shard_count, key),
-        };
-        self.ops.push(Box::new(op));
+        self.ops
+            .push(ImmediateOp::<K, V, L, STATE>::InsertDefaultIfAbsent {
+                key: Indexer::indexed_key(self.custodian.shard_count, key),
+            });
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -133,11 +121,10 @@ where
     where
         K: Clone,
     {
-        let op = InsertWithOp {
+        self.ops.push(ImmediateOp::<K, V, L, STATE>::InsertWith {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             value_generator: Box::new(value_generator),
-        };
-        self.ops.push(Box::new(op));
+        });
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -153,11 +140,11 @@ where
     where
         K: Clone,
     {
-        let op = InsertWithIfAbsentOp {
-            key: Indexer::indexed_key(self.custodian.shard_count, key),
-            value_generator: Box::new(value_generator),
-        };
-        self.ops.push(Box::new(op));
+        self.ops
+            .push(ImmediateOp::<K, V, L, STATE>::InsertWithIfAbsent {
+                key: Indexer::indexed_key(self.custodian.shard_count, key),
+                value_generator: Box::new(value_generator),
+            });
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -170,11 +157,10 @@ where
         key: K,
         mutate: impl Fn(&K, &mut V, &mut STATE) + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
-        let op = ModifyOp {
+        self.ops.push(ImmediateOp::<K, V, L, STATE>::Modify {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             mutate: Box::new(mutate),
-        };
-        self.ops.push(Box::new(op));
+        });
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -190,11 +176,10 @@ where
     where
         K: Clone,
     {
-        let op = MoveValueOp {
+        self.ops.push(ImmediateOp::<K, V, L, STATE>::MoveValue {
             key_from: Indexer::indexed_key(self.custodian.shard_count, key_from),
             key_to: Indexer::indexed_key(self.custodian.shard_count, key_to),
-        };
-        self.ops.push(Box::new(op));
+        });
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -207,11 +192,10 @@ where
         key: K,
         on_remove: impl Fn(Option<(K, V)>, &mut STATE) + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
-        let op = RemoveOp {
+        self.ops.push(ImmediateOp::<K, V, L, STATE>::Remove {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             on_remove: Box::new(on_remove),
-        };
-        self.ops.push(Box::new(op));
+        });
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -224,11 +208,10 @@ where
         key: K,
         condition: impl Fn(&K, &V, &mut STATE) -> bool + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
-        let op = RemoveIfOp {
+        self.ops.push(ImmediateOp::<K, V, L, STATE>::RemoveIf {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             condition: Box::new(condition),
-        };
-        self.ops.push(Box::new(op));
+        });
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -244,11 +227,10 @@ where
     where
         K: Clone,
     {
-        let op = SwapValueOp {
+        self.ops.push(ImmediateOp::<K, V, L, STATE>::SwapValue {
             key_a: Indexer::indexed_key(self.custodian.shard_count, key_a),
             key_b: Indexer::indexed_key(self.custodian.shard_count, key_b),
-        };
-        self.ops.push(Box::new(op));
+        });
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -264,11 +246,10 @@ where
     where
         K: Clone,
     {
-        let op = UpdateOp {
+        self.ops.push(ImmediateOp::<K, V, L, STATE>::Update {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             transform: Box::new(transform),
-        };
-        self.ops.push(Box::new(op));
+        });
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -280,8 +261,8 @@ where
 
 impl<'tx, K, V, L, STATE> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase>
 where
-    K: Hash + Eq + 'tx,
-    V: 'tx,
+    K: Clone + Hash + Eq + 'tx,
+    V: Default + 'tx,
     L: LockPolicy + 'tx,
     STATE: Default + 'tx,
 {
