@@ -36,9 +36,9 @@ fn mixed_ops_in_one_transaction() {
     let map = empty_map();
     let result = map
         .immediate_tx::<GetThreeState>()
-        .insert_default(ALICE.into())
-        .insert_default(BOB.into())
-        .insert_default(CHUCK.into())
+        .insert_with(ALICE.into(), |_k, _s| 0)
+        .insert_with(BOB.into(), |_k, _s| 0)
+        .insert_with(CHUCK.into(), |_k, _s| 0)
         .modify(ALICE.into(), |_k, v, _s| *v = 10)
         .modify(BOB.into(), |_k, v, _s| *v = 20)
         .update(CHUCK.into(), |_k, _v, _s| Some(30))
@@ -60,7 +60,7 @@ fn chain_many_ops() {
     for i in 0..5u64 {
         let result = map
             .immediate_tx::<IncrementState>()
-            .insert_default(i)
+            .insert_with(i, |_k, _s| 0)
             .execute();
         assert_eq!(result, TxResult::Completed(IncrementState {}));
     }
@@ -74,8 +74,8 @@ fn chain_many_ops_with_params() {
     let p2 = p.clone();
     let result = map
         .immediate_tx::<GetVecParamState>()
-        .insert_default(ALICE.into())
-        .insert_default(BOB.into())
+        .insert_with(ALICE.into(), |_k, _p| 0)
+        .insert_with(BOB.into(), |_k, _p| 0)
         .modify(ALICE.into(), move |_k, v, s| {
             *v = p[0];
             s.results.push(Some(*v));
@@ -97,7 +97,7 @@ fn chained_modify_and_get() {
     let map: TxMap<String, Counter> = empty_typed_map();
     let result = map
         .immediate_tx::<GetCounterState>()
-        .insert_default("ctr".into())
+        .insert_with("ctr".into(), |_k, _s| Counter::default())
         .modify("ctr".into(), |_k, c, _s| c.value += 1)
         .modify("ctr".into(), |_k, c, _s| c.value += 1)
         .get("ctr".into(), |_k, c, s| {
@@ -115,8 +115,8 @@ fn chained_ops_on_multiple_keys() {
     let map = empty_map();
     let result = map
         .immediate_tx::<GetTwoState>()
-        .insert_default(ALICE.into())
-        .insert_default(BOB.into())
+        .insert_with(ALICE.into(), |_k, _s| 0)
+        .insert_with(BOB.into(), |_k, _s| 0)
         .modify(ALICE.into(), |_k, v, _s| *v += 10)
         .modify(BOB.into(), |_k, v, _s| *v += 20)
         .get(ALICE.into(), |_k, v, s| s.result_a = v.copied())

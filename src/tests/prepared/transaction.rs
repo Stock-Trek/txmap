@@ -40,9 +40,9 @@ fn mixed_ops_in_one_transaction() {
     let map = empty_map();
     let tx = map
         .prepared_tx(&GetThree::SCHEMA)
-        .insert_default(GetThree::a)
-        .insert_default(GetThree::b)
-        .insert_default(GetThree::c)
+        .insert_with(GetThree::a, |_k, _p, _s| 123)
+        .insert_with(GetThree::b, |_k, _p, _s| 123)
+        .insert_with(GetThree::c, |_k, _p, _s| 123)
         .modify(GetThree::a, |_k, v, _p, _s| *v = 10)
         .modify(GetThree::b, |_k, v, _p, _s| *v = 20)
         .update(GetThree::c, |_k, _v, _p, _s| Some(30))
@@ -77,7 +77,7 @@ fn chain_many_ops() {
     for i in 0..5u64 {
         let tx = map
             .prepared_tx(&Increment::SCHEMA)
-            .insert_default(Increment::k)
+            .insert_with(Increment::k, |_k, _p, _s| 123)
             .into_transaction();
         assert_eq!(
             tx.execute(IncrementKeys { k: i }, IncrementParams {}),
@@ -92,8 +92,8 @@ fn chain_many_ops_with_params() {
     let map = empty_map();
     let tx = map
         .prepared_tx(&GetVecParam::SCHEMA)
-        .insert_default(GetVecParam::a)
-        .insert_default(GetVecParam::b)
+        .insert_with(GetVecParam::a, |_k, _p, _s| 123)
+        .insert_with(GetVecParam::b, |_k, _p, _s| 123)
         .modify(GetVecParam::a, |_k, v, p, _s| *v = p.param[0])
         .modify(GetVecParam::b, |_k, v, p, _s| *v = p.param[1])
         .get(GetVecParam::a, |_k, v, _p, s| {
@@ -125,7 +125,7 @@ fn chained_modify_and_get() {
     let map: TxMap<String, Counter> = empty_typed_map();
     let tx = map
         .prepared_tx(&GetCounter::SCHEMA)
-        .insert_default(GetCounter::key)
+        .insert_with(GetCounter::key, |_k, _p, _s| Counter::default())
         .modify(GetCounter::key, |_k, c, _p, _s| c.value += 1)
         .modify(GetCounter::key, |_k, c, _p, _s| c.value += 1)
         .get(GetCounter::key, |_k, c, _p, s| {
@@ -144,8 +144,8 @@ fn chained_ops_on_multiple_keys() {
     let map = empty_map();
     let tx = map
         .prepared_tx(&GetTwo::SCHEMA)
-        .insert_default(GetTwo::a)
-        .insert_default(GetTwo::b)
+        .insert_with(GetTwo::a, |_k, _p, _s| 0)
+        .insert_with(GetTwo::b, |_k, _p, _s| 0)
         .modify(GetTwo::a, |_k, v, _p, _s| *v += 10)
         .modify(GetTwo::b, |_k, v, _p, _s| *v += 20)
         .get(GetTwo::a, |_k, v, _p, s| {

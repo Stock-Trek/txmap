@@ -2,24 +2,17 @@ use crate::{
     key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
     new_types::BitMask, prepared::schema::TxKeySelector, result::MISSING_LOCK_GUARD_ERROR,
 };
-use std::{hash::Hash, marker::PhantomData};
+use std::hash::Hash;
 
 #[allow(clippy::type_complexity)]
-pub(crate) enum PreparedOp<'tx, K, V, L, KEYS, PARAMS, STATE>
+pub(crate) enum PreparedOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
-    K: Hash + Eq,
-    L: LockPolicy,
+    K: Clone + Hash + Eq,
     STATE: Default,
 {
     Get {
         key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
         get: Box<dyn Fn(&K, Option<&V>, &PARAMS, &mut STATE) + 'tx>,
-    },
-    InsertDefault {
-        key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
-    },
-    InsertDefaultIfAbsent {
-        key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
     },
     InsertWith {
         key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
@@ -53,14 +46,11 @@ where
         key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
         transform: Box<dyn Fn(&K, Option<&V>, &PARAMS, &mut STATE) -> Option<V> + 'tx>,
     },
-    #[doc(hidden)]
-    _Phantom(PhantomData<L>),
 }
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE> PreparedOp<'tx, K, V, L, KEYS, PARAMS, STATE>
+impl<'tx, K, V, KEYS, PARAMS, STATE> PreparedOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
-    K: Hash + Eq,
-    L: LockPolicy,
+    K: Clone + Hash + Eq,
     STATE: Default,
 {
     pub fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask) {
@@ -68,9 +58,7 @@ where
             Self::Get { key_selector, .. } => {
                 (key_selector.get(keys).shard_index.bitmask(), BitMask::ZERO)
             }
-            Self::InsertDefault { key_selector, .. }
-            | Self::InsertDefaultIfAbsent { key_selector, .. }
-            | Self::InsertWith { key_selector, .. }
+            Self::InsertWith { key_selector, .. }
             | Self::InsertWithIfAbsent { key_selector, .. }
             | Self::Modify { key_selector, .. }
             | Self::Remove { key_selector, .. }
@@ -96,25 +84,17 @@ where
                 key_selector_a.get(keys).shard_index.bitmask()
                     | key_selector_b.get(keys).shard_index.bitmask(),
             ),
-            Self::_Phantom(_) => unreachable!(),
         }
     }
-}
-
-impl<'tx, K, V, L, KEYS, PARAMS, STATE> PreparedOp<'tx, K, V, L, KEYS, PARAMS, STATE>
-where
-    K: Clone + Hash + Eq,
-    V: Default,
-    L: LockPolicy,
-    STATE: Default,
-{
-    pub fn apply(
+    pub fn apply<L>(
         &self,
         lock_guards: &mut LockGuards<'_, K, V, L>,
         keys: &KEYS,
         params: &PARAMS,
         state: &mut STATE,
-    ) {
+    ) where
+        L: LockPolicy,
+    {
         match self {
             Self::Get { key_selector, get } => {
                 let key = key_selector.get(keys);
@@ -135,14 +115,6 @@ where
                         .map(|(_, value)| value);
                     (get)(&key.key, value_ref, params, state)
                 }
-            }
-            Self::InsertDefault { key_selector } => {
-                let key = key_selector.get(keys);
-                lock_guards.insert(key, V::default());
-            }
-            Self::InsertDefaultIfAbsent { key_selector } => {
-                let key = key_selector.get(keys);
-                lock_guards.insert_if_absent(key, || V::default());
             }
             Self::InsertWith {
                 key_selector,
@@ -286,7 +258,6 @@ where
                     };
                 }
             }
-            Self::_Phantom(_) => unreachable!(),
         }
     }
 }

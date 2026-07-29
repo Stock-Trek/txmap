@@ -1,6 +1,6 @@
 use crate::{
     custodian::Custodian,
-    immediate::{guard::Guard, ops::op_trait::ImmediateOp, transaction::ImmediateTransaction},
+    immediate::{guard::Guard, op::ImmediateOp, transaction::ImmediateTransaction},
     indexer::Indexer,
     lock_policies::lock_policy::LockPolicy,
     result::TxResult,
@@ -12,7 +12,7 @@ pub struct ImmediateBuildablePhase;
 
 pub struct ImmediateTxBuilder<'tx, K, V, L, STATE, PHASE = ImmediateBuilderPhase>
 where
-    K: Hash + Eq + 'tx,
+    K: Clone + Hash + Eq + 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
     STATE: Default + 'tx,
@@ -20,13 +20,13 @@ where
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) guards: Vec<Guard<'tx, K, V, STATE>>,
     #[allow(clippy::type_complexity)]
-    pub(crate) ops: Vec<ImmediateOp<'tx, K, V, L, STATE>>,
+    pub(crate) ops: Vec<ImmediateOp<'tx, K, V, STATE>>,
     pub(crate) _phase: PhantomData<PHASE>,
 }
 
 impl<'tx, K, V, L, STATE> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuilderPhase>
 where
-    K: Hash + Eq + 'tx,
+    K: Clone + Hash + Eq + 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
     STATE: Default + 'tx,
@@ -55,7 +55,7 @@ where
 
 impl<'tx, K, V, L, STATE, PHASE> ImmediateTxBuilder<'tx, K, V, L, STATE, PHASE>
 where
-    K: Hash + Eq + 'tx,
+    K: Clone + Hash + Eq + 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
     STATE: Default + 'tx,
@@ -65,47 +65,10 @@ where
         key: K,
         get: impl Fn(&K, Option<&V>, &mut STATE) + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
-        self.ops.push(ImmediateOp::<K, V, L, STATE>::Get {
+        self.ops.push(ImmediateOp::Get {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             get: Box::new(get),
         });
-        ImmediateTxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops: self.ops,
-            _phase: PhantomData,
-        }
-    }
-    pub fn insert_default(
-        mut self,
-        key: K,
-    ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase>
-    where
-        K: Clone,
-        V: Default,
-    {
-        self.ops.push(ImmediateOp::<K, V, L, STATE>::InsertDefault {
-            key: Indexer::indexed_key(self.custodian.shard_count, key),
-        });
-        ImmediateTxBuilder {
-            custodian: self.custodian,
-            guards: self.guards,
-            ops: self.ops,
-            _phase: PhantomData,
-        }
-    }
-    pub fn insert_default_if_absent(
-        mut self,
-        key: K,
-    ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase>
-    where
-        K: Clone,
-        V: Default,
-    {
-        self.ops
-            .push(ImmediateOp::<K, V, L, STATE>::InsertDefaultIfAbsent {
-                key: Indexer::indexed_key(self.custodian.shard_count, key),
-            });
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -117,11 +80,8 @@ where
         mut self,
         key: K,
         value_generator: impl Fn(&K, &mut STATE) -> V + 'tx,
-    ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase>
-    where
-        K: Clone,
-    {
-        self.ops.push(ImmediateOp::<K, V, L, STATE>::InsertWith {
+    ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
+        self.ops.push(ImmediateOp::InsertWith {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             value_generator: Box::new(value_generator),
         });
@@ -136,15 +96,11 @@ where
         mut self,
         key: K,
         value_generator: impl Fn(&K, &mut STATE) -> V + 'tx,
-    ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase>
-    where
-        K: Clone,
-    {
-        self.ops
-            .push(ImmediateOp::<K, V, L, STATE>::InsertWithIfAbsent {
-                key: Indexer::indexed_key(self.custodian.shard_count, key),
-                value_generator: Box::new(value_generator),
-            });
+    ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
+        self.ops.push(ImmediateOp::InsertWithIfAbsent {
+            key: Indexer::indexed_key(self.custodian.shard_count, key),
+            value_generator: Box::new(value_generator),
+        });
         ImmediateTxBuilder {
             custodian: self.custodian,
             guards: self.guards,
@@ -157,7 +113,7 @@ where
         key: K,
         mutate: impl Fn(&K, &mut V, &mut STATE) + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
-        self.ops.push(ImmediateOp::<K, V, L, STATE>::Modify {
+        self.ops.push(ImmediateOp::Modify {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             mutate: Box::new(mutate),
         });
@@ -172,11 +128,8 @@ where
         mut self,
         key_from: K,
         key_to: K,
-    ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase>
-    where
-        K: Clone,
-    {
-        self.ops.push(ImmediateOp::<K, V, L, STATE>::MoveValue {
+    ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
+        self.ops.push(ImmediateOp::MoveValue {
             key_from: Indexer::indexed_key(self.custodian.shard_count, key_from),
             key_to: Indexer::indexed_key(self.custodian.shard_count, key_to),
         });
@@ -192,7 +145,7 @@ where
         key: K,
         on_remove: impl Fn(Option<(K, V)>, &mut STATE) + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
-        self.ops.push(ImmediateOp::<K, V, L, STATE>::Remove {
+        self.ops.push(ImmediateOp::Remove {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             on_remove: Box::new(on_remove),
         });
@@ -208,7 +161,7 @@ where
         key: K,
         condition: impl Fn(&K, &V, &mut STATE) -> bool + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
-        self.ops.push(ImmediateOp::<K, V, L, STATE>::RemoveIf {
+        self.ops.push(ImmediateOp::RemoveIf {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             condition: Box::new(condition),
         });
@@ -223,11 +176,8 @@ where
         mut self,
         key_a: K,
         key_b: K,
-    ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase>
-    where
-        K: Clone,
-    {
-        self.ops.push(ImmediateOp::<K, V, L, STATE>::SwapValue {
+    ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
+        self.ops.push(ImmediateOp::SwapValue {
             key_a: Indexer::indexed_key(self.custodian.shard_count, key_a),
             key_b: Indexer::indexed_key(self.custodian.shard_count, key_b),
         });
@@ -242,11 +192,8 @@ where
         mut self,
         key: K,
         transform: impl Fn(&K, Option<&V>, &mut STATE) -> Option<V> + 'tx,
-    ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase>
-    where
-        K: Clone,
-    {
-        self.ops.push(ImmediateOp::<K, V, L, STATE>::Update {
+    ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
+        self.ops.push(ImmediateOp::Update {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
             transform: Box::new(transform),
         });

@@ -4,7 +4,7 @@ use std::hash::Hash;
 
 pub struct Iter<'a, K, V, L>
 where
-    K: Hash + Eq + 'a,
+    K: Clone + Hash + Eq + 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
@@ -17,7 +17,7 @@ where
 
 impl<'a, K, V, L> Iterator for Iter<'a, K, V, L>
 where
-    K: Hash + Eq + 'a,
+    K: Clone + Hash + Eq + 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
@@ -55,7 +55,7 @@ where
 
 impl<'a, K, V, L> IntoIterator for &'a TxMap<K, V, L>
 where
-    K: Hash + Eq + 'a,
+    K: Clone + Hash + Eq + 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {

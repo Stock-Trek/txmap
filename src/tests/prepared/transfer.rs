@@ -87,7 +87,7 @@ fn transfer() {
         .require("Has available funds", Transfer::from, |_k, v, p, _s| {
             v.is_some_and(|f| f.usd_and_cents >= p.amount)
         })
-        .insert_default_if_absent(Transfer::to)
+        .insert_with_if_absent(Transfer::to, |_k, _p, _s| Funds::default())
         .modify(Transfer::from, |_bob, funds, p, _s| {
             funds.usd_and_cents -= p.amount
         })
@@ -145,7 +145,7 @@ fn transfer() {
     // Add 123 to Pam (insert_default_if_absent + modify + verify with get)
     let add_123_to_pam = db
         .prepared_tx(&Transfer::SCHEMA)
-        .insert_default_if_absent(Transfer::from)
+        .insert_with_if_absent(Transfer::from, |_k, _p, _s| Funds::default())
         .modify(Transfer::from, |_p, funds, _p2, _s| {
             funds.usd_and_cents += 123;
         })

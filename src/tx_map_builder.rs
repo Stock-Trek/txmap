@@ -47,7 +47,7 @@ where
     #[must_use]
     pub fn build<K, V>(self) -> TxMap<K, V, L>
     where
-        K: Hash + Eq,
+        K: Clone + Hash + Eq,
     {
         let shard_count: ShardCount = self.shards.into();
         TxMap {

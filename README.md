@@ -63,9 +63,9 @@ let map = TxMapBuilder::default()
 
 ### Key type requirements
 
-The key type `K` must implement `Hash` and `Eq`. Some functions require `Clone`.
+The key type `K` must implement `Clone`, `Hash` and `Eq`.
 
-The value type `V` has no trait bounds by default. Functions that create default values (e.g., `insert_default`) require `V: Default`.
+The value type `V` has no required trait bounds.
 
 ### Immediate Transactions
 
@@ -263,19 +263,17 @@ match result {
 Transactions are built with a fluent interface, many operations can be chained together atomically into a single transaction.
 Available transaction operations are as follows
 
-| Transaction operation      | Description                                                                  | Additional required bounds |
-|----------------------------|------------------------------------------------------------------------------|----------------------------|
-| `get`                      | Reads a value, allows updating state without making any changes.             |                            |
-| `insert_default`           | Insert `V::default()` for the key.                                           | `K: Clone` `V: Default`    |
-| `insert_default_if_absent` | Insert `V::default()` for the key, only if the key is absent.                | `K: Clone` `V: Default`    |
-| `insert_with`              | Insert a value generated from the key.                                       | `K: Clone`                 |
-| `insert_with_if_absent`    | Insert a value generated from the key, only if the key is absent.            | `K: Clone`                 |
-| `modify`                   | Mutate an existing value in-place. Does nothing if key absent.               |                            |
-| `move_value`               | Remove a value from one key and insert it with another key.                  | `K: Clone`                 |
-| `remove`                   | Remove the given key.                                                        |                            |
-| `remove_if`                | Remove the given key if it also satisfies a condition.                       |                            |
-| `swap_value`               | Swap the values of two keys.                                                 | `K: Clone`                 |
-| `update`                   | Update a single entry. Return `Some(v)` to insert/replace, `None` to remove. | `K: Clone`                 |
+| Transaction operation      | Description                                                                  |
+|----------------------------|------------------------------------------------------------------------------|
+| `get`                      | Reads a value, allows updating state without making any changes.             |
+| `insert_with`              | Insert a value generated from the key.                                       |
+| `insert_with_if_absent`    | Insert a value generated from the key, only if the key is absent.            |
+| `modify`                   | Mutate an existing value in-place. Does nothing if key absent.               |
+| `move_value`               | Remove a value from one key and insert it with another key.                  |
+| `remove`                   | Remove the given key.                                                        |
+| `remove_if`                | Remove the given key if it also satisfies a condition.                       |
+| `swap_value`               | Swap the values of two keys.                                                 |
+| `update`                   | Update a single entry. Return `Some(v)` to insert/replace, `None` to remove. |
 
 ### TxMap operations
 

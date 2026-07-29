@@ -1,6 +1,6 @@
 use crate::{
     custodian::Custodian,
-    immediate::{guard::Guard, ops::op_trait::ImmediateOp},
+    immediate::{guard::Guard, op::ImmediateOp},
     lock_policies::lock_policy::LockPolicy,
     new_types::BitMask,
     result::TxResult,
@@ -15,7 +15,7 @@ where
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) guards: Vec<Guard<'tx, K, V, STATE>>,
     #[allow(clippy::type_complexity)]
-    pub(crate) ops: Vec<ImmediateOp<'tx, K, V, L, STATE>>,
+    pub(crate) ops: Vec<ImmediateOp<'tx, K, V, STATE>>,
 }
 
 impl<'tx, K, V, L, STATE> ImmediateTransaction<'tx, K, V, L, STATE>

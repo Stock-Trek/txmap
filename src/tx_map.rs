@@ -17,7 +17,7 @@ use std::hash::Hash;
 
 pub struct TxMap<K, V, L = MutexPolicy>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
     L: LockPolicy,
 {
     pub(crate) shard_count: ShardCount,
@@ -26,7 +26,7 @@ where
 
 impl<K, V> TxMap<K, V>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     #[must_use]
     pub fn new() -> TxMap<K, V, MutexPolicy> {
@@ -36,7 +36,7 @@ where
 
 impl<K, V> Default for TxMap<K, V, MutexPolicy>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     fn default() -> Self {
         TxMapBuilder::default().build()
@@ -45,7 +45,7 @@ where
 
 impl<K, V, L> TxMap<K, V, L>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
     L: LockPolicy,
 {
     #[must_use]
@@ -350,7 +350,7 @@ where
 
 impl<K, V, L> TxMap<K, V, L>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
     V: Copy,
     L: LockPolicy,
 {
@@ -362,7 +362,7 @@ where
 
 impl<K, V, L> TxMap<K, V, L>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
     V: Clone,
     L: LockPolicy,
 {
@@ -374,7 +374,7 @@ where
 
 impl<K, V, L> TxMap<K, V, L>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
     V: Default,
     L: LockPolicy,
 {

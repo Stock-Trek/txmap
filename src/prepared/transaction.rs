@@ -2,27 +2,26 @@ use crate::{
     custodian::Custodian,
     lock_policies::lock_policy::LockPolicy,
     new_types::BitMask,
-    prepared::{guard::Guard, ops::op_trait::PreparedOp, schema::TxKeys},
+    prepared::{guard::Guard, op::PreparedOp, schema::TxKeys},
     result::TxResult,
 };
 use std::hash::Hash;
 
 pub struct PreparedTransaction<'tx, K, V, L, KEYS, PARAMS, STATE>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
     L: LockPolicy,
     STATE: Default,
 {
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) guards: Vec<Guard<'tx, K, V, KEYS, PARAMS, STATE>>,
     #[allow(clippy::type_complexity)]
-    pub(crate) ops: Vec<PreparedOp<'tx, K, V, L, KEYS, PARAMS, STATE>>,
+    pub(crate) ops: Vec<PreparedOp<'tx, K, V, KEYS, PARAMS, STATE>>,
 }
 
 impl<'tx, K, V, L, KEYS, PARAMS, STATE> PreparedTransaction<'tx, K, V, L, KEYS, PARAMS, STATE>
 where
     K: Clone + Hash + Eq,
-    V: Default,
     L: LockPolicy,
     STATE: Default,
 {

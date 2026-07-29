@@ -2,23 +2,16 @@ use crate::{
     key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
     new_types::BitMask, result::MISSING_LOCK_GUARD_ERROR,
 };
-use std::{hash::Hash, marker::PhantomData};
+use std::hash::Hash;
 
 #[allow(clippy::type_complexity)]
-pub(crate) enum ImmediateOp<'tx, K, V, L, STATE>
+pub(crate) enum ImmediateOp<'tx, K, V, STATE>
 where
     K: Hash + Eq,
-    L: LockPolicy,
 {
     Get {
         key: TxKey<K>,
         get: Box<dyn Fn(&K, Option<&V>, &mut STATE) + 'tx>,
-    },
-    InsertDefault {
-        key: TxKey<K>,
-    },
-    InsertDefaultIfAbsent {
-        key: TxKey<K>,
     },
     InsertWith {
         key: TxKey<K>,
@@ -52,21 +45,16 @@ where
         key: TxKey<K>,
         transform: Box<dyn Fn(&K, Option<&V>, &mut STATE) -> Option<V> + 'tx>,
     },
-    #[doc(hidden)]
-    _Phantom(PhantomData<L>),
 }
 
-impl<'tx, K, V, L, STATE> ImmediateOp<'tx, K, V, L, STATE>
+impl<'tx, K, V, STATE> ImmediateOp<'tx, K, V, STATE>
 where
-    K: Hash + Eq,
-    L: LockPolicy,
+    K: Clone + Hash + Eq,
 {
     pub fn read_write_bitmasks(&self) -> (BitMask, BitMask) {
         match self {
             Self::Get { key, .. } => (key.shard_index.bitmask(), BitMask::ZERO),
-            Self::InsertDefault { key, .. }
-            | Self::InsertDefaultIfAbsent { key, .. }
-            | Self::InsertWith { key, .. }
+            Self::InsertWith { key, .. }
             | Self::InsertWithIfAbsent { key, .. }
             | Self::Modify { key, .. }
             | Self::Remove { key, .. }
@@ -82,18 +70,12 @@ where
                 BitMask::ZERO,
                 key_a.shard_index.bitmask() | key_b.shard_index.bitmask(),
             ),
-            Self::_Phantom(_) => unreachable!(),
         }
     }
-}
-
-impl<'tx, K, V, L, STATE> ImmediateOp<'tx, K, V, L, STATE>
-where
-    K: Clone + Hash + Eq,
-    V: Default,
-    L: LockPolicy,
-{
-    pub fn apply(&self, lock_guards: &mut LockGuards<'_, K, V, L>, state: &mut STATE) {
+    pub fn apply<L>(&self, lock_guards: &mut LockGuards<'_, K, V, L>, state: &mut STATE)
+    where
+        L: LockPolicy,
+    {
         match self {
             Self::Get { key, get } => {
                 if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
@@ -113,12 +95,6 @@ where
                         .map(|(_, value)| value);
                     (get)(&key.key, value_ref, state)
                 }
-            }
-            Self::InsertDefault { key } => {
-                lock_guards.insert(key, V::default());
-            }
-            Self::InsertDefaultIfAbsent { key } => {
-                lock_guards.insert_if_absent(key, || V::default());
             }
             Self::InsertWith {
                 key,
@@ -234,7 +210,6 @@ where
                     };
                 }
             }
-            Self::_Phantom(_) => unreachable!(),
         }
     }
 }

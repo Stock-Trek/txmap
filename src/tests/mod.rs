@@ -5,8 +5,6 @@ pub mod types;
 pub mod prepared {
     pub mod get_op;
     pub mod guards;
-    pub mod insert_default_if_absent_op;
-    pub mod insert_default_op;
     pub mod insert_with_if_absent_op;
     pub mod insert_with_op;
     pub mod modify_op;
@@ -22,8 +20,6 @@ pub mod prepared {
 pub mod immediate {
     pub mod get_op;
     pub mod guards;
-    pub mod insert_default_if_absent_op;
-    pub mod insert_default_op;
     pub mod insert_with_if_absent_op;
     pub mod insert_with_op;
     pub mod modify_op;

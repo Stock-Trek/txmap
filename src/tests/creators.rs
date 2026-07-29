@@ -4,7 +4,7 @@ use std::hash::Hash;
 
 pub(crate) fn empty_typed_map<K, V>() -> TxMap<K, V>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     TxMapBuilder::default().with_shards(Shards::_8).build()
 }
