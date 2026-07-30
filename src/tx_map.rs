@@ -19,7 +19,7 @@ pub struct TxMap<K, V, L = MutexPolicy, S = RandomState>
 where
     K: Clone + Hash + Eq,
     L: LockPolicy,
-    S: BuildHasher + Clone,
+    S: BuildHasher,
 {
     pub(crate) shard_count: ShardCount,
     pub(crate) custodian: Custodian<K, V, L>,
@@ -49,7 +49,7 @@ impl<K, V, L, S> TxMap<K, V, L, S>
 where
     K: Clone + Hash + Eq,
     L: LockPolicy,
-    S: BuildHasher + Clone,
+    S: BuildHasher,
 {
     #[must_use]
     pub fn get_with<R>(&self, key: &K, transform: impl FnOnce(&V) -> R) -> Option<R> {
@@ -213,15 +213,6 @@ where
             shard.retain(|entry| condition(&entry.0, &entry.1))
         }
     }
-
-    #[must_use]
-    pub fn with_lock_policy<LP>(shards: crate::shards::Shards) -> TxMap<K, V, LP, S>
-    where
-        LP: LockPolicy,
-        S: Default,
-    {
-        TxMapBuilder::<LP, S>::new(shards, S::default()).build()
-    }
 }
 
 impl<K, V, L, S> TxMap<K, V, L, S>
@@ -229,7 +220,7 @@ where
     K: Clone + Hash + Eq,
     V: Copy,
     L: LockPolicy,
-    S: BuildHasher + Clone,
+    S: BuildHasher,
 {
     #[must_use]
     pub fn get_copied(&self, key: &K) -> Option<V> {
@@ -242,7 +233,7 @@ where
     K: Clone + Hash + Eq,
     V: Clone,
     L: LockPolicy,
-    S: BuildHasher + Clone,
+    S: BuildHasher,
 {
     #[must_use]
     pub fn get_cloned(&self, key: &K) -> Option<V> {
@@ -255,7 +246,7 @@ where
     K: Clone + Hash + Eq,
     V: Clone,
     L: LockPolicy,
-    S: BuildHasher + Clone,
+    S: Clone + BuildHasher,
 {
     fn clone(&self) -> Self {
         let shard_count = self.shard_count;

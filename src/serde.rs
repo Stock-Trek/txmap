@@ -74,7 +74,7 @@ where
     K: Hash + Eq + Serialize,
     V: Serialize,
     L: LockPolicy,
-    S: BuildHasher + Clone,
+    S: BuildHasher,
 {
     fn serialize<SER: Serializer>(&self, serializer: SER) -> Result<SER::Ok, SER::Error> {
         let len = self.len();

@@ -1,9 +1,7 @@
 use crate::{
     custodian::Custodian,
     indexer::Indexer,
-    lock_policies::{
-        lock_policy::LockPolicy, mutex_policy::MutexPolicy, rwlock_policy::RwLockPolicy,
-    },
+    lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
     new_types::ShardCount,
     shards::Shards,
     tx_map::TxMap,
@@ -16,28 +14,19 @@ use std::{
 pub struct TxMapBuilder<L = MutexPolicy, S = RandomState>
 where
     L: LockPolicy,
-    S: BuildHasher + Clone,
+    S: BuildHasher,
 {
     shards: Shards,
     capacity: usize,
-    _phantom_l: PhantomData<L>,
     hasher_builder: S,
+    _phantom_l: PhantomData<L>,
 }
 
 impl<L, S> TxMapBuilder<L, S>
 where
     L: LockPolicy,
-    S: BuildHasher + Clone,
+    S: BuildHasher,
 {
-    pub(crate) fn new(shards: Shards, hasher_builder: S) -> Self {
-        Self {
-            capacity: 0,
-            shards,
-            _phantom_l: PhantomData,
-            hasher_builder,
-        }
-    }
-
     #[must_use]
     pub fn with_capacity(mut self, capacity: usize) -> Self {
         self.capacity = capacity;
@@ -51,18 +40,21 @@ where
     }
 
     #[must_use]
-    pub fn with_hasher<H>(self, hasher_builder: H) -> TxMapBuilder<L, H>
+    pub fn with_hasher<BH>(self, hasher_builder: BH) -> TxMapBuilder<L, BH>
     where
-        H: BuildHasher + Clone,
+        BH: BuildHasher,
     {
         let Self {
-            capacity, shards, ..
-        } = self;
-        TxMapBuilder::<L, H> {
             capacity,
             shards,
-            _phantom_l: PhantomData,
+            _phantom_l,
+            ..
+        } = self;
+        TxMapBuilder::<L, BH> {
+            capacity,
+            shards,
             hasher_builder,
+            _phantom_l,
         }
     }
 
@@ -80,8 +72,8 @@ where
         TxMapBuilder::<LP, S> {
             capacity,
             shards,
-            _phantom_l: PhantomData,
             hasher_builder,
+            _phantom_l: PhantomData,
         }
     }
 
@@ -99,18 +91,10 @@ where
     }
 }
 
-impl Default for TxMapBuilder<MutexPolicy, RandomState> {
-    fn default() -> Self {
-        Self {
-            capacity: 0,
-            shards: Shards::_32,
-            _phantom_l: PhantomData,
-            hasher_builder: RandomState::default(),
-        }
-    }
-}
-
-impl Default for TxMapBuilder<RwLockPolicy, RandomState> {
+impl<L> Default for TxMapBuilder<L, RandomState>
+where
+    L: LockPolicy,
+{
     fn default() -> Self {
         Self {
             capacity: 0,
