@@ -6,7 +6,7 @@ pub struct TxKey<K>
 where
     K: Hash + Eq,
 {
-    pub(crate) hash_code: HashCode,
-    pub(crate) shard_index: ShardIndex,
-    pub(crate) key: K,
+    pub hash_code: HashCode,
+    pub shard_index: ShardIndex,
+    pub key: K,
 }

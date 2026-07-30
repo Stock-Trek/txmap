@@ -5,7 +5,7 @@ use crate::{
 };
 use std::hash::{BuildHasher, Hash};
 
-pub(crate) struct Indexer<S: BuildHasher = DefaultBuildHasher> {
+pub struct Indexer<S: BuildHasher = DefaultBuildHasher> {
     hasher_builder: S,
 }
 
