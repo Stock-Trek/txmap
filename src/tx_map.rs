@@ -71,8 +71,8 @@ where
         let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
         ShardOps::modify::<K, V>(&mut shard, &tx_key, mutate)
     }
-    pub fn move_value(&self, key_from: &K, key_to: K) {
-        let tx_key_from = Indexer::indexed_key(self.shard_count, key_from.clone());
+    pub fn move_value(&self, key_from: K, key_to: K) {
+        let tx_key_from = Indexer::indexed_key(self.shard_count, key_from);
         let tx_key_to = Indexer::indexed_key(self.shard_count, key_to);
         let mut shards = self
             .custodian
