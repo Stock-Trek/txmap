@@ -1,8 +1,11 @@
 pub(crate) const MISSING_LOCK_GUARD_ERROR: &str = "Missing lock guard";
 
+/// The result of executing a transaction.
 #[derive(Clone, PartialEq, Eq)]
 pub enum TxResult<T> {
+    /// The transaction completed successfully.
     Completed(T),
+    /// A guard precondition was not met.
     RequirementNotMet(usize, String, T),
 }
 

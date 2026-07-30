@@ -2,6 +2,9 @@ use crate::{lock_policies::lock_policy::LockPolicy, shard::Shard, tx_map::TxMap}
 use intmap::IntMap;
 use std::hash::Hash;
 
+/// An iterator over all key-value pairs in a [`TxMap`].
+///
+/// Holds read guards on all shards for the duration of iteration.
 pub struct Iter<'a, K, V, L>
 where
     K: Clone + Hash + Eq + 'a,

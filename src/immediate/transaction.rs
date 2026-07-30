@@ -8,6 +8,11 @@ use crate::{
 };
 use std::hash::{BuildHasher, Hash};
 
+/// An immediate (one-shot) transaction.
+///
+/// Built via [`ImmediateTxBuilder`] and executed immediately.
+/// Acquires all needed locks, checks guards, applies operations,
+/// then releases locks and returns the final state.
 pub struct ImmediateTransaction<'tx, K, V, L, S, STATE>
 where
     K: Clone + Hash + Eq,
@@ -30,6 +35,11 @@ where
     STATE: Default,
 {
     #[must_use]
+    /// Executes the transaction.
+    ///
+    /// Acquires read/write locks for all involved shards, verifies
+    /// all guard conditions, applies the operations, and returns
+    /// the final state wrapped in [`TxResult`].
     pub fn execute(&self) -> TxResult<STATE> {
         let mut total_read_bitmask = BitMask::ZERO;
         let mut total_write_bitmask = BitMask::ZERO;

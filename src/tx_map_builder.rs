@@ -12,6 +12,10 @@ use std::{
     marker::PhantomData,
 };
 
+/// Builder for configuring and constructing a [`TxMap`].
+///
+/// Use [`TxMapBuilder::default`] to get a builder with sensible defaults
+/// (32 shards, `MutexPolicy`, default hasher), then customise as needed.
 pub struct TxMapBuilder<L = MutexPolicy, S = DefaultBuildHasher>
 where
     L: LockPolicy,
@@ -29,18 +33,21 @@ where
     S: BuildHasher,
 {
     #[must_use]
+    /// Sets the initial capacity hint (total across all shards).
     pub fn with_capacity(mut self, capacity: usize) -> Self {
         self.capacity = capacity;
         self
     }
 
     #[must_use]
+    /// Sets the number of shards.
     pub fn with_shards(mut self, shards: Shards) -> Self {
         self.shards = shards;
         self
     }
 
     #[must_use]
+    /// Replaces the hasher builder.
     pub fn with_hasher<BH>(self, hasher_builder: BH) -> TxMapBuilder<L, BH>
     where
         BH: BuildHasher,
@@ -60,6 +67,7 @@ where
     }
 
     #[must_use]
+    /// Replaces the lock policy.
     pub fn with_lock_policy<LP>(self) -> TxMapBuilder<LP, S>
     where
         LP: LockPolicy,
@@ -79,6 +87,7 @@ where
     }
 
     #[must_use]
+    /// Consumes the builder and returns a [`TxMap`].
     pub fn build<K, V>(self) -> TxMap<K, V, L, S>
     where
         K: Clone + Hash + Eq,
