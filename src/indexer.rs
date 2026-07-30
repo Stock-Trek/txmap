@@ -1,17 +1,18 @@
 use crate::{
+    hasher::DefaultBuildHasher,
     key::TxKey,
     new_types::{HashCode, ShardCount, ShardIndex},
 };
-use std::hash::{BuildHasher, Hash, RandomState};
+use std::hash::{BuildHasher, Hash};
 
-pub struct Indexer<S: BuildHasher = RandomState> {
+pub struct Indexer<S: BuildHasher = DefaultBuildHasher> {
     hasher_builder: S,
 }
 
-impl Default for Indexer<RandomState> {
+impl Default for Indexer<DefaultBuildHasher> {
     fn default() -> Self {
         Self {
-            hasher_builder: RandomState::default(),
+            hasher_builder: DefaultBuildHasher::default(),
         }
     }
 }

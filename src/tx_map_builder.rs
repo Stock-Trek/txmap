@@ -1,5 +1,6 @@
 use crate::{
     custodian::Custodian,
+    hasher::DefaultBuildHasher,
     indexer::Indexer,
     lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
     new_types::ShardCount,
@@ -7,11 +8,11 @@ use crate::{
     tx_map::TxMap,
 };
 use std::{
-    hash::{BuildHasher, Hash, RandomState},
+    hash::{BuildHasher, Hash},
     marker::PhantomData,
 };
 
-pub struct TxMapBuilder<L = MutexPolicy, S = RandomState>
+pub struct TxMapBuilder<L = MutexPolicy, S = DefaultBuildHasher>
 where
     L: LockPolicy,
     S: BuildHasher,
@@ -91,13 +92,13 @@ where
     }
 }
 
-impl Default for TxMapBuilder<MutexPolicy, RandomState> {
+impl Default for TxMapBuilder<MutexPolicy, DefaultBuildHasher> {
     fn default() -> Self {
         Self {
             capacity: 0,
             shards: Shards::_32,
             _phantom_l: PhantomData,
-            hasher_builder: RandomState::default(),
+            hasher_builder: DefaultBuildHasher::default(),
         }
     }
 }

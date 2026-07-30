@@ -1,5 +1,6 @@
 use crate::{
     custodian::Custodian,
+    hasher::DefaultBuildHasher,
     immediate::tx_builder::ImmediateTxBuilder,
     indexer::Indexer,
     iter::Iter,
@@ -13,9 +14,9 @@ use crate::{
     shard_ops::ShardOps,
     tx_map_builder::TxMapBuilder,
 };
-use std::hash::{BuildHasher, Hash, RandomState};
+use std::hash::{BuildHasher, Hash};
 
-pub struct TxMap<K, V, L = MutexPolicy, S = RandomState>
+pub struct TxMap<K, V, L = MutexPolicy, S = DefaultBuildHasher>
 where
     K: Clone + Hash + Eq,
     L: LockPolicy,
@@ -26,17 +27,17 @@ where
     pub(crate) indexer: Indexer<S>,
 }
 
-impl<K, V> TxMap<K, V, MutexPolicy, RandomState>
+impl<K, V> TxMap<K, V, MutexPolicy, DefaultBuildHasher>
 where
     K: Clone + Hash + Eq,
 {
     #[must_use]
-    pub fn new() -> TxMap<K, V, MutexPolicy, RandomState> {
+    pub fn new() -> TxMap<K, V, MutexPolicy, DefaultBuildHasher> {
         TxMap::default()
     }
 }
 
-impl<K, V> Default for TxMap<K, V, MutexPolicy, RandomState>
+impl<K, V> Default for TxMap<K, V, MutexPolicy, DefaultBuildHasher>
 where
     K: Clone + Hash + Eq,
 {

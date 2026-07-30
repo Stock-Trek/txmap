@@ -1,4 +1,4 @@
-use crate::{indexer::Indexer, new_types::ShardCount};
+use crate::{hasher::DefaultBuildHasher, indexer::Indexer, new_types::ShardCount};
 use std::hash::{BuildHasher, Hash};
 
 pub trait TxSchema<K>
@@ -10,7 +10,7 @@ where
     type Params;
     type State: Default;
 }
-pub trait TxKeys<K, IndexedKeys, S = std::hash::RandomState>
+pub trait TxKeys<K, IndexedKeys, S = DefaultBuildHasher>
 where
     K: Hash + Eq,
     S: BuildHasher,
