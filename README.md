@@ -8,7 +8,7 @@ A concurrent transactional hash map for Rust with fine-grained user-defined lock
 
 ## Features
 
-- [**Proven performance**](#benchmarks) One of the fastest concurrent map implementations available
+- [**Proven performance**](https://github.com/Stock-Trek/map-benchmarks) One of the fastest concurrent map implementations available
 - [**Customizable**](#creating-a-txmap) Choose the number of shards, shard locking policy (Mutex, RwLock or bring your own) and capacity
 - [**Immediate Transactions**](#immediate-transactions) Immediately execute an atomic, composable batch of modifications
 - [**Parameterized Transactions**](#parameterized-transactions) Create re-usable transactions for faster parameterized execution
@@ -16,10 +16,6 @@ A concurrent transactional hash map for Rust with fine-grained user-defined lock
 - [**Fluent API**](#transaction-operations) Chain operations to build or execute transactions with a fluent interface
 - **Optional serde support** Use the `serde` feature to enable it
 - **Rapidhash hasher by default** The `rapidhash` feature (enabled by default) uses the [rapidhash](https://crates.io/crates/rapidhash) hasher for improved performance. Disable default features and opt out with `default-features = false` in your `Cargo.toml` to fall back to the standard library's `RandomState` (SipHash).
-
-### Benchmarks
-
-Benchmarks for txmap and other similar crates [can be found here](https://github.com/Stock-Trek/map-benchmarks)
 
 ## License
 
