@@ -44,11 +44,12 @@ let map = TxMap::new();
 
 This creates a map using the default options. To customise these options you can use a map builder which allows configuring them.
 
-| Option            | Default                       |
-|-------------------|-------------------------------|
-| Shard count       | 32                            |
-| Lock policy       | MutexPolicy                   |
-| Initial capacity  | 0                             |
+| Option           | Default                      |
+|------------------|------------------------------|
+| Shard count      | 32                           |
+| Lock policy      | MutexPolicy                  |
+| Hasher           | rapidhash::fast::RandomState |
+| Initial capacity | 0                            |
 
 Two shard locking policies are provided: [MutexPolicy](./src/lock_policies/mutex_policy.rs) (default) and [RwLockPolicy](./src/lock_policies/rwlock_policy.rs).
 You can also use your own policy by implementing [LockPolicy](./src/lock_policies/lock_policy.rs).
@@ -57,7 +58,7 @@ You can also use your own policy by implementing [LockPolicy](./src/lock_policie
 // Creating a TxMap via a builder
 let map = TxMapBuilder::default()
             .with_shards(Shards::_8)
-            .with_lock_policy(RwLockPolicy)
+            .with_lock_policy::<RwLockPolicy>()
             .with_capacity(10_000)
             .build();
 ```
