@@ -86,7 +86,7 @@ where
         let shard_count: ShardCount = self.shards.into();
         TxMap {
             shard_count,
-            custodian: Custodian::new(shard_count),
+            custodian: Custodian::new(shard_count, self.capacity),
             indexer: Indexer::new(self.hasher_builder),
         }
     }

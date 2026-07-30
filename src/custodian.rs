@@ -19,10 +19,11 @@ impl<K, V, L> Custodian<K, V, L>
 where
     L: LockPolicy,
 {
-    pub fn new(shard_count: ShardCount) -> Self {
+    pub fn new(shard_count: ShardCount, capacity: usize) -> Self {
         let mut shards = Vec::with_capacity(shard_count.0 as usize);
+        let capacity_per_shard = capacity.div_ceil(shard_count.0 as usize);
         for _ in 0..shard_count.0 {
-            shards.push(L::new(HashTable::new()));
+            shards.push(L::new(HashTable::with_capacity(capacity_per_shard)));
         }
         Self {
             shard_count,
