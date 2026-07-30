@@ -9,7 +9,7 @@ use std::hash::Hash;
 
 pub struct ImmediateTransaction<'tx, K, V, L, STATE>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
     L: LockPolicy,
 {
     pub(crate) custodian: &'tx Custodian<K, V, L>,

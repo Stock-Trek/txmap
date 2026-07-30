@@ -8,12 +8,8 @@ fn remove_multiple_keys() {
     let map = map_alice_bob_chuck(1, 2, 3);
     let tx = map
         .prepared_tx(&RemoveMultiple::SCHEMA)
-        .remove(RemoveMultiple::a, |entry, _params, state| {
-            state.user.push(entry.map(|e| e.0))
-        })
-        .remove(RemoveMultiple::b, |entry, _params, state| {
-            state.user.push(entry.map(|e| e.0))
-        })
+        .remove(RemoveMultiple::a)
+        .remove(RemoveMultiple::b)
         .into_transaction();
     assert_eq!(
         tx.execute(
@@ -23,9 +19,7 @@ fn remove_multiple_keys() {
             },
             RemoveMultipleParams {},
         ),
-        TxResult::Completed(RemoveMultipleState {
-            user: vec![Some(ALICE.into()), Some(BOB.into())],
-        })
+        TxResult::Completed(RemoveMultipleState { user: vec![] })
     );
     assert_eq!(map.len(), 1);
 }

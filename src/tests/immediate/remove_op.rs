@@ -8,14 +8,9 @@ fn remove() {
     let map = map_alice(42);
     let result = map
         .immediate_tx::<GetOneState>()
-        .remove(ALICE.into(), |entry, s| {
-            s.result = entry.map(|(_, v)| v);
-        })
+        .remove(ALICE.into())
         .execute();
-    assert_eq!(
-        result,
-        TxResult::Completed(GetOneState { result: Some(42) })
-    );
+    assert_eq!(result, TxResult::Completed(GetOneState { result: None }));
     assert!(map.is_empty());
 }
 
@@ -24,9 +19,7 @@ fn remove_missing_key() {
     let map = empty_map();
     let result = map
         .immediate_tx::<GetOneState>()
-        .remove(ALICE.into(), |entry, s| {
-            s.result = entry.map(|(_, v)| v);
-        })
+        .remove(ALICE.into())
         .execute();
     assert_eq!(result, TxResult::Completed(GetOneState { result: None }));
 }

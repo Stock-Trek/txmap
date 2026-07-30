@@ -1,15 +1,16 @@
 use crate::{
     custodian::Custodian,
-    immediate::op::ImmediateOp,
     immediate::tx_builder::ImmediateTxBuilder,
     indexer::Indexer,
     iter::Iter,
     lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
-    new_types::{BitMask, ShardCount},
+    multi_shard_ops::MultiShardOps,
+    new_types::ShardCount,
     prepared::{
         schema::{TxKeys, TxSchema},
         tx_builder::{PreparedBuilderPhase, PreparedTxBuilder},
     },
+    shard_ops::ShardOps,
     tx_map_builder::TxMapBuilder,
 };
 use std::hash::Hash;
@@ -51,75 +52,55 @@ where
     pub fn get_with<R>(&self, key: &K, transform: impl FnOnce(&V) -> R) -> Option<R> {
         let hash_code = Indexer::hash(&key);
         let shard_index = Indexer::shard_index(self.shard_count, hash_code);
-        let read_guard = self.custodian.read_guard_at(shard_index);
-        let entry = read_guard.find(hash_code.0, |entry| entry.0 == *key);
+        let shard = self.custodian.read_guard_at(shard_index);
+        let entry = shard.find(hash_code.0, |entry| entry.0 == *key);
         entry.map(|e| transform(&e.1))
     }
     pub fn insert(&self, key: K, value: V) -> Option<V> {
         let tx_key = Indexer::indexed_key(self.shard_count, key);
-        let mut lock_guards = self
-            .custodian
-            .lock_guards(BitMask::ZERO, tx_key.shard_index.bitmask());
-        lock_guards.insert(&tx_key, value)
+        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
+        ShardOps::insert::<K, V>(&mut shard, &tx_key, value)
     }
     pub fn insert_with_if_absent(&self, key: K, value_generator: impl FnOnce() -> V) -> bool {
         let tx_key = Indexer::indexed_key(self.shard_count, key);
-        let mut lock_guards = self
-            .custodian
-            .lock_guards(BitMask::ZERO, tx_key.shard_index.bitmask());
-        lock_guards.insert_if_absent(&tx_key, value_generator)
+        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
+        ShardOps::insert_if_absent::<K, V>(&mut shard, &tx_key, value_generator)
     }
     pub fn modify(&self, key: &K, mutate: impl FnOnce(&K, &mut V)) -> bool {
         let tx_key = Indexer::indexed_key(self.shard_count, key.clone());
-        let mut lock_guards = self
-            .custodian
-            .lock_guards(BitMask::ZERO, tx_key.shard_index.bitmask());
-        lock_guards.modify(&tx_key, mutate)
+        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
+        ShardOps::modify::<K, V>(&mut shard, &tx_key, mutate)
     }
     pub fn move_value(&self, key_from: &K, key_to: K) {
         let tx_key_from = Indexer::indexed_key(self.shard_count, key_from.clone());
         let tx_key_to = Indexer::indexed_key(self.shard_count, key_to);
-        let op = ImmediateOp::MoveValue {
-            key_from: tx_key_from,
-            key_to: tx_key_to,
-        };
-        let (_, write) = op.read_write_bitmasks();
-        let mut lock_guards = self.custodian.lock_guards(BitMask::ZERO, write);
-        let mut state = ();
-        op.apply(&mut lock_guards, &mut state);
+        let mut shards = self
+            .custodian
+            .write_guards(tx_key_from.shard_index.bitmask() | tx_key_to.shard_index.bitmask());
+        MultiShardOps::move_value::<K, V, L>(&mut shards, &tx_key_from, &tx_key_to);
     }
     pub fn remove(&self, key: &K) -> Option<V> {
         let tx_key = Indexer::indexed_key(self.shard_count, key.clone());
-        let mut lock_guards = self
-            .custodian
-            .lock_guards(BitMask::ZERO, tx_key.shard_index.bitmask());
-        lock_guards.remove_entry(&tx_key).map(|(_, v)| v)
+        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
+        ShardOps::remove_entry::<K, V>(&mut shard, &tx_key).map(|removed| removed.1)
     }
     pub fn remove_if(&self, key: &K, condition: impl FnOnce(&K, &V) -> bool) -> Option<V> {
         let tx_key = Indexer::indexed_key(self.shard_count, key.clone());
-        let mut lock_guards = self
-            .custodian
-            .lock_guards(BitMask::ZERO, tx_key.shard_index.bitmask());
-        lock_guards.remove_if(&tx_key, condition)
+        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
+        ShardOps::remove_if::<K, V>(&mut shard, &tx_key, condition)
     }
     pub fn swap_value(&self, key_a: K, key_b: K) {
         let tx_key_a = Indexer::indexed_key(self.shard_count, key_a);
         let tx_key_b = Indexer::indexed_key(self.shard_count, key_b);
-        let op = ImmediateOp::SwapValue {
-            key_a: tx_key_a,
-            key_b: tx_key_b,
-        };
-        let (_, write) = op.read_write_bitmasks();
-        let mut lock_guards = self.custodian.lock_guards(BitMask::ZERO, write);
-        let mut state = ();
-        op.apply(&mut lock_guards, &mut state);
+        let mut shards = self
+            .custodian
+            .write_guards(tx_key_a.shard_index.bitmask() | tx_key_b.shard_index.bitmask());
+        MultiShardOps::swap_value::<K, V, L>(&mut shards, &tx_key_a, &tx_key_b);
     }
     pub fn update(&self, key: K, transform: impl FnOnce(&K, Option<&V>) -> Option<V>) {
         let tx_key = Indexer::indexed_key(self.shard_count, key);
-        let mut lock_guards = self
-            .custodian
-            .lock_guards(BitMask::ZERO, tx_key.shard_index.bitmask());
-        lock_guards.update(&tx_key, transform);
+        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
+        ShardOps::update::<K, V>(&mut shard, &tx_key, transform)
     }
 
     #[must_use]
@@ -202,9 +183,9 @@ where
         }
     }
     pub fn retain(&self, condition: impl Fn(&K, &V) -> bool) {
-        let write_guards = self.custodian.all_write_guards();
-        for (_, mut mutex_guard) in write_guards {
-            mutex_guard.retain(|entry| condition(&entry.0, &entry.1))
+        let shards = self.custodian.all_write_guards();
+        for (_, mut shard) in shards {
+            shard.retain(|entry| condition(&entry.0, &entry.1))
         }
     }
 }

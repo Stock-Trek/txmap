@@ -1,12 +1,16 @@
 use crate::{
     key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
-    new_types::BitMask, prepared::schema::TxKeySelector, result::MISSING_LOCK_GUARD_ERROR,
+    new_types::BitMask, prepared::schema::TxKeySelector, shard_ops::ShardOps,
 };
-use std::{hash::Hash, marker::PhantomData};
+use std::{
+    hash::Hash,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
 
 pub(crate) struct Guard<'tx, K, V, KEYS, PARAMS, STATE>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     pub name: String,
     pub key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
@@ -17,7 +21,7 @@ where
 
 impl<'tx, K, V, KEYS, PARAMS, STATE> Guard<'tx, K, V, KEYS, PARAMS, STATE>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     pub fn read_bitmask(&self, keys: &KEYS) -> BitMask {
         let key = self.key_selector.get(keys);
@@ -34,22 +38,12 @@ where
         L: LockPolicy,
     {
         let key = self.key_selector.get(keys);
-        if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
-            let value_ref = lock_guards
-                .write
-                .get(key.shard_index.0)
-                .expect(MISSING_LOCK_GUARD_ERROR)
-                .find(key.hash_code.0, |entry| entry.0 == key.key)
-                .map(|(_key, value)| value);
-            (self.condition)(&key.key, value_ref, params, state)
+        let shard = if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
+            lock_guards.write_guard(&key).deref_mut()
         } else {
-            let value_ref = lock_guards
-                .read
-                .get(key.shard_index.0)
-                .expect(MISSING_LOCK_GUARD_ERROR)
-                .find(key.hash_code.0, |entry| entry.0 == key.key)
-                .map(|(_key, value)| value);
-            (self.condition)(&key.key, value_ref, params, state)
-        }
+            lock_guards.read_guard(&key).deref()
+        };
+        let value_ref = ShardOps::value_ref(shard, &key);
+        (self.condition)(&key.key, value_ref, params, state)
     }
 }

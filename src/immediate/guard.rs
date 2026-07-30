@@ -1,12 +1,16 @@
 use crate::{
     key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
-    new_types::BitMask, result::MISSING_LOCK_GUARD_ERROR,
+    new_types::BitMask, shard_ops::ShardOps,
 };
-use std::{hash::Hash, marker::PhantomData};
+use std::{
+    hash::Hash,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
 
 pub(crate) struct Guard<'tx, K, V, STATE>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     pub name: String,
     pub key: TxKey<K>,
@@ -17,7 +21,7 @@ where
 
 impl<'tx, K, V, STATE> Guard<'tx, K, V, STATE>
 where
-    K: Hash + Eq,
+    K: Clone + Hash + Eq,
 {
     pub fn read_bitmask(&self) -> BitMask {
         self.key.shard_index.bitmask()
@@ -30,22 +34,13 @@ where
     where
         L: LockPolicy,
     {
-        if (self.key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
-            let value_ref = lock_guards
-                .write
-                .get(self.key.shard_index.0)
-                .expect(MISSING_LOCK_GUARD_ERROR)
-                .find(self.key.hash_code.0, |entry| entry.0 == self.key.key)
-                .map(|(_key, value)| value);
-            (self.condition)(&self.key.key, value_ref, state)
+        let shard = if (self.key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO
+        {
+            lock_guards.write_guard(&self.key).deref_mut()
         } else {
-            let value_ref = lock_guards
-                .read
-                .get(self.key.shard_index.0)
-                .expect(MISSING_LOCK_GUARD_ERROR)
-                .find(self.key.hash_code.0, |entry| entry.0 == self.key.key)
-                .map(|(_key, value)| value);
-            (self.condition)(&self.key.key, value_ref, state)
-        }
+            lock_guards.read_guard(&self.key).deref()
+        };
+        let value_ref = ShardOps::value_ref(shard, &self.key);
+        (self.condition)(&self.key.key, value_ref, state)
     }
 }

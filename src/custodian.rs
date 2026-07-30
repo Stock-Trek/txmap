@@ -43,7 +43,7 @@ where
         };
         BitMask(bitmask)
     }
-    pub fn lock_guards<'ex>(&'ex self, read: BitMask, write: BitMask) -> LockGuards<'ex, K, V, L> {
+    pub fn lock_guards(&self, read: BitMask, write: BitMask) -> LockGuards<'_, K, V, L> {
         let mut read_guards = IntMap::new();
         let mut write_guards = IntMap::new();
         for i in 0..self.shard_count.0 {
@@ -57,11 +57,23 @@ where
                 read_guards.insert(i, read_guard);
             };
         }
-        LockGuards::<'ex, K, V, L> {
+        LockGuards {
             read: read_guards,
             write: write_guards,
             write_bitmask: write,
         }
+    }
+    pub fn write_guards(&self, write: BitMask) -> IntMap<u8, L::WriteGuard<'_, Shard<K, V>>> {
+        let mut write_guards = IntMap::new();
+        for i in 0..self.shard_count.0 {
+            let bitmask = ShardIndex(i).bitmask();
+            if (write & bitmask) != BitMask::ZERO {
+                let shard_lock = &self.shards[i as usize];
+                let write_guard = L::write(shard_lock);
+                write_guards.insert(i, write_guard);
+            };
+        }
+        write_guards
     }
     pub fn read_guard_at(&self, shard_index: ShardIndex) -> L::ReadGuard<'_, Shard<K, V>> {
         let shard_lock = &self.shards[shard_index.0 as usize];
