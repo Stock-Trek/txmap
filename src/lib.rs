@@ -26,12 +26,11 @@ pub mod prelude {
             transaction::ImmediateTransaction,
             tx_builder::{ImmediateBuildablePhase, ImmediateBuilderPhase, ImmediateTxBuilder},
         },
-        indexer::Indexer,
         key::TxKey,
         lock_policies::{
             lock_policy::LockPolicy, mutex_policy::MutexPolicy, rwlock_policy::RwLockPolicy,
         },
-        new_types::{BitMask, HashCode, ShardCount, ShardIndex},
+        new_types::{HashCode, ShardCount, ShardIndex},
         prepared::{
             schema::{TxKeySelector, TxKeys, TxSchema, tx_schema},
             transaction::PreparedTransaction,

@@ -18,11 +18,11 @@ impl Default for Indexer<DefaultBuildHasher> {
 }
 
 impl<S: BuildHasher> Indexer<S> {
-    pub fn new(hasher_builder: S) -> Self {
+    pub(crate) fn new(hasher_builder: S) -> Self {
         Self { hasher_builder }
     }
 
-    pub fn hasher_builder(&self) -> &S {
+    pub(crate) fn hasher_builder(&self) -> &S {
         &self.hasher_builder
     }
 

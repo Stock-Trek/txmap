@@ -9,25 +9,25 @@ use std::{
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
-pub struct HashCode(pub u64);
+pub struct HashCode(pub(crate) u64);
 
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
-pub struct ShardCount(pub u8);
+pub struct ShardCount(pub(crate) u8);
 
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
-pub struct ShardIndex(pub u8);
+pub struct ShardIndex(pub(crate) u8);
 
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
-pub struct BitMask(pub u128);
+pub(crate) struct BitMask(pub u128);
 
 impl ShardIndex {
-    pub fn bitmask(&self) -> BitMask {
+    pub(crate) fn bitmask(&self) -> BitMask {
         BitMask(1 << self.0)
     }
 }

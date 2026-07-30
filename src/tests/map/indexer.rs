@@ -1,4 +1,7 @@
-use crate::prelude::*;
+use crate::{
+    new_types::{ShardCount, ShardIndex},
+    shards::Shards,
+};
 use hashbrown::HashSet;
 
 #[test]
