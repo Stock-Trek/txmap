@@ -1,5 +1,5 @@
-use crate::new_types::ShardCount;
-use std::hash::Hash;
+use crate::{indexer::Indexer, new_types::ShardCount};
+use std::hash::{BuildHasher, Hash};
 
 pub trait TxSchema<K>
 where
@@ -10,11 +10,12 @@ where
     type Params;
     type State: Default;
 }
-pub trait TxKeys<K, IndexedKeys>
+pub trait TxKeys<K, IndexedKeys, S = std::hash::RandomState>
 where
     K: Hash + Eq,
+    S: BuildHasher,
 {
-    fn into_indexed(self, shard_count: ShardCount) -> IndexedKeys;
+    fn into_indexed(self, shard_count: ShardCount, indexer: &Indexer<S>) -> IndexedKeys;
 }
 
 pub trait TxKeySelector<K, KEYS>
@@ -115,14 +116,15 @@ macro_rules! tx_schema {
                         }
                     }
                 )*
-                impl<K> $crate::prelude::TxKeys<K, [<$name IndexedKeys>]<K>> for [<$name Keys>]<K>
+                impl<K, S> $crate::prelude::TxKeys<K, [<$name IndexedKeys>]<K>, S> for [<$name Keys>]<K>
                 where
                     K: std::hash::Hash + Eq,
+                    S: std::hash::BuildHasher,
                 {
-                    fn into_indexed(self, shard_count: $crate::prelude::ShardCount) -> [<$name IndexedKeys>]<K> {
+                    fn into_indexed(self, shard_count: $crate::prelude::ShardCount, indexer: &$crate::indexer::Indexer<S>) -> [<$name IndexedKeys>]<K> {
                         [<$name IndexedKeys>] {
                             $(
-                                $key: $crate::prelude::Indexer::indexed_key(shard_count, self.$key),
+                                $key: indexer.indexed_key(shard_count, self.$key),
                             )*
                         }
                     }

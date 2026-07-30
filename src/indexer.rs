@@ -2,17 +2,34 @@ use crate::{
     key::TxKey,
     new_types::{HashCode, ShardCount, ShardIndex},
 };
-use rapidhash::fast::RapidHasher;
-use std::hash::{Hash, Hasher};
+use std::hash::{BuildHasher, Hash, RandomState};
 
-pub struct Indexer;
+pub struct Indexer<S: BuildHasher = RandomState> {
+    hasher_builder: S,
+}
 
-impl Indexer {
-    pub fn indexed_key<K>(shard_count: ShardCount, key: K) -> TxKey<K>
+impl Default for Indexer<RandomState> {
+    fn default() -> Self {
+        Self {
+            hasher_builder: RandomState::default(),
+        }
+    }
+}
+
+impl<S: BuildHasher> Indexer<S> {
+    pub fn new(hasher_builder: S) -> Self {
+        Self { hasher_builder }
+    }
+
+    pub fn hasher_builder(&self) -> &S {
+        &self.hasher_builder
+    }
+
+    pub fn indexed_key<K>(&self, shard_count: ShardCount, key: K) -> TxKey<K>
     where
         K: Hash + Eq,
     {
-        let hash_code = Self::hash(&key);
+        let hash_code = self.hash(&key);
         let shard_index = Self::shard_index(shard_count, hash_code);
         TxKey {
             hash_code,
@@ -20,15 +37,15 @@ impl Indexer {
             key,
         }
     }
+
     pub(crate) fn shard_index(shard_count: ShardCount, hash_code: HashCode) -> ShardIndex {
         ShardIndex((hash_code.0 & (shard_count.0 as u64 - 1)) as u8)
     }
-    pub(crate) fn hash<K>(key: &K) -> HashCode
+
+    pub(crate) fn hash<K>(&self, key: &K) -> HashCode
     where
         K: Hash,
     {
-        let mut state = RapidHasher::default();
-        key.hash(&mut state);
-        HashCode(state.finish())
+        HashCode(self.hasher_builder.hash_one(key))
     }
 }

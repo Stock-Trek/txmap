@@ -1,5 +1,5 @@
 use crate::{indexer::Indexer, key::TxKey, shard::Shard};
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 
 pub(crate) struct ShardOps;
 
@@ -13,15 +13,22 @@ impl ShardOps {
             .find(key.hash_code.0, |entry| entry.0 == key.key)
             .map(|(_key, value)| value)
     }
+
     #[inline]
-    pub fn insert<K, V>(shard: &mut Shard<K, V>, key: &TxKey<K>, value: V) -> Option<V>
+    pub fn insert<K, V, S>(
+        shard: &mut Shard<K, V>,
+        key: &TxKey<K>,
+        value: V,
+        indexer: &Indexer<S>,
+    ) -> Option<V>
     where
         K: Clone + Hash + Eq,
+        S: BuildHasher,
     {
         let entry = shard.entry(
             key.hash_code.0,
             |entry| entry.0 == key.key,
-            |entry| Indexer::hash(&entry.0).0,
+            |entry| indexer.hash(&entry.0).0,
         );
         match entry {
             hashbrown::hash_table::Entry::Occupied(occupied) => {
@@ -35,19 +42,22 @@ impl ShardOps {
             }
         }
     }
+
     #[inline]
-    pub fn insert_if_absent<K, V>(
+    pub fn insert_if_absent<K, V, S>(
         shard: &mut Shard<K, V>,
         key: &TxKey<K>,
         value_gen: impl FnOnce() -> V,
+        indexer: &Indexer<S>,
     ) -> bool
     where
         K: Clone + Hash + Eq,
+        S: BuildHasher,
     {
         let entry = shard.entry(
             key.hash_code.0,
             |entry| entry.0 == key.key,
-            |entry| Indexer::hash(&entry.0).0,
+            |entry| indexer.hash(&entry.0).0,
         );
         match entry {
             hashbrown::hash_table::Entry::Occupied(_) => false,
@@ -57,23 +67,27 @@ impl ShardOps {
             }
         }
     }
+
     #[inline]
-    pub fn insert_with_duplicate_key<K, V>(
+    pub fn insert_with_duplicate_key<K, V, S>(
         shard: &mut Shard<K, V>,
         key: &TxKey<K>,
         duplicate_key: K,
         value: V,
+        indexer: &Indexer<S>,
     ) where
         K: Hash + Eq,
+        S: BuildHasher,
     {
         shard
             .entry(
                 key.hash_code.0,
                 |entry| entry.0 == key.key,
-                |entry| Indexer::hash(&entry.0).0,
+                |entry| indexer.hash(&entry.0).0,
             )
             .insert((duplicate_key, value));
     }
+
     #[inline]
     pub fn modify<K, V>(
         shard: &mut Shard<K, V>,
@@ -90,6 +104,7 @@ impl ShardOps {
             false
         }
     }
+
     #[inline]
     pub fn remove_entry<K, V>(shard: &mut Shard<K, V>, key: &TxKey<K>) -> Option<(K, V)>
     where
@@ -100,19 +115,22 @@ impl ShardOps {
             .ok()
             .map(|entry| entry.remove().0)
     }
+
     #[inline]
-    pub fn remove_if<K, V>(
+    pub fn remove_if<K, V, S>(
         shard: &mut Shard<K, V>,
         key: &TxKey<K>,
         condition: impl FnOnce(&K, &V) -> bool,
+        indexer: &Indexer<S>,
     ) -> Option<V>
     where
         K: Hash + Eq,
+        S: BuildHasher,
     {
         let entry = shard.entry(
             key.hash_code.0,
             |entry| entry.0 == key.key,
-            |entry| Indexer::hash(&entry.0).0,
+            |entry| indexer.hash(&entry.0).0,
         );
         match entry {
             hashbrown::hash_table::Entry::Occupied(occupied) => {
@@ -126,18 +144,21 @@ impl ShardOps {
             hashbrown::hash_table::Entry::Vacant(_) => None,
         }
     }
+
     #[inline]
-    pub fn update<K, V>(
+    pub fn update<K, V, S>(
         shard: &mut Shard<K, V>,
         key: &TxKey<K>,
         transform: impl FnOnce(&K, Option<&V>) -> Option<V>,
+        indexer: &Indexer<S>,
     ) where
         K: Clone + Hash + Eq,
+        S: BuildHasher,
     {
         let entry = shard.entry(
             key.hash_code.0,
             |entry| entry.0 == key.key,
-            |entry| Indexer::hash(&entry.0).0,
+            |entry| indexer.hash(&entry.0).0,
         );
         match entry {
             hashbrown::hash_table::Entry::Occupied(occupied) => {
