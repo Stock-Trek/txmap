@@ -10,7 +10,7 @@ fn shards(c: &mut Criterion) {
         Shards::_64,
         Shards::_128,
     ] {
-        let txmap = TxMapBuilder::default().with_shards(shards).build();
+        let txmap: TxMap<String, u64> = TxMapBuilder::default().with_shards(shards).build();
         c.bench_function(&format!("txmap_insert_shards_{}", shards), |b| {
             b.iter(|| {
                 let key = std::hint::black_box("key".to_string());

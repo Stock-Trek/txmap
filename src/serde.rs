@@ -7,7 +7,7 @@ use serde::{
     ser::SerializeMap,
 };
 use std::fmt;
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 use std::marker::PhantomData;
 
 impl<T: Serialize> Serialize for TxResult<T> {
@@ -69,13 +69,14 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for TxResult<T> {
     }
 }
 
-impl<K, V, L> Serialize for TxMap<K, V, L>
+impl<K, V, L, S> Serialize for TxMap<K, V, L, S>
 where
     K: Hash + Eq + Serialize,
     V: Serialize,
     L: LockPolicy,
+    S: BuildHasher,
 {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+    fn serialize<SER: Serializer>(&self, serializer: SER) -> Result<SER::Ok, SER::Error> {
         let len = self.len();
         let mut map = serializer.serialize_map(Some(len))?;
         for guard in self.custodian.all_read_guards() {
@@ -104,7 +105,7 @@ where
     }
 
     fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-        let txmap = TxMap::<K, V>::with_lock_policy::<L>(Shards::_16);
+        let txmap = TxMap::<K, V, L>::with_lock_policy(Shards::_16);
         while let Some((key, value)) = map.next_entry::<K, V>()? {
             txmap.insert(key, value);
         }
@@ -112,7 +113,7 @@ where
     }
 
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
-        let txmap = TxMap::<K, V>::with_lock_policy::<L>(Shards::_16);
+        let txmap = TxMap::<K, V, L>::with_lock_policy(Shards::_16);
         while let Some((key, value)) = seq.next_element::<(K, V)>()? {
             txmap.insert(key, value);
         }

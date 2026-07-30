@@ -1,28 +1,33 @@
 use crate::{
     custodian::Custodian,
     immediate::{guard::Guard, op::ImmediateOp},
+    indexer::Indexer,
     lock_policies::lock_policy::LockPolicy,
     new_types::BitMask,
     result::TxResult,
 };
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 
-pub struct ImmediateTransaction<'tx, K, V, L, STATE>
+pub struct ImmediateTransaction<'tx, K, V, L, S, STATE>
 where
     K: Clone + Hash + Eq,
     L: LockPolicy,
+    S: BuildHasher,
+    STATE: Default,
 {
     pub(crate) custodian: &'tx Custodian<K, V, L>,
+    pub(crate) indexer: &'tx Indexer<S>,
     pub(crate) guards: Vec<Guard<'tx, K, V, STATE>>,
     #[allow(clippy::type_complexity)]
     pub(crate) ops: Vec<ImmediateOp<'tx, K, V, STATE>>,
 }
 
-impl<'tx, K, V, L, STATE> ImmediateTransaction<'tx, K, V, L, STATE>
+impl<'tx, K, V, L, S, STATE> ImmediateTransaction<'tx, K, V, L, S, STATE>
 where
     K: Clone + Hash + Eq,
     V: Default,
     L: LockPolicy,
+    S: BuildHasher,
     STATE: Default,
 {
     #[must_use]
@@ -52,7 +57,7 @@ where
             }
         }
         for op in self.ops.iter() {
-            op.apply(&mut lock_guards, &mut state);
+            op.apply::<L, S>(&mut lock_guards, self.indexer, &mut state);
         }
         TxResult::Completed(state)
     }

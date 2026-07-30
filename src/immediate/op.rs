@@ -1,9 +1,9 @@
 use crate::{
-    key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
+    indexer::Indexer, key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
     multi_shard_ops::MultiShardOps, new_types::BitMask, shard_ops::ShardOps,
 };
 use std::{
-    hash::Hash,
+    hash::{BuildHasher, Hash},
     ops::{Deref, DerefMut},
 };
 
@@ -74,9 +74,14 @@ where
             ),
         }
     }
-    pub fn apply<L>(&self, lock_guards: &mut LockGuards<'_, K, V, L>, state: &mut STATE)
-    where
+    pub fn apply<L, S>(
+        &self,
+        lock_guards: &mut LockGuards<'_, K, V, L>,
+        indexer: &Indexer<S>,
+        state: &mut STATE,
+    ) where
         L: LockPolicy,
+        S: BuildHasher,
     {
         match self {
             Self::Get { key, get } => {
@@ -95,23 +100,31 @@ where
             } => {
                 let new_value = (value_generator)(&key.key, state);
                 let write_guard = lock_guards.write_guard(key);
-                ShardOps::insert::<K, V>(write_guard, key, new_value);
+                ShardOps::insert::<K, V, S>(write_guard, key, new_value, indexer);
             }
             Self::InsertWithIfAbsent {
                 key,
                 value_generator,
             } => {
                 let write_guard = lock_guards.write_guard(key);
-                ShardOps::insert_if_absent::<K, V>(write_guard, key, || {
-                    (value_generator)(&key.key, state)
-                });
+                ShardOps::insert_if_absent::<K, V, S>(
+                    write_guard,
+                    key,
+                    || (value_generator)(&key.key, state),
+                    indexer,
+                );
             }
             Self::Modify { key, mutate } => {
                 let shard = lock_guards.write_guard(key);
                 ShardOps::modify(shard, key, |k, v| mutate(k, v, state));
             }
             Self::MoveValue { key_from, key_to } => {
-                MultiShardOps::move_value::<K, V, L>(&mut lock_guards.write, key_from, key_to);
+                MultiShardOps::move_value::<K, V, L, S>(
+                    &mut lock_guards.write,
+                    key_from,
+                    key_to,
+                    indexer,
+                );
             }
             Self::Remove { key } => {
                 let shard = lock_guards.write_guard(key);
@@ -119,14 +132,19 @@ where
             }
             Self::RemoveIf { key, condition } => {
                 let shard = lock_guards.write_guard(key);
-                ShardOps::remove_if(shard, key, |k, v| condition(k, v, state));
+                ShardOps::remove_if(shard, key, |k, v| condition(k, v, state), indexer);
             }
             Self::SwapValue { key_a, key_b } => {
-                MultiShardOps::swap_value::<K, V, L>(&mut lock_guards.write, key_a, key_b);
+                MultiShardOps::swap_value::<K, V, L, S>(
+                    &mut lock_guards.write,
+                    key_a,
+                    key_b,
+                    indexer,
+                );
             }
             Self::Update { key, transform } => {
                 let shard = lock_guards.write_guard(key);
-                ShardOps::update(shard, key, |k, v_opt| transform(k, v_opt, state));
+                ShardOps::update(shard, key, |k, v_opt| transform(k, v_opt, state), indexer);
             }
         }
     }

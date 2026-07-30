@@ -1,4 +1,5 @@
 pub mod custodian;
+pub mod hasher;
 pub mod immediate;
 pub mod indexer;
 pub mod iter;

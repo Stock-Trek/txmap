@@ -1,36 +1,40 @@
 use crate::{
     custodian::Custodian,
+    indexer::Indexer,
     lock_policies::lock_policy::LockPolicy,
     new_types::BitMask,
     prepared::{guard::Guard, op::PreparedOp, schema::TxKeys},
     result::TxResult,
 };
-use std::hash::Hash;
+use std::hash::{BuildHasher, Hash};
 
-pub struct PreparedTransaction<'tx, K, V, L, KEYS, PARAMS, STATE>
+pub struct PreparedTransaction<'tx, K, V, L, S, KEYS, PARAMS, STATE>
 where
     K: Clone + Hash + Eq,
     L: LockPolicy,
+    S: BuildHasher,
     STATE: Default,
 {
     pub(crate) custodian: &'tx Custodian<K, V, L>,
+    pub(crate) indexer: &'tx Indexer<S>,
     pub(crate) guards: Vec<Guard<'tx, K, V, KEYS, PARAMS, STATE>>,
     #[allow(clippy::type_complexity)]
     pub(crate) ops: Vec<PreparedOp<'tx, K, V, KEYS, PARAMS, STATE>>,
 }
 
-impl<'tx, K, V, L, KEYS, PARAMS, STATE> PreparedTransaction<'tx, K, V, L, KEYS, PARAMS, STATE>
+impl<'tx, K, V, L, S, KEYS, PARAMS, STATE> PreparedTransaction<'tx, K, V, L, S, KEYS, PARAMS, STATE>
 where
     K: Clone + Hash + Eq,
     L: LockPolicy,
+    S: BuildHasher,
     STATE: Default,
 {
     #[must_use]
     pub fn execute<RAW>(&self, keys: RAW, params: PARAMS) -> TxResult<STATE>
     where
-        RAW: TxKeys<K, KEYS>,
+        RAW: TxKeys<K, KEYS, S>,
     {
-        let keys = keys.into_indexed(self.custodian.shard_count);
+        let keys = keys.into_indexed(self.custodian.shard_count, self.indexer);
         let mut total_read_bitmask = BitMask::ZERO;
         let mut total_write_bitmask = BitMask::ZERO;
 
@@ -56,7 +60,7 @@ where
             }
         }
         for op in self.ops.iter() {
-            op.apply(&mut lock_guards, &keys, &params, &mut state);
+            op.apply::<L, S>(&mut lock_guards, &keys, &params, self.indexer, &mut state);
         }
         TxResult::Completed(state)
     }
