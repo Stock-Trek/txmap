@@ -8,6 +8,7 @@ use std::hash::Hash;
 pub(crate) struct MultiShardOps;
 
 impl MultiShardOps {
+    #[inline]
     pub fn move_value<K, V, L>(
         write_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>,
         key_from: &TxKey<K>,
@@ -29,6 +30,7 @@ impl MultiShardOps {
             ShardOps::remove_entry(shard_to, key_to);
         }
     }
+    #[inline]
     pub fn swap_value<K, V, L>(
         write_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>,
         key_a: &TxKey<K>,
@@ -72,6 +74,7 @@ impl MultiShardOps {
             }
         }
     }
+    #[inline]
     fn shard<'ex, K, V, L>(
         write_guards: &'ex mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>,
         key: &TxKey<K>,

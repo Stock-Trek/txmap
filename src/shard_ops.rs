@@ -4,6 +4,7 @@ use std::hash::Hash;
 pub(crate) struct ShardOps;
 
 impl ShardOps {
+    #[inline]
     pub fn value_ref<'op, K, V>(shard: &'op Shard<K, V>, key: &TxKey<K>) -> Option<&'op V>
     where
         K: Clone + Hash + Eq,
@@ -12,6 +13,7 @@ impl ShardOps {
             .find(key.hash_code.0, |entry| entry.0 == key.key)
             .map(|(_key, value)| value)
     }
+    #[inline]
     pub fn insert<K, V>(shard: &mut Shard<K, V>, key: &TxKey<K>, value: V) -> Option<V>
     where
         K: Clone + Hash + Eq,
@@ -33,6 +35,7 @@ impl ShardOps {
             }
         }
     }
+    #[inline]
     pub fn insert_if_absent<K, V>(
         shard: &mut Shard<K, V>,
         key: &TxKey<K>,
@@ -54,6 +57,7 @@ impl ShardOps {
             }
         }
     }
+    #[inline]
     pub fn insert_with_duplicate_key<K, V>(
         shard: &mut Shard<K, V>,
         key: &TxKey<K>,
@@ -70,6 +74,7 @@ impl ShardOps {
             )
             .insert((duplicate_key, value));
     }
+    #[inline]
     pub fn modify<K, V>(
         shard: &mut Shard<K, V>,
         key: &TxKey<K>,
@@ -85,6 +90,7 @@ impl ShardOps {
             false
         }
     }
+    #[inline]
     pub fn remove_entry<K, V>(shard: &mut Shard<K, V>, key: &TxKey<K>) -> Option<(K, V)>
     where
         K: Hash + Eq,
@@ -94,6 +100,7 @@ impl ShardOps {
             .ok()
             .map(|entry| entry.remove().0)
     }
+    #[inline]
     pub fn remove_if<K, V>(
         shard: &mut Shard<K, V>,
         key: &TxKey<K>,
@@ -119,6 +126,7 @@ impl ShardOps {
             hashbrown::hash_table::Entry::Vacant(_) => None,
         }
     }
+    #[inline]
     pub fn update<K, V>(
         shard: &mut Shard<K, V>,
         key: &TxKey<K>,
