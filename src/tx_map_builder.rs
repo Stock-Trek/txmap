@@ -91,10 +91,7 @@ where
     }
 }
 
-impl<L> Default for TxMapBuilder<L, RandomState>
-where
-    L: LockPolicy,
-{
+impl Default for TxMapBuilder<MutexPolicy, RandomState> {
     fn default() -> Self {
         Self {
             capacity: 0,
