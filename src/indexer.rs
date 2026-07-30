@@ -5,7 +5,7 @@ use crate::{
 };
 use std::hash::{BuildHasher, Hash};
 
-pub struct Indexer<S: BuildHasher = DefaultBuildHasher> {
+pub(crate) struct Indexer<S: BuildHasher = DefaultBuildHasher> {
     hasher_builder: S,
 }
 
@@ -18,11 +18,11 @@ impl Default for Indexer<DefaultBuildHasher> {
 }
 
 impl<S: BuildHasher> Indexer<S> {
-    pub(crate) fn new(hasher_builder: S) -> Self {
+    pub fn new(hasher_builder: S) -> Self {
         Self { hasher_builder }
     }
 
-    pub(crate) fn hasher_builder(&self) -> &S {
+    pub fn hasher_builder(&self) -> &S {
         &self.hasher_builder
     }
 
@@ -39,11 +39,11 @@ impl<S: BuildHasher> Indexer<S> {
         }
     }
 
-    pub(crate) fn shard_index(shard_count: ShardCount, hash_code: HashCode) -> ShardIndex {
+    pub fn shard_index(shard_count: ShardCount, hash_code: HashCode) -> ShardIndex {
         ShardIndex((hash_code.0 & (shard_count.0 as u64 - 1)) as u8)
     }
 
-    pub(crate) fn hash<K>(&self, key: &K) -> HashCode
+    pub fn hash<K>(&self, key: &K) -> HashCode
     where
         K: Hash,
     {
