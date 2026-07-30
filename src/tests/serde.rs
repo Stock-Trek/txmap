@@ -1,23 +1,11 @@
 use crate::{
-    result::TxResult, shards::Shards, tests::data::*, tx_map::TxMap, tx_map_builder::TxMapBuilder,
+    new_types::ShardCount,
+    result::TxResult,
+    shards::Shards,
+    tests::{creators::*, data::*},
+    tx_map::TxMap,
+    tx_map_builder::TxMapBuilder,
 };
-
-fn empty_map() -> TxMap<String, u64> {
-    TxMapBuilder::default().with_shards(Shards::_8).build()
-}
-
-fn map_alice(alice: u64) -> TxMap<String, u64> {
-    let map = empty_map();
-    map.insert(ALICE.into(), alice);
-    map
-}
-
-fn map_alice_bob(alice: u64, bob: u64) -> TxMap<String, u64> {
-    let map = empty_map();
-    map.insert(ALICE.into(), alice);
-    map.insert(BOB.into(), bob);
-    map
-}
 
 #[test]
 fn serde_roundtrip_empty_map() {
@@ -26,6 +14,14 @@ fn serde_roundtrip_empty_map() {
     let deserialized: TxMap<String, u64> = serde_json::from_str(&json).unwrap();
     assert!(deserialized.is_empty());
     assert_eq!(deserialized.len(), 0);
+}
+
+#[test]
+fn serde_roundtrip_shards() {
+    let map: TxMap<String, u64> = TxMapBuilder::default().with_shards(Shards::_64).build();
+    let json = serde_json::to_string(&map).unwrap();
+    let deserialized: TxMap<String, u64> = serde_json::from_str(&json).unwrap();
+    assert_eq!(deserialized.custodian.shard_count, ShardCount(64));
 }
 
 #[test]
