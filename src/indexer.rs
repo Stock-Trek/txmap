@@ -18,11 +18,11 @@ impl Default for Indexer<DefaultBuildHasher> {
 }
 
 impl<S: BuildHasher> Indexer<S> {
-    pub fn new(hasher_builder: S) -> Self {
+    pub(crate) fn new(hasher_builder: S) -> Self {
         Self { hasher_builder }
     }
 
-    pub fn hasher_builder(&self) -> &S {
+    pub(crate) fn hasher_builder(&self) -> &S {
         &self.hasher_builder
     }
 
@@ -39,11 +39,11 @@ impl<S: BuildHasher> Indexer<S> {
         }
     }
 
-    pub fn shard_index(shard_count: ShardCount, hash_code: HashCode) -> ShardIndex {
+    pub(crate) fn shard_index(shard_count: ShardCount, hash_code: HashCode) -> ShardIndex {
         ShardIndex((hash_code.0 & (shard_count.0 as u64 - 1)) as u8)
     }
 
-    pub fn hash<K>(&self, key: &K) -> HashCode
+    pub(crate) fn hash<K>(&self, key: &K) -> HashCode
     where
         K: Hash,
     {
