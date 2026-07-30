@@ -119,8 +119,11 @@ where
             .with_lock_policy::<L>()
             .with_shards(shards)
             .build();
-        while let Some((key, value)) = seq.next_element::<(K, V)>()? {
-            txmap.insert(key, value);
+        let entries: Option<Vec<(K, V)>> = seq.next_element()?;
+        if let Some(entries) = entries {
+            for (key, value) in entries {
+                txmap.insert(key, value);
+            }
         }
         Ok(txmap)
     }

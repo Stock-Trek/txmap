@@ -679,6 +679,7 @@ dependencies = [
  "rand",
  "rapidhash",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
