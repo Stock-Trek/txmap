@@ -1,9 +1,10 @@
 use crate::{
     lock_policies::lock_policy::LockPolicy, result::TxResult, shards::Shards, tx_map::TxMap,
+    tx_map_builder::TxMapBuilder,
 };
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
-    de::{self, MapAccess, SeqAccess, Visitor},
+    de::{self, SeqAccess, Visitor},
     ser::SerializeMap,
 };
 use std::fmt;
@@ -71,20 +72,25 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for TxResult<T> {
 
 impl<K, V, L, S> Serialize for TxMap<K, V, L, S>
 where
-    K: Hash + Eq + Serialize,
+    K: Clone + Hash + Eq + Serialize,
     V: Serialize,
     L: LockPolicy,
     S: BuildHasher,
 {
     fn serialize<SER: Serializer>(&self, serializer: SER) -> Result<SER::Ok, SER::Error> {
-        let len = self.len();
-        let mut map = serializer.serialize_map(Some(len))?;
-        for guard in self.custodian.all_read_guards() {
-            for (k, v) in guard.1.iter() {
-                map.serialize_entry(k, v)?;
-            }
-        }
-        map.end()
+        let entries: Vec<(&K, &V)> = self.iter().collect();
+        (self.shard_count.0, entries).serialize(serializer)
+    }
+}
+
+fn shard_count_to_shards(count: u8) -> Result<Shards, String> {
+    match count {
+        8 => Ok(Shards::_8),
+        16 => Ok(Shards::_16),
+        32 => Ok(Shards::_32),
+        64 => Ok(Shards::_64),
+        128 => Ok(Shards::_128),
+        other => Err(format!("invalid shard count: {other}")),
     }
 }
 
@@ -94,26 +100,25 @@ struct TxMapVisitor<K, V, L> {
 
 impl<'de, K, V, L> Visitor<'de> for TxMapVisitor<K, V, L>
 where
-    K: Hash + Eq + Deserialize<'de>,
+    K: Clone + Hash + Eq + Deserialize<'de>,
     V: Deserialize<'de>,
     L: LockPolicy,
 {
     type Value = TxMap<K, V, L>;
 
     fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("a map of key-value pairs")
-    }
-
-    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
-        let txmap = TxMap::<K, V, L>::with_lock_policy(Shards::_16);
-        while let Some((key, value)) = map.next_entry::<K, V>()? {
-            txmap.insert(key, value);
-        }
-        Ok(txmap)
+        f.write_str("a shard count followed by a sequence of key-value pairs")
     }
 
     fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
-        let txmap = TxMap::<K, V, L>::with_lock_policy(Shards::_16);
+        let shard_count: u8 = seq
+            .next_element()?
+            .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+        let shards = shard_count_to_shards(shard_count).map_err(de::Error::custom)?;
+        let txmap = TxMapBuilder::default()
+            .with_lock_policy::<L>()
+            .with_shards(shards)
+            .build();
         while let Some((key, value)) = seq.next_element::<(K, V)>()? {
             txmap.insert(key, value);
         }
@@ -123,12 +128,12 @@ where
 
 impl<'de, K, V, L> Deserialize<'de> for TxMap<K, V, L>
 where
-    K: Hash + Eq + Deserialize<'de>,
+    K: Clone + Hash + Eq + Deserialize<'de>,
     V: Deserialize<'de>,
     L: LockPolicy,
 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_map(TxMapVisitor::<K, V, L> {
+        deserializer.deserialize_seq(TxMapVisitor::<K, V, L> {
             _marker: PhantomData,
         })
     }
