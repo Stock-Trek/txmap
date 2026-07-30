@@ -5,12 +5,14 @@ pub mod iter;
 pub mod key;
 pub mod lock_guards;
 pub mod lock_policies;
+pub mod multi_shard_ops;
 pub mod new_types;
 pub mod prepared;
 pub mod result;
 #[cfg(feature = "serde")]
 pub mod serde;
 pub mod shard;
+pub mod shard_ops;
 pub mod shards;
 #[cfg(test)]
 pub mod tests;

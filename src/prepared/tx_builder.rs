@@ -152,11 +152,9 @@ where
     pub fn remove(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
-        on_remove: impl Fn(Option<(K, V)>, &PARAMS, &mut STATE) + 'tx,
     ) -> PreparedTxBuilder<'tx, K, V, L, KEYS, PARAMS, STATE, PreparedBuildablePhase> {
         self.ops.push(PreparedOp::Remove {
             key_selector: Box::new(key_selector),
-            on_remove: Box::new(on_remove),
         });
         PreparedTxBuilder {
             custodian: self.custodian,

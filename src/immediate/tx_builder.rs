@@ -143,11 +143,9 @@ where
     pub fn remove(
         mut self,
         key: K,
-        on_remove: impl Fn(Option<(K, V)>, &mut STATE) + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::Remove {
             key: Indexer::indexed_key(self.custodian.shard_count, key),
-            on_remove: Box::new(on_remove),
         });
         ImmediateTxBuilder {
             custodian: self.custodian,

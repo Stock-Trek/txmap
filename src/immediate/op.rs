@@ -1,8 +1,11 @@
 use crate::{
     key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
-    new_types::BitMask, result::MISSING_LOCK_GUARD_ERROR,
+    multi_shard_ops::MultiShardOps, new_types::BitMask, shard_ops::ShardOps,
 };
-use std::hash::Hash;
+use std::{
+    hash::Hash,
+    ops::{Deref, DerefMut},
+};
 
 #[allow(clippy::type_complexity)]
 pub(crate) enum ImmediateOp<'tx, K, V, STATE>
@@ -31,7 +34,6 @@ where
     },
     Remove {
         key: TxKey<K>,
-        on_remove: Box<dyn Fn(Option<(K, V)>, &mut STATE) + 'tx>,
     },
     RemoveIf {
         key: TxKey<K>,
@@ -78,137 +80,53 @@ where
     {
         match self {
             Self::Get { key, get } => {
-                if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
-                    let value_ref = lock_guards
-                        .write
-                        .get(key.shard_index.0)
-                        .expect(MISSING_LOCK_GUARD_ERROR)
-                        .find(key.hash_code.0, |entry| entry.0 == key.key)
-                        .map(|(_, value)| value);
-                    (get)(&key.key, value_ref, state)
-                } else {
-                    let value_ref = lock_guards
-                        .read
-                        .get(key.shard_index.0)
-                        .expect(MISSING_LOCK_GUARD_ERROR)
-                        .find(key.hash_code.0, |entry| entry.0 == key.key)
-                        .map(|(_, value)| value);
-                    (get)(&key.key, value_ref, state)
-                }
+                let shard =
+                    if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
+                        lock_guards.write_guard(key).deref_mut()
+                    } else {
+                        lock_guards.read_guard(key).deref()
+                    };
+                let value_ref = ShardOps::value_ref(shard, key);
+                (get)(&key.key, value_ref, state)
             }
             Self::InsertWith {
                 key,
                 value_generator,
             } => {
                 let new_value = (value_generator)(&key.key, state);
-                lock_guards.insert(key, new_value);
+                let write_guard = lock_guards.write_guard(key);
+                ShardOps::insert::<K, V>(write_guard, key, new_value);
             }
             Self::InsertWithIfAbsent {
                 key,
                 value_generator,
             } => {
-                lock_guards.insert_if_absent(key, || (value_generator)(&key.key, state));
+                let write_guard = lock_guards.write_guard(key);
+                ShardOps::insert_if_absent::<K, V>(write_guard, key, || {
+                    (value_generator)(&key.key, state)
+                });
             }
             Self::Modify { key, mutate } => {
-                let write_guard = lock_guards
-                    .write
-                    .get_mut(key.shard_index.0)
-                    .expect(MISSING_LOCK_GUARD_ERROR);
-                if let Some(mut_entry) =
-                    write_guard.find_mut(key.hash_code.0, |entry| entry.0 == key.key)
-                {
-                    (mutate)(&mut_entry.0, &mut mut_entry.1, state)
-                }
+                let shard = lock_guards.write_guard(key);
+                ShardOps::modify(shard, key, |k, v| mutate(k, v, state));
             }
             Self::MoveValue { key_from, key_to } => {
-                let removed = lock_guards.remove_entry(key_from);
-                if let Some(entry) = removed {
-                    lock_guards.insert(key_to, entry.1);
-                } else {
-                    lock_guards.remove_entry(key_to);
-                }
+                MultiShardOps::move_value::<K, V, L>(&mut lock_guards.write, key_from, key_to);
             }
-            Self::Remove { key, on_remove } => {
-                let removed_entry = lock_guards.remove_entry(key);
-                (on_remove)(removed_entry, state)
+            Self::Remove { key } => {
+                let shard = lock_guards.write_guard(key);
+                ShardOps::remove_entry::<K, V>(shard, key);
             }
             Self::RemoveIf { key, condition } => {
-                if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
-                    let value_ref = lock_guards
-                        .write
-                        .get(key.shard_index.0)
-                        .expect(MISSING_LOCK_GUARD_ERROR)
-                        .find(key.hash_code.0, |entry| entry.0 == key.key)
-                        .map(|(_key, value)| value);
-                    if let Some(v) = value_ref
-                        && (condition)(&key.key, v, state)
-                    {
-                        lock_guards.remove_entry(key);
-                    }
-                } else {
-                    let value_ref = lock_guards
-                        .read
-                        .get(key.shard_index.0)
-                        .expect(MISSING_LOCK_GUARD_ERROR)
-                        .find(key.hash_code.0, |entry| entry.0 == key.key)
-                        .map(|(_key, value)| value);
-                    if let Some(v) = value_ref
-                        && (condition)(&key.key, v, state)
-                    {
-                        lock_guards.remove_entry(key);
-                    }
-                }
+                let shard = lock_guards.write_guard(key);
+                ShardOps::remove_if(shard, key, |k, v| condition(k, v, state));
             }
             Self::SwapValue { key_a, key_b } => {
-                let a = lock_guards.remove_entry(key_a);
-                let b = lock_guards.remove_entry(key_b);
-                match a {
-                    Some((a_key, a_value)) => match b {
-                        Some((b_key, b_value)) => {
-                            lock_guards.insert_with_duplicate_key(key_a, a_key, b_value);
-                            lock_guards.insert_with_duplicate_key(key_b, b_key, a_value);
-                        }
-                        None => {
-                            lock_guards.insert(key_b, a_value);
-                        }
-                    },
-                    None => {
-                        if let Some((_, b_value)) = b {
-                            lock_guards.insert(key_a, b_value);
-                        }
-                    }
-                }
+                MultiShardOps::swap_value::<K, V, L>(&mut lock_guards.write, key_a, key_b);
             }
             Self::Update { key, transform } => {
-                if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
-                    let value_ref = lock_guards
-                        .write
-                        .get(key.shard_index.0)
-                        .expect(MISSING_LOCK_GUARD_ERROR)
-                        .find(key.hash_code.0, |entry| entry.0 == key.key)
-                        .map(|(_key, value)| value);
-                    let new_value = (transform)(&key.key, value_ref, state);
-                    match new_value {
-                        Some(v) => lock_guards.insert(key, v),
-                        None => {
-                            lock_guards.remove_entry(key);
-                        }
-                    };
-                } else {
-                    let value_ref = lock_guards
-                        .read
-                        .get(key.shard_index.0)
-                        .expect(MISSING_LOCK_GUARD_ERROR)
-                        .find(key.hash_code.0, |entry| entry.0 == key.key)
-                        .map(|(_key, value)| value);
-                    let new_value = (transform)(&key.key, value_ref, state);
-                    match new_value {
-                        Some(v) => lock_guards.insert(key, v),
-                        None => {
-                            lock_guards.remove_entry(key);
-                        }
-                    };
-                }
+                let shard = lock_guards.write_guard(key);
+                ShardOps::update(shard, key, |k, v_opt| transform(k, v_opt, state));
             }
         }
     }
