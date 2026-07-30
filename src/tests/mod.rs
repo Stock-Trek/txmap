@@ -2,6 +2,9 @@ pub mod creators;
 pub mod data;
 pub mod types;
 
+#[cfg(feature = "serde")]
+pub mod serde;
+
 pub mod prepared {
     pub mod get_op;
     pub mod guards;
