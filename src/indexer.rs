@@ -5,6 +5,7 @@ use crate::{
 };
 use std::hash::{BuildHasher, Hash};
 
+/// Hashes keys and maps them to shards.
 pub struct Indexer<S: BuildHasher = DefaultBuildHasher> {
     hasher_builder: S,
 }

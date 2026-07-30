@@ -1,3 +1,6 @@
+//! A concurrent transactional hash map with fine-grained locking, internal mutability
+//! and composable transactions.
+
 pub mod custodian;
 pub mod hasher;
 pub mod immediate;
@@ -20,6 +23,7 @@ pub mod tests;
 pub mod tx_map;
 pub mod tx_map_builder;
 
+/// Prelude module that re-exports the most commonly used types.
 pub mod prelude {
     pub use crate::{
         immediate::{

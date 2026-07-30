@@ -6,16 +6,19 @@ use std::{
     ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Deref, Not},
 };
 
+/// A pre-computed hash code.
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct HashCode(pub(crate) u64);
 
+/// The number of shards in the map (power-of-two between 8 and 128).
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct ShardCount(pub(crate) u8);
 
+/// The index of a shard (0..shard_count).
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]

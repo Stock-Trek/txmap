@@ -12,9 +12,18 @@ use std::{
     marker::PhantomData,
 };
 
+/// Phase marker: transaction is still accepting guard requirements.
 pub struct PreparedBuilderPhase;
+/// Phase marker: transaction has at least one operation and can be built.
 pub struct PreparedBuildablePhase;
 
+/// Fluent builder for a prepared (re-usable) transaction.
+///
+/// Start with [`TxMap::prepared_tx`], add guard requirements with
+/// [`require`](PreparedTxBuilder::require), add operations (e.g.
+/// [`modify`](PreparedTxBuilder::modify)), then call
+/// [`into_transaction`](PreparedTxBuilder::into_transaction) to
+/// obtain a [`PreparedTransaction`] that can be executed repeatedly.
 pub struct PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PHASE = PreparedBuilderPhase>
 where
     K: Clone + Hash + Eq + 'tx,
@@ -44,6 +53,7 @@ where
     PARAMS: 'tx,
     STATE: Default + 'tx,
 {
+    /// Adds a guard precondition using a key selector.
     pub fn require(
         mut self,
         name: impl AsRef<str>,
@@ -78,6 +88,7 @@ where
     PARAMS: 'tx,
     STATE: Default + 'tx,
 {
+    /// Reads a value and passes it (or `None`) to the callback.
     pub fn get(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -95,6 +106,7 @@ where
             _phase: PhantomData,
         }
     }
+    /// Inserts a value generated from the key and parameters.
     pub fn insert_with(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -112,6 +124,7 @@ where
             _phase: PhantomData,
         }
     }
+    /// Inserts a value only if the key is absent.
     pub fn insert_with_if_absent(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -129,6 +142,7 @@ where
             _phase: PhantomData,
         }
     }
+    /// Mutates an existing value in-place.
     pub fn modify(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -146,6 +160,7 @@ where
             _phase: PhantomData,
         }
     }
+    /// Moves a value from one key to another atomically.
     pub fn move_value(
         mut self,
         key_selector_from: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -163,6 +178,7 @@ where
             _phase: PhantomData,
         }
     }
+    /// Removes a key-value pair.
     pub fn remove(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -178,6 +194,7 @@ where
             _phase: PhantomData,
         }
     }
+    /// Removes a key if the condition is satisfied.
     pub fn remove_if(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -195,6 +212,7 @@ where
             _phase: PhantomData,
         }
     }
+    /// Swaps the values of two keys atomically.
     pub fn swap_value(
         mut self,
         key_selector_a: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -212,6 +230,7 @@ where
             _phase: PhantomData,
         }
     }
+    /// Updates or removes an entry via a transform closure.
     pub fn update(
         mut self,
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
@@ -243,6 +262,7 @@ where
     STATE: Default + 'tx,
 {
     #[must_use]
+    /// Consumes the builder and returns a [`PreparedTransaction`].
     pub fn into_transaction(self) -> PreparedTransaction<'tx, K, V, L, S, KEYS, PARAMS, STATE> {
         PreparedTransaction {
             custodian: self.custodian,

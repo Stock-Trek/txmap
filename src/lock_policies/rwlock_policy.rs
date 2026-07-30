@@ -1,6 +1,10 @@
 use crate::lock_policies::lock_policy::LockPolicy;
 use parking_lot::RwLock;
 
+/// Lock policy using [`parking_lot::RwLock`] for each shard.
+///
+/// Allows concurrent readers on the same shard. Writes are exclusive.
+/// Useful for read-heavy workloads.
 pub struct RwLockPolicy;
 
 impl Default for RwLockPolicy {

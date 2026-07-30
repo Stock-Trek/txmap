@@ -3,13 +3,22 @@ use serde::{Deserialize, Serialize};
 
 use crate::new_types::ShardCount;
 
+/// Number of shards for a [`TxMap`](crate::tx_map::TxMap).
+///
+/// Must be a power of two. The map uses `shard_count - 1` as a bitmask
+/// for shard selection from the hash.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Shards {
+    /// 8 shards.
     _8,
+    /// 16 shards.
     _16,
+    /// 32 shards.
     _32,
+    /// 64 shards.
     _64,
+    /// 128 shards.
     _128,
 }
 
