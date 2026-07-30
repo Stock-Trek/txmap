@@ -79,7 +79,6 @@ where
         let shard_lock = &self.shards[shard_index.0 as usize];
         L::read(shard_lock)
     }
-    #[allow(dead_code)]
     pub fn write_guard_at(&self, shard_index: ShardIndex) -> L::WriteGuard<'_, Shard<K, V>> {
         let shard_lock = &self.shards[shard_index.0 as usize];
         L::write(shard_lock)
