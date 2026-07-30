@@ -39,11 +39,11 @@ where
     {
         let key = self.key_selector.get(keys);
         let shard = if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
-            lock_guards.write_guard(&key).deref_mut()
+            lock_guards.write_guard(key).deref_mut()
         } else {
-            lock_guards.read_guard(&key).deref()
+            lock_guards.read_guard(key).deref()
         };
-        let value_ref = ShardOps::value_ref(shard, &key);
+        let value_ref = ShardOps::value_ref(shard, key);
         (self.condition)(&key.key, value_ref, params, state)
     }
 }
