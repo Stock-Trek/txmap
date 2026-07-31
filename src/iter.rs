@@ -1,4 +1,8 @@
-use crate::{lock_policies::lock_policy::LockPolicy, shard::Shard, tx_map::TxMap};
+use crate::{
+    lock_policies::lock_policy::LockPolicy, result::MISSING_LOCK_GUARD_ERROR, shard::Shard,
+    tx_map::TxMap,
+};
+use hashbrown::hash_table::Iter as ShardIter;
 use intmap::IntMap;
 use std::hash::Hash;
 
@@ -11,11 +15,46 @@ where
     V: 'a,
     L: LockPolicy + 'a,
 {
+    /// Read guards keeping every shard locked (and alive) for `'a`.
     pub(crate) _guards: IntMap<u8, L::ReadGuard<'a, Shard<K, V>>>,
-    pub(crate) shard_index: u8,
-    pub(crate) bucket_index: usize,
-    pub(crate) shard_count: u8,
+    /// One `hashbrown` iterator per shard, aligned with shard indices.
+    pub(crate) shard_iters: Vec<ShardIter<'a, (K, V)>>,
+    pub(crate) shard_index: usize,
     pub(crate) remaining: usize,
+}
+
+impl<'a, K, V, L> Iter<'a, K, V, L>
+where
+    K: Clone + Hash + Eq + 'a,
+    V: 'a,
+    L: LockPolicy + 'a,
+{
+    pub(crate) fn new(
+        guards: IntMap<u8, L::ReadGuard<'a, Shard<K, V>>>,
+        shard_count: u8,
+        remaining: usize,
+    ) -> Self {
+        let mut shard_iters = Vec::with_capacity(shard_count as usize);
+        for shard_index in 0..shard_count {
+            let guard = guards
+                .get(shard_index)
+                .expect(MISSING_LOCK_GUARD_ERROR);
+            // SAFETY: `hashbrown`'s `Iter` stores only raw pointers into the
+            // shard's heap-allocated buckets plus a `PhantomData` marker; the
+            // lifetime is not tracked at runtime. The read guard keeps the
+            // shard data alive and immutable for `'a`, and is stored
+            // alongside the iterators in this struct, so the iterators can
+            // never outlive the data they reference.
+            let iter: ShardIter<'a, (K, V)> = unsafe { std::mem::transmute(guard.iter()) };
+            shard_iters.push(iter);
+        }
+        Self {
+            _guards: guards,
+            shard_iters,
+            shard_index: 0,
+            remaining,
+        }
+    }
 }
 
 impl<'a, K, V, L> Iterator for Iter<'a, K, V, L>
@@ -27,26 +66,13 @@ where
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while (self.shard_index as usize) < self.shard_count as usize {
-            if let Some(guard) = self._guards.get(self.shard_index) {
-                let num_buckets = guard.num_buckets();
-                while self.bucket_index < num_buckets {
-                    if let Some(entry) = guard.get_bucket(self.bucket_index) {
-                        self.bucket_index += 1;
-                        self.remaining -= 1;
-                        // SAFETY: The guard is stored in `self._guards` and has
-                        // lifetime `'a`. The entry reference obtained from
-                        // `get_bucket` borrows the guard, but we extend it to `'a`
-                        // because the guard keeps the shard data locked and alive
-                        // for the entire lifetime of this iterator.
-                        let entry_ref = unsafe { &*(entry as *const (K, V)) };
-                        return Some((&entry_ref.0, &entry_ref.1));
-                    }
-                    self.bucket_index += 1;
-                }
+        while self.shard_index < self.shard_iters.len() {
+            let shard = &mut self.shard_iters[self.shard_index];
+            if let Some(entry) = shard.next() {
+                self.remaining -= 1;
+                return Some((&entry.0, &entry.1));
             }
             self.shard_index += 1;
-            self.bucket_index = 0;
         }
         None
     }
