@@ -46,3 +46,4 @@ jobs:
           cargo fmt --check
           cargo clippy
           cargo test --all-features
+          cargo doc --no-deps
