@@ -39,5 +39,9 @@ name = "insert"
 harness = false
 
 [[bench]]
+name = "iter"
+harness = false
+
+[[bench]]
 name = "shards"
 harness = false

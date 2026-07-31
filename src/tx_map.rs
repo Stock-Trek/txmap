@@ -264,13 +264,7 @@ where
     pub fn iter(&self) -> Iter<'_, K, V, L> {
         let guards = self.custodian.all_read_guards();
         let remaining: usize = guards.iter().map(|(_, guard)| guard.len()).sum();
-        Iter {
-            _guards: guards,
-            shard_index: 0,
-            bucket_index: 0,
-            shard_count: self.shard_count.0,
-            remaining,
-        }
+        Iter::new(guards, self.shard_count.0, remaining)
     }
 
     /// Retains only entries satisfying `condition`.
