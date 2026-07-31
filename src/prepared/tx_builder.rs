@@ -19,7 +19,7 @@ pub struct PreparedBuildablePhase;
 
 /// Fluent builder for a prepared (re-usable) transaction.
 ///
-/// Start with [`TxMap::prepared_tx`], add guard requirements with
+/// Start with [`TxMap::prepared_tx`](crate::tx_map::TxMap::prepared_tx), add guard requirements with
 /// [`require`](PreparedTxBuilder::require), add operations (e.g.
 /// [`modify`](PreparedTxBuilder::modify)), then call
 /// [`into_transaction`](PreparedTxBuilder::into_transaction) to

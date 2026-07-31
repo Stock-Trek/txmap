@@ -10,7 +10,7 @@ use std::hash::{BuildHasher, Hash};
 
 /// An immediate (one-shot) transaction.
 ///
-/// Built via [`ImmediateTxBuilder`] and executed immediately.
+/// Built via [`ImmediateTxBuilder`](crate::immediate::tx_builder::ImmediateTxBuilder) and executed immediately.
 /// Acquires all needed locks, checks guards, applies operations,
 /// then releases locks and returns the final state.
 pub struct ImmediateTransaction<'tx, K, V, L, S, STATE>

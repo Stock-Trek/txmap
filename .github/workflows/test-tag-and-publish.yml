@@ -45,6 +45,7 @@ jobs:
           cargo fmt --check
           cargo clippy
           cargo test --all-features
+          cargo doc --no-deps
 
       - name: Get version, check if tag exists, create and publish if not
         run: |

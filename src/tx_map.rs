@@ -208,8 +208,8 @@ where
     #[must_use]
     /// Starts building a prepared (re-usable) transaction.
     ///
-    /// `_schema` is a schema constant created via the [`tx_schema`] macro.
-    /// The returned builder can be turned into a [`PreparedTransaction`]
+    /// `_schema` is a schema constant created via the [`tx_schema`](macro@crate::tx_schema) macro.
+    /// The returned builder can be turned into a [`PreparedTransaction`](crate::prepared::transaction::PreparedTransaction)
     /// that can be executed many times with different keys/parameters.
     pub fn prepared_tx<'tx, SCHEMA, RAW, KEYS, PARAMS, STATE>(
         &'tx self,

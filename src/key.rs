@@ -3,7 +3,7 @@ use std::hash::Hash;
 
 /// A key together with its pre-computed hash and shard index.
 ///
-/// Created internally by [`Indexer::indexed_key`]. Used throughout
+/// Created internally by [`Indexer::indexed_key`](crate::indexer::Indexer::indexed_key). Used throughout
 /// the transaction system to avoid re-hashing.
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct TxKey<K>
