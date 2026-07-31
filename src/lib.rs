@@ -23,10 +23,6 @@ pub mod tests;
 pub mod tx_map;
 pub mod tx_map_builder;
 
-// The library's primary types are re-exported at the crate root so they can
-// be imported directly (e.g. `use txmap::TxMap;`) and are visible on the
-// crate's top-level docs page. The full module tree stays public for
-// advanced users who need to reach into specific implementations.
 pub use hasher::DefaultBuildHasher;
 pub use immediate::{
     transaction::ImmediateTransaction,
@@ -48,10 +44,6 @@ pub use shards::Shards;
 pub use tx_map::TxMap;
 pub use tx_map_builder::TxMapBuilder;
 
-/// Prelude module that re-exports the most commonly used types.
-///
-/// Bring the common API into scope with a glob import:
-/// `use txmap::prelude::*;`
 pub mod prelude {
     pub use crate::{
         HashCode, ImmediateBuildablePhase, ImmediateBuilderPhase, ImmediateTransaction,
