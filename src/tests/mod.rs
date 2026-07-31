@@ -35,6 +35,7 @@ pub mod immediate {
 }
 
 pub mod map {
+    pub mod api_surface;
     pub mod basic_operations;
     pub mod concurrency;
     pub mod global;

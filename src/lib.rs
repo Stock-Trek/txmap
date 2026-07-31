@@ -39,7 +39,7 @@ pub use prepared::{
     transaction::PreparedTransaction,
     tx_builder::{PreparedBuildablePhase, PreparedBuilderPhase, PreparedTxBuilder},
 };
-pub use result::TxResult;
+pub use result::{TryReserveError, TxResult};
 pub use shards::Shards;
 pub use tx_map::TxMap;
 pub use tx_map_builder::TxMapBuilder;
@@ -49,7 +49,8 @@ pub mod prelude {
         HashCode, ImmediateBuildablePhase, ImmediateBuilderPhase, ImmediateTransaction,
         ImmediateTxBuilder, LockPolicy, MutexPolicy, PreparedBuildablePhase, PreparedBuilderPhase,
         PreparedTransaction, PreparedTxBuilder, RwLockPolicy, ShardCount, ShardIndex, Shards,
-        TxKey, TxKeySelector, TxKeys, TxMap, TxMapBuilder, TxResult, TxSchema, tx_schema,
+        TryReserveError, TxKey, TxKeySelector, TxKeys, TxMap, TxMapBuilder, TxResult, TxSchema,
+        tx_schema,
     };
 }
 pub use pastey::paste as _paste;

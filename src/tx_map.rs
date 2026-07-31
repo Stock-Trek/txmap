@@ -3,7 +3,7 @@ use crate::{
     hasher::DefaultBuildHasher,
     immediate::tx_builder::ImmediateTxBuilder,
     indexer::Indexer,
-    iter::Iter,
+    iter::{Drain, Iter, Keys, Values},
     lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
     multi_shard_ops::MultiShardOps,
     new_types::ShardCount,
@@ -143,6 +143,26 @@ where
         ShardOps::remove_if::<K, V, S>(&mut shard, &tx_key, condition, &self.indexer)
     }
 
+    /// Returns `true` if the map contains the given key.
+    #[must_use]
+    pub fn contains_key(&self, key: &K) -> bool {
+        let tx_key = self.indexer.indexed_key(self.shard_count, key.clone());
+        let shard = self.custodian.read_guard_at(tx_key.shard_index);
+        shard
+            .find(tx_key.hash_code.0, |entry| entry.0 == *key)
+            .is_some()
+    }
+
+    /// Removes a key and returns both the key and its value.
+    ///
+    /// Returns `None` if the key was absent.
+    #[must_use]
+    pub fn remove_entry(&self, key: &K) -> Option<(K, V)> {
+        let tx_key = self.indexer.indexed_key(self.shard_count, key.clone());
+        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
+        ShardOps::remove_entry::<K, V>(&mut shard, &tx_key)
+    }
+
     /// Swaps the values of two keys atomically.
     ///
     /// Acquires write locks on both shards involved.
@@ -237,6 +257,73 @@ where
         self.len() == 0
     }
 
+    /// Returns the total capacity of all shards.
+    ///
+    /// This is an approximation: each shard allocates capacity in
+    /// implementation-defined increments, so the returned value may exceed
+    /// the number of entries the map can hold without reallocating.
+    #[must_use]
+    pub fn capacity(&self) -> usize {
+        self.custodian
+            .all_read_guards()
+            .iter()
+            .map(|(_, guard)| guard.capacity())
+            .sum()
+    }
+
+    /// Returns the hasher builder used by this map.
+    #[must_use]
+    pub fn hasher(&self) -> &S {
+        self.indexer.hasher_builder()
+    }
+
+    /// Reserves capacity for at least `additional` more entries.
+    ///
+    /// The additional capacity is distributed evenly across all shards.
+    pub fn reserve(&self, additional: usize) {
+        let per_shard = additional.div_ceil(self.shard_count.0 as usize);
+        for (_, mut guard) in self.custodian.all_write_guards() {
+            guard.reserve(per_shard, |entry| self.indexer.hash(&entry.0).0);
+        }
+    }
+
+    /// Tries to reserve capacity for at least `additional` more entries.
+    ///
+    /// The additional capacity is distributed evenly across all shards.
+    pub fn try_reserve(&self, additional: usize) -> Result<(), crate::result::TryReserveError> {
+        let per_shard = additional.div_ceil(self.shard_count.0 as usize);
+        for (_, mut guard) in self.custodian.all_write_guards() {
+            guard
+                .try_reserve(per_shard, |entry| self.indexer.hash(&entry.0).0)
+                .map_err(|error| match error {
+                    hashbrown::TryReserveError::CapacityOverflow => {
+                        crate::result::TryReserveError::CapacityOverflow
+                    }
+                    hashbrown::TryReserveError::AllocError { layout } => {
+                        crate::result::TryReserveError::AllocError { layout }
+                    }
+                })?;
+        }
+        Ok(())
+    }
+
+    /// Shrinks the capacity of all shards as much as possible.
+    pub fn shrink_to_fit(&self) {
+        for (_, mut guard) in self.custodian.all_write_guards() {
+            guard.shrink_to_fit(|entry| self.indexer.hash(&entry.0).0);
+        }
+    }
+
+    /// Shrinks the capacity of all shards to a lower bound.
+    ///
+    /// The lower bound is distributed evenly across all shards.
+    pub fn shrink_to(&self, min_capacity: usize) {
+        let per_shard = min_capacity.div_ceil(self.shard_count.0 as usize);
+        for (_, mut guard) in self.custodian.all_write_guards() {
+            guard.shrink_to(per_shard, |entry| self.indexer.hash(&entry.0).0);
+        }
+    }
+
     #[must_use]
     /// Folds over all entries in the map.
     ///
@@ -265,6 +352,50 @@ where
         let guards = self.custodian.all_read_guards();
         let remaining: usize = guards.iter().map(|(_, guard)| guard.len()).sum();
         Iter::new(guards, self.shard_count.0, remaining)
+    }
+
+    #[must_use]
+    /// Returns an iterator over all the keys.
+    ///
+    /// Acquires read locks on all shards for the duration of iteration.
+    pub fn keys(&self) -> Keys<'_, K, V, L> {
+        Keys(self.iter())
+    }
+
+    #[must_use]
+    /// Returns an iterator over all the values.
+    ///
+    /// Acquires read locks on all shards for the duration of iteration.
+    pub fn values(&self) -> Values<'_, K, V, L> {
+        Values(self.iter())
+    }
+
+    /// Removes all entries and returns an iterator over them.
+    ///
+    /// Entries are removed as the iterator is consumed; dropping the
+    /// iterator without fully consuming it removes all remaining entries.
+    /// Acquires write locks on all shards for the duration of iteration.
+    pub fn drain(&self) -> Drain<'_, K, V, L> {
+        let guards = self.custodian.all_write_guards();
+        Drain::new(guards, self.shard_count.0)
+    }
+
+    /// Consumes the map and returns an iterator over its keys.
+    #[must_use]
+    pub fn into_keys(self) -> std::vec::IntoIter<K> {
+        self.drain()
+            .map(|(key, _)| key)
+            .collect::<Vec<K>>()
+            .into_iter()
+    }
+
+    /// Consumes the map and returns an iterator over its values.
+    #[must_use]
+    pub fn into_values(self) -> std::vec::IntoIter<V> {
+        self.drain()
+            .map(|(_, value)| value)
+            .collect::<Vec<V>>()
+            .into_iter()
     }
 
     /// Retains only entries satisfying `condition`.
@@ -329,5 +460,125 @@ where
             custodian,
             indexer: Indexer::new(self.indexer.hasher_builder().clone()),
         }
+    }
+}
+
+impl<K, V, L, S> PartialEq for TxMap<K, V, L, S>
+where
+    K: Clone + Hash + Eq,
+    V: PartialEq,
+    L: LockPolicy,
+    S: BuildHasher,
+{
+    /// Two maps are equal if they contain the same key-value pairs.
+    fn eq(&self, other: &Self) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+        self.iter().all(|(key, value)| {
+            other
+                .get_with(key, |other_value| other_value == value)
+                .unwrap_or(false)
+        })
+    }
+}
+
+impl<K, V, L, S> Eq for TxMap<K, V, L, S>
+where
+    K: Clone + Hash + Eq,
+    V: Eq,
+    L: LockPolicy,
+    S: BuildHasher,
+{
+}
+
+impl<K, V, L, S> std::fmt::Debug for TxMap<K, V, L, S>
+where
+    K: Clone + Hash + Eq + std::fmt::Debug,
+    V: std::fmt::Debug,
+    L: LockPolicy,
+    S: BuildHasher,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
+    }
+}
+
+impl<K, V, L, S> Extend<(K, V)> for TxMap<K, V, L, S>
+where
+    K: Clone + Hash + Eq,
+    L: LockPolicy,
+    S: BuildHasher,
+{
+    fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
+        for (key, value) in iter {
+            self.insert(key, value);
+        }
+    }
+}
+
+impl<'a, K, V, L, S> Extend<(&'a K, &'a V)> for TxMap<K, V, L, S>
+where
+    K: Clone + Hash + Eq + 'a,
+    V: Clone + 'a,
+    L: LockPolicy,
+    S: BuildHasher,
+{
+    fn extend<T: IntoIterator<Item = (&'a K, &'a V)>>(&mut self, iter: T) {
+        for (key, value) in iter {
+            self.insert(key.clone(), value.clone());
+        }
+    }
+}
+
+impl<K, V, L, S> FromIterator<(K, V)> for TxMap<K, V, L, S>
+where
+    K: Clone + Hash + Eq,
+    L: LockPolicy,
+    S: BuildHasher + Default,
+{
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        let mut map: TxMap<K, V, L, S> = TxMapBuilder::default()
+            .with_lock_policy::<L>()
+            .with_hasher(S::default())
+            .build();
+        map.extend(iter);
+        map
+    }
+}
+
+impl<K, V, L, S, const N: usize> From<[(K, V); N]> for TxMap<K, V, L, S>
+where
+    K: Clone + Hash + Eq,
+    L: LockPolicy,
+    S: BuildHasher + Default,
+{
+    fn from(array: [(K, V); N]) -> Self {
+        let map: TxMap<K, V, L, S> = TxMapBuilder::default()
+            .with_lock_policy::<L>()
+            .with_hasher(S::default())
+            .build();
+        for (key, value) in array {
+            map.insert(key, value);
+        }
+        map
+    }
+}
+
+impl<K, V, L, S> IntoIterator for TxMap<K, V, L, S>
+where
+    K: Clone + Hash + Eq,
+    L: LockPolicy,
+    S: BuildHasher,
+{
+    type Item = (K, V);
+    type IntoIter = std::vec::IntoIter<(K, V)>;
+
+    /// Consumes the map and iterates over its entries.
+    ///
+    /// Unlike `std::collections::HashMap`, iteration is eager: all entries
+    /// are drained into a buffer before the map is dropped.
+    fn into_iter(self) -> Self::IntoIter {
+        self.drain().collect::<Vec<(K, V)>>().into_iter()
     }
 }
