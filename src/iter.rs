@@ -36,9 +36,7 @@ where
     ) -> Self {
         let mut shard_iters = Vec::with_capacity(shard_count as usize);
         for shard_index in 0..shard_count {
-            let guard = guards
-                .get(shard_index)
-                .expect(MISSING_LOCK_GUARD_ERROR);
+            let guard = guards.get(shard_index).expect(MISSING_LOCK_GUARD_ERROR);
             // SAFETY: `hashbrown`'s `Iter` stores only raw pointers into the
             // shard's heap-allocated buckets plus a `PhantomData` marker; the
             // lifetime is not tracked at runtime. The read guard keeps the
