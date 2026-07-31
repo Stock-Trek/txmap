@@ -1,3 +1,5 @@
+use hashbrown::hash_table::Entry;
+
 use crate::{indexer::Indexer, key::TxKey, shard::Shard};
 use std::hash::{BuildHasher, Hash};
 
@@ -31,12 +33,12 @@ impl ShardOps {
             |entry| indexer.hash(&entry.0).0,
         );
         match entry {
-            hashbrown::hash_table::Entry::Occupied(occupied) => {
+            Entry::Occupied(occupied) => {
                 let ((old_key, old_value), vacant) = occupied.remove();
                 vacant.insert((old_key, value));
                 Some(old_value)
             }
-            hashbrown::hash_table::Entry::Vacant(vacant) => {
+            Entry::Vacant(vacant) => {
                 vacant.insert((key.key.clone(), value));
                 None
             }
@@ -60,8 +62,8 @@ impl ShardOps {
             |entry| indexer.hash(&entry.0).0,
         );
         match entry {
-            hashbrown::hash_table::Entry::Occupied(_) => false,
-            hashbrown::hash_table::Entry::Vacant(vacant) => {
+            Entry::Occupied(_) => false,
+            Entry::Vacant(vacant) => {
                 vacant.insert((key.key.clone(), value_gen()));
                 true
             }
@@ -133,7 +135,7 @@ impl ShardOps {
             |entry| indexer.hash(&entry.0).0,
         );
         match entry {
-            hashbrown::hash_table::Entry::Occupied(occupied) => {
+            Entry::Occupied(occupied) => {
                 let (found_key, found_value) = occupied.get();
                 if condition(found_key, found_value) {
                     Some(occupied.remove().0.1)
@@ -141,7 +143,7 @@ impl ShardOps {
                     None
                 }
             }
-            hashbrown::hash_table::Entry::Vacant(_) => None,
+            Entry::Vacant(_) => None,
         }
     }
 
@@ -161,7 +163,7 @@ impl ShardOps {
             |entry| indexer.hash(&entry.0).0,
         );
         match entry {
-            hashbrown::hash_table::Entry::Occupied(occupied) => {
+            Entry::Occupied(occupied) => {
                 let (found_key, found_value) = occupied.get();
                 match transform(found_key, Some(found_value)) {
                     Some(new_value) => {
@@ -172,7 +174,7 @@ impl ShardOps {
                     }
                 }
             }
-            hashbrown::hash_table::Entry::Vacant(vacant) => {
+            Entry::Vacant(vacant) => {
                 if let Some(new_value) = transform(&key.key, None) {
                     vacant.insert((key.key.clone(), new_value));
                 }
