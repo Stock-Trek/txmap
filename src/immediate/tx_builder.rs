@@ -17,7 +17,7 @@ pub struct ImmediateBuildablePhase;
 
 /// Fluent builder for an immediate transaction.
 ///
-/// Start with [`TxMap::immediate_tx`], add guard requirements with
+/// Start with [`TxMap::immediate_tx`](crate::tx_map::TxMap::immediate_tx), add guard requirements with
 /// [`require`](ImmediateTxBuilder::require), add operations (e.g.
 /// [`modify`](ImmediateTxBuilder::modify)), then call
 /// [`execute`](ImmediateTxBuilder::execute).

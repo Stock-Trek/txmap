@@ -10,7 +10,7 @@ use std::hash::{BuildHasher, Hash};
 
 /// A prepared (re-usable) transaction.
 ///
-/// Built via [`PreparedTxBuilder`] and executed multiple times with
+/// Built via [`PreparedTxBuilder`](crate::prepared::tx_builder::PreparedTxBuilder) and executed multiple times with
 /// different keys and parameters. The transaction plan (which shards
 /// to lock and which operations to apply) is determined at build time.
 pub struct PreparedTransaction<'tx, K, V, L, S, KEYS, PARAMS, STATE>
