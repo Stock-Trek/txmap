@@ -27,11 +27,11 @@ pub mod tx_map_builder;
 // be imported directly (e.g. `use txmap::TxMap;`) and are visible on the
 // crate's top-level docs page. The full module tree stays public for
 // advanced users who need to reach into specific implementations.
+pub use hasher::DefaultBuildHasher;
 pub use immediate::{
     transaction::ImmediateTransaction,
     tx_builder::{ImmediateBuildablePhase, ImmediateBuilderPhase, ImmediateTxBuilder},
 };
-pub use hasher::DefaultBuildHasher;
 pub use iter::Iter;
 pub use key::TxKey;
 pub use lock_policies::{
@@ -39,7 +39,7 @@ pub use lock_policies::{
 };
 pub use new_types::{HashCode, ShardCount, ShardIndex};
 pub use prepared::{
-    schema::{TxKeySelector, TxKeys, TxSchema, tx_schema},
+    schema::{TxKeySelector, TxKeys, TxSchema},
     transaction::PreparedTransaction,
     tx_builder::{PreparedBuildablePhase, PreparedBuilderPhase, PreparedTxBuilder},
 };
