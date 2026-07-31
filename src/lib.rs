@@ -23,27 +23,33 @@ pub mod tests;
 pub mod tx_map;
 pub mod tx_map_builder;
 
-/// Prelude module that re-exports the most commonly used types.
+pub use hasher::DefaultBuildHasher;
+pub use immediate::{
+    transaction::ImmediateTransaction,
+    tx_builder::{ImmediateBuildablePhase, ImmediateBuilderPhase, ImmediateTxBuilder},
+};
+pub use iter::Iter;
+pub use key::TxKey;
+pub use lock_policies::{
+    lock_policy::LockPolicy, mutex_policy::MutexPolicy, rwlock_policy::RwLockPolicy,
+};
+pub use new_types::{HashCode, ShardCount, ShardIndex};
+pub use prepared::{
+    schema::{TxKeySelector, TxKeys, TxSchema},
+    transaction::PreparedTransaction,
+    tx_builder::{PreparedBuildablePhase, PreparedBuilderPhase, PreparedTxBuilder},
+};
+pub use result::TxResult;
+pub use shards::Shards;
+pub use tx_map::TxMap;
+pub use tx_map_builder::TxMapBuilder;
+
 pub mod prelude {
     pub use crate::{
-        immediate::{
-            transaction::ImmediateTransaction,
-            tx_builder::{ImmediateBuildablePhase, ImmediateBuilderPhase, ImmediateTxBuilder},
-        },
-        key::TxKey,
-        lock_policies::{
-            lock_policy::LockPolicy, mutex_policy::MutexPolicy, rwlock_policy::RwLockPolicy,
-        },
-        new_types::{HashCode, ShardCount, ShardIndex},
-        prepared::{
-            schema::{TxKeySelector, TxKeys, TxSchema, tx_schema},
-            transaction::PreparedTransaction,
-            tx_builder::{PreparedBuildablePhase, PreparedBuilderPhase, PreparedTxBuilder},
-        },
-        result::TxResult,
-        shards::Shards,
-        tx_map::TxMap,
-        tx_map_builder::TxMapBuilder,
+        HashCode, ImmediateBuildablePhase, ImmediateBuilderPhase, ImmediateTransaction,
+        ImmediateTxBuilder, LockPolicy, MutexPolicy, PreparedBuildablePhase, PreparedBuilderPhase,
+        PreparedTransaction, PreparedTxBuilder, RwLockPolicy, ShardCount, ShardIndex, Shards,
+        TxKey, TxKeySelector, TxKeys, TxMap, TxMapBuilder, TxResult, TxSchema, tx_schema,
     };
 }
 pub use pastey::paste as _paste;
