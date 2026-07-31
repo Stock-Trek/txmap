@@ -276,34 +276,30 @@ Available transaction operations are as follows
 ### TxMap operations
 
 All transaction operations (or variations of them) are also available on TxMap.
-There are also some additional operations which require map level locking and therefore are only available on TxMap.
-These are as follows
+There are also some additional operations that are only available on TxMap which are as follows
 
 | TxMap operation | Description                                   |
 |-----------------|-----------------------------------------------|
+| `capacity`      | Returns the total capacity of all shards      |
 | `clear`         | Removes all entries                           |
 | `contains_key`  | Returns if the map contains the key           |
-| `len`           | Returns how many entries the map contains     |
-| `is_empty`      | Returns if the map is empty                   |
-| `fold`          | Performs a fold on all the entries            |
-| `iter`          | Creates an iterator over all the entries      |
-| `keys`          | Creates an iterator over all the keys         |
-| `values`        | Creates an iterator over all the values       |
-| `retain`        | Retains any entry which satisfies a condition |
 | `drain`         | Removes and returns all the entries           |
-| `remove_entry`  | Removes a key and returns key and value       |
-| `capacity`      | Returns the total capacity of all shards      |
+| `fold`          | Performs a fold on all the entries            |
 | `hasher`        | Returns the hasher builder                    |
-| `reserve`       | Reserves capacity for more entries            |
-| `try_reserve`   | Tries to reserve capacity for more entries    |
-| `shrink_to_fit` | Shrinks capacity as much as possible          |
-| `shrink_to`     | Shrinks capacity to a lower bound             |
 | `into_keys`     | Consumes the map, returning its keys          |
 | `into_values`   | Consumes the map, returning its values        |
+| `is_empty`      | Returns if the map is empty                   |
+| `iter`          | Creates an iterator over all the entries      |
+| `keys`          | Creates an iterator over all the keys         |
+| `len`           | Returns how many entries the map contains     |
+| `remove_entry`  | Removes a key and returns key and value       |
+| `reserve`       | Reserves capacity for more entries            |
+| `retain`        | Retains any entry which satisfies a condition |
+| `shrink_to`     | Shrinks capacity to a lower bound             |
+| `shrink_to_fit` | Shrinks capacity as much as possible          |
+| `try_reserve`   | Tries to reserve capacity for more entries    |
+| `values`        | Creates an iterator over all the values       |
 
-`TxMap` also implements the standard collection traits: `Clone`, `PartialEq`,
-`Eq`, `Debug`, `Extend`, `FromIterator`, `From<[(K, V); N]>` and `IntoIterator`.
+`TxMap` also implements the standard collection traits: `Clone`, `PartialEq`, `Eq`, `Debug`, `Extend`, `FromIterator`, `From<[(K, V); N]>` and `IntoIterator`.
 
-For a detailed comparison of the `TxMap` API surface with
-`std::collections::HashMap` (what is the same, what is different, and what is
-missing), see [docs/api_comparison.md](docs/api_comparison.md).
+For a detailed comparison of the `TxMap` API surface with `std::collections::HashMap` see [docs/api_comparison.md](docs/api_comparison.md).
