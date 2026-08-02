@@ -1,14 +1,10 @@
 name: "DeepSeek via pi"
 description: "Configure pi to connect to DeepSeek"
-inputs:
-  api-key:
-    description: "DeepSeek API key"
-    required: true
 runs:
   using: "composite"
   steps:
     - name: Setup Bun
-      uses: oven-sh/setup-bun@v1
+      uses: oven-sh/setup-bun@v2
 
     - name: Install pi-coding-agent and json-schema extension
       shell: bash
@@ -18,20 +14,28 @@ runs:
 
     - name: Configure DeepSeek as custom provider
       shell: bash
+      env:
+        DEEPSEEK_API_KEY: ${{ env.DEEPSEEK_API_KEY }}
       run: |
+        if [ -z "${DEEPSEEK_API_KEY}" ]; then
+          echo "Error: DeepSeek API key is not set. Check the Infisical project configuration." >&2
+          exit 1
+        fi
         mkdir -p ~/.pi/agent
-        cat > ~/.pi/agent/models.json << 'EOF'
-        {
-          "providers": {
-            "deepseek": {
-              "baseUrl": "https://api.deepseek.com/v1",
-              "api": "openai-completions",
-              "apiKey": "${{ inputs.api-key }}",
-              "models": [
-                { "id": "deepseek-v4-flash" },
-                { "id": "deepseek-v4-pro" }
-              ]
+        jq -n \
+          --arg baseUrl "https://api.deepseek.com/v1" \
+          --arg api "openai-completions" \
+          --arg apiKey "${DEEPSEEK_API_KEY}" \
+          '{
+            "providers": {
+              "deepseek": {
+                "baseUrl": $baseUrl,
+                "api": $api,
+                "apiKey": $apiKey,
+                "models": [
+                  { "id": "deepseek-v4-flash" },
+                  { "id": "deepseek-v4-pro" }
+                ]
+              }
             }
-          }
-        }
-        EOF
+          }' > ~/.pi/agent/models.json

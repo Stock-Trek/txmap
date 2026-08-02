@@ -21,17 +21,21 @@ runs:
       run: |
         git fetch --all
         BRANCH_EXISTS=
-        if ! git branch -r | grep -q "origin/${{ inputs.branch }}"; then
-          git checkout ${{ inputs.base }}
+        if ! git rev-parse --verify --quiet "refs/remotes/origin/${{ inputs.branch }}" >/dev/null 2>&1; then
+          git checkout "${{ inputs.base }}"
           if [ "${{ inputs.create-if-not-exists }}" == "true" ]; then
-            git checkout -b ${{ inputs.branch }}
+            git checkout -b "${{ inputs.branch }}"
             git push -u origin HEAD
             BRANCH_EXISTS=true
           else
             BRANCH_EXISTS=false
           fi
         else
-          git checkout ${{ inputs.branch }}
+          if git rev-parse --verify --quiet "refs/heads/${{ inputs.branch }}" >/dev/null 2>&1; then
+            git checkout "${{ inputs.branch }}"
+          else
+            git checkout -b "${{ inputs.branch }}" --track "origin/${{ inputs.branch }}"
+          fi
           BRANCH_EXISTS=true
         fi
-        echo "BRANCH_EXISTS=${BRANCH_EXISTS}" >> $GITHUB_OUTPUT
+        echo "BRANCH_EXISTS=${BRANCH_EXISTS}" >> "$GITHUB_OUTPUT"

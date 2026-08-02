@@ -14,35 +14,62 @@ runs:
     - shell: bash
       if: inputs.comment-id != ''
       run: |
+        # Best-effort cleanup: never fail the workflow because a reaction could
+        # not be listed or removed (e.g. the resource no longer exists or the
+        # API returns an error). Only clean up reactions we can actually list.
+        set +e
         LIST_URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/comments/${{ inputs.comment-id }}/reactions"
-        REACTION_DATA=$(curl -L -s \
+        BODY_FILE=$(mktemp)
+        HTTP_CODE=$(curl -s -L -o "${BODY_FILE}" -w '%{http_code}' \
           -H "Accept: application/vnd.github.v3+json" \
           -H "Authorization: Bearer ${{ inputs.token }}" \
           -H "X-GitHub-Api-Version: 2026-03-10" \
           "${LIST_URL}?per_page=100")
-        REACTION_IDS=$(echo "${REACTION_DATA}" | jq -r '.[] | .id')
+        if [ "${HTTP_CODE}" != "200" ]; then
+          echo "Skipping cleanup: could not list reactions (HTTP ${HTTP_CODE})"
+          rm -f "${BODY_FILE}"
+          exit 0
+        fi
+        REACTION_IDS=$(jq -r '.[] | .id' "${BODY_FILE}" 2>/dev/null)
+        rm -f "${BODY_FILE}"
+        echo "Deleting reaction ids ${REACTION_IDS}"
         while read -r id; do
-          curl -X DELETE \
+          [ -z "${id}" ] && continue
+          DELETE_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE \
             -H "Authorization: Bearer ${{ inputs.token }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/reactions/${id}"
-          echo "Deleted reaction ${id}"
-        echo "Deleting reaction ids ${REACTION_IDS}"
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/comments/${{ inputs.comment-id }}/reactions/${id}")
+          echo "Delete of reaction ${id} returned HTTP ${DELETE_CODE}"
         done <<< "${REACTION_IDS}"
+        exit 0
     - shell: bash
       if: inputs.issue-number != ''
       run: |
+        # Best-effort cleanup: never fail the workflow because a reaction could
+        # not be listed or removed (e.g. the resource no longer exists or the
+        # API returns an error). Only clean up reactions we can actually list.
+        set +e
         LIST_URL="https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${{ inputs.issue-number }}/reactions"
-        REACTION_DATA=$(curl -L -s \
+        BODY_FILE=$(mktemp)
+        HTTP_CODE=$(curl -s -L -o "${BODY_FILE}" -w '%{http_code}' \
           -H "Accept: application/vnd.github.v3+json" \
           -H "Authorization: Bearer ${{ inputs.token }}" \
           -H "X-GitHub-Api-Version: 2026-03-10" \
           "${LIST_URL}?per_page=100")
-        REACTION_IDS=$(echo "${REACTION_DATA}" | jq -r '.[] | .id')
+        if [ "${HTTP_CODE}" != "200" ]; then
+          echo "Skipping cleanup: could not list reactions (HTTP ${HTTP_CODE})"
+          rm -f "${BODY_FILE}"
+          exit 0
+        fi
+        REACTION_IDS=$(jq -r '.[] | .id' "${BODY_FILE}" 2>/dev/null)
+        rm -f "${BODY_FILE}"
+        echo "Deleting reaction ids ${REACTION_IDS}"
         while read -r id; do
-          curl -X DELETE \
+          [ -z "${id}" ] && continue
+          DELETE_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE \
             -H "Authorization: Bearer ${{ inputs.token }}" \
             -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/reactions/${id}"
-          echo "Deleted reaction ${id}"
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${{ inputs.issue-number }}/reactions/${id}")
+          echo "Delete of reaction ${id} returned HTTP ${DELETE_CODE}"
         done <<< "${REACTION_IDS}"
+        exit 0

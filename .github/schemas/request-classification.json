@@ -1,13 +1,22 @@
 {
-  "type": "string",
-  "enum": [
-    "BUG_FIX",
-    "CHANGE_REQUEST",
-    "FEATURE_REQUEST",
-    "INVESTIGATION",
-    "QUESTION",
-    "SPAM",
-    "CAN_IGNORE",
-    "OTHER"
-  ]
+  "type": "object",
+  "properties": {
+    "request_type": {
+      "type": "string",
+      "enum": [
+        "BUG_FIX",
+        "CHANGE_REQUEST",
+        "FEATURE_REQUEST",
+        "INVESTIGATION",
+        "QUESTION",
+        "SPAM",
+        "CAN_IGNORE",
+        "OTHER"
+      ]
+    }
+  },
+  "required": [
+    "request_type"
+  ],
+  "additionalProperties": false
 }

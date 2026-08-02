@@ -1,6 +1,15 @@
 {
-  "type": "array",
-  "items": {
-    "type": "string"
-  }
+  "type": "object",
+  "properties": {
+    "information": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "information"
+  ],
+  "additionalProperties": false
 }

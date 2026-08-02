@@ -17,11 +17,10 @@ runs:
     - shell: bash
       id: pi-response
       run: |
-        CONTEXT=$(echo ${{ inputs.context-base64 }} | base64 -d)
-        PROMPT=$(echo ${{ inputs.prompt-base64 }} | base64 -d)
+        CONTEXT=$(echo "${{ inputs.context-base64 }}" | base64 -d)
+        PROMPT=$(echo "${{ inputs.prompt-base64 }}" | base64 -d)
         echo "${PROMPT}"
-        echo "${CONTEXT}"
-        PI_PROMPT="${PROMPT}\n\n <Start of context> ${CONTEXT} <End of context>"
+        PI_PROMPT="${PROMPT}"$'\n\n'" <Start of context> ${CONTEXT} <End of context>"
         PI_RESPONSE=$(pi \
           --provider deepseek \
           --model deepseek-v4-flash \
@@ -30,4 +29,4 @@ runs:
           )
         echo "${PI_RESPONSE}"
         PI_RESPONSE_BASE64=$(echo "${PI_RESPONSE}" | base64 -w 0)
-        echo "pi-response-base64=${PI_RESPONSE_BASE64}" >> $GITHUB_OUTPUT
+        echo "pi-response-base64=${PI_RESPONSE_BASE64}" >> "$GITHUB_OUTPUT"

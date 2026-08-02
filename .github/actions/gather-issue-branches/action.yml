@@ -25,5 +25,5 @@ runs:
         ISSUE_BRANCH_BASE="${{ inputs.issue-branch-base }}"
         echo "Issue branch: ${ISSUE_BRANCH}"
         echo "Issue branch base: ${ISSUE_BRANCH_BASE}"
-        echo "issue-branch=${ISSUE_BRANCH}" >> $GITHUB_OUTPUT
-        echo "issue-branch-base=${ISSUE_BRANCH_BASE}" >> $GITHUB_OUTPUT
+        echo "issue-branch=${ISSUE_BRANCH}" >> "$GITHUB_OUTPUT"
+        echo "issue-branch-base=${ISSUE_BRANCH_BASE}" >> "$GITHUB_OUTPUT"

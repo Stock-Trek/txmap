@@ -1,9 +1,18 @@
 {
-  "type": "string",
-  "enum": [
-    "ALREADY_ADDRESSED",
-    "REQUIRES_HUMAN",
-    "REQUIRES_MORE_INFORMATION",
-    "CAN_ADDRESS_FULLY"
-  ]
+  "type": "object",
+  "properties": {
+    "response_type": {
+      "type": "string",
+      "enum": [
+        "ALREADY_ADDRESSED",
+        "REQUIRES_HUMAN",
+        "REQUIRES_MORE_INFORMATION",
+        "CAN_ADDRESS_FULLY"
+      ]
+    }
+  },
+  "required": [
+    "response_type"
+  ],
+  "additionalProperties": false
 }

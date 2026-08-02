@@ -2,6 +2,6 @@ Follow this 5 step plan.
 
 1. Read the GitHub issue, comment and comment history.
 2. Address the issue. Do not add any comments.
-3. Run `git fetch origin master` then `git pull --rebase origin master` and fix any merge errors.
-4. Run `cargo fmt` and `cargo clippy` and fix any issues that arise.
+3. Run `git fetch origin master` then `git rebase origin/master` and fix any merge errors. If you cannot rebase (e.g. you are not on a branch with `origin/master` available), skip this step.
+4. Run the formatter and linter appropriate for this project and fix any issues that arise (for Rust projects run `cargo fmt` and `cargo clippy`). If the project has no formatter or linter, skip this step.
 5. Output a concise high level summary of your actions that can be used in a pull request.

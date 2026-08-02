@@ -20,21 +20,27 @@ runs:
     - shell: bash
       id: pi-response
       run: |
-        CONTEXT=$(echo ${{ inputs.context-base64 }} | base64 -d)
-        PROMPT=$(echo ${{ inputs.prompt-base64 }} | base64 -d)
-        SCHEMA=$(echo ${{ inputs.schema-base64 }} | base64 -d)
+        CONTEXT=$(echo "${{ inputs.context-base64 }}" | base64 -d)
+        PROMPT=$(echo "${{ inputs.prompt-base64 }}" | base64 -d)
+        SCHEMA=$(echo "${{ inputs.schema-base64 }}" | base64 -d)
         echo "${PROMPT}"
-        echo "${CONTEXT}"
         echo "${SCHEMA}"
-        PI_PROMPT="${PROMPT}\n\n <Start of context> ${CONTEXT} <End of context>"
+        PI_PROMPT="${PROMPT}"$'\n\n'" <Start of context> ${CONTEXT} <End of context>"
+        JSON_OUTPUT_FILE=$(mktemp)
         PI_RESPONSE=$(pi \
           --provider deepseek \
           --model deepseek-v4-pro \
-          --tools read,bash,grep,find,ls \
+          --tools read,bash,grep,find,ls,json_output \
           --json-schema "${SCHEMA}" \
           --json-fallback force \
+          --json-output "${JSON_OUTPUT_FILE}" \
           --print "${PI_PROMPT}" \
           )
         echo "${PI_RESPONSE}"
-        PI_RESPONSE_BASE64=$(echo "${PI_RESPONSE}" | base64 -w 0)
-        echo "pi-response-base64=${PI_RESPONSE_BASE64}" >> $GITHUB_OUTPUT
+        if [ ! -s "${JSON_OUTPUT_FILE}" ]; then
+          echo "Error: pi did not write a schema-validated JSON output to ${JSON_OUTPUT_FILE}" >&2
+          exit 1
+        fi
+        PI_RESPONSE_BASE64=$(base64 -w 0 < "${JSON_OUTPUT_FILE}")
+        rm -f "${JSON_OUTPUT_FILE}"
+        echo "pi-response-base64=${PI_RESPONSE_BASE64}" >> "$GITHUB_OUTPUT"

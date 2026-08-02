@@ -1,10 +1,19 @@
 name: Agent
 
+# Restrict the default GITHUB_TOKEN permissions
+permissions:
+  contents: read
+
 on:
   issues:
     types: [edited, opened, reopened]
   issue_comment:
     types: [created, edited]
+
+# Prevent multiple agents editing the branch at the same time
+concurrency:
+  group: agent-${{ github.event.issue.number }}
+  cancel-in-progress: false
 
 jobs:
   triage:
@@ -24,14 +33,13 @@ jobs:
       classify-request-base64: ${{ steps.prompts.outputs.classify-request-base64 }}
       classify-response-base64: ${{ steps.prompts.outputs.classify-response-base64 }}
       extra-information-required-base64: ${{ steps.prompts.outputs.extra-information-required-base64 }}
-      boolean-base64: ${{ steps.schemas.outputs.boolean-base64 }}
       information-list-base64: ${{ steps.schemas.outputs.information-list-base64 }}
       request-classification-base64: ${{ steps.schemas.outputs.request-classification-base64 }}
       response-classification-base64: ${{ steps.schemas.outputs.response-classification-base64 }}
       issue-context-base64: ${{ steps.gather-context.outputs.context-base64 }}
       request-type: ${{ steps.save-request-type.outputs.request-type }}
     steps:
-      - name: Get secrets
+      - name: Infisical
         uses: Infisical/secrets-action@v1.0.16
         with:
           method: "oidc"
@@ -74,23 +82,26 @@ jobs:
         uses: ./.github/actions/gather-issue-branches
         with:
           issue-number: ${{ github.event.issue.number }}
-          issue-branch-base: master
+          issue-branch-base: ${{ github.event.repository.default_branch }}
 
       - name: Save base64 prompts
         id: prompts
         run: |
-          echo "address-issue-base64=$(cat .github/prompts/address-issue.txt | base64 -w 0)" >> $GITHUB_OUTPUT
-          echo "classify-request-base64=$(cat .github/prompts/classify-request.txt | base64 -w 0)" >> $GITHUB_OUTPUT
-          echo "classify-response-base64=$(cat .github/prompts/classify-response.txt | base64 -w 0)" >> $GITHUB_OUTPUT
-          echo "extra-information-required-base64=$(cat .github/prompts/extra-information-required.txt | base64 -w 0)" >> $GITHUB_OUTPUT
+          {
+            echo "address-issue-base64=$(base64 -w 0 < .github/prompts/address-issue.txt)"
+            echo "classify-request-base64=$(base64 -w 0 < .github/prompts/classify-request.txt)"
+            echo "classify-response-base64=$(base64 -w 0 < .github/prompts/classify-response.txt)"
+            echo "extra-information-required-base64=$(base64 -w 0 < .github/prompts/extra-information-required.txt)"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Save base64 schemas
         id: schemas
         run: |
-          echo "boolean-base64=$(cat .github/schemas/boolean.json | base64 -w 0)" >> $GITHUB_OUTPUT
-          echo "information-list-base64=$(cat .github/schemas/information-list.json | base64 -w 0)" >> $GITHUB_OUTPUT
-          echo "request-classification-base64=$(cat .github/schemas/request-classification.json | base64 -w 0)" >> $GITHUB_OUTPUT
-          echo "response-classification-base64=$(cat .github/schemas/response-classification.json | base64 -w 0)" >> $GITHUB_OUTPUT
+          {
+            echo "information-list-base64=$(base64 -w 0 < .github/schemas/information-list.json)"
+            echo "request-classification-base64=$(base64 -w 0 < .github/schemas/request-classification.json)"
+            echo "response-classification-base64=$(base64 -w 0 < .github/schemas/response-classification.json)"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Get last 50 comments
         id: gather-context
@@ -102,14 +113,22 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number
             });
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              per_page: 50
-            });
-            const lastComments = comments.slice(-50);
-            const history = lastComments.map(comment => ({
+            const comments = [];
+            for await (const response of github.paginate.iterator(
+              github.rest.issues.listComments,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                per_page: 100
+              }
+            )) {
+              comments.push(...response.data);
+            }
+            // Only send the most recent comments to the model: the full history
+            // of a long-lived issue can be huge (cost, tokens and job output
+            // size), and older comments are rarely relevant.
+            const history = comments.slice(-50).map(comment => ({
               author: comment.user.login,
               date: comment.created_at,
               body: comment.body,
@@ -119,7 +138,6 @@ jobs:
               body: issue.body,
               history
             };
-            console.log(issueContext);
             const stringified = JSON.stringify(issueContext);
             const context_base64 = Buffer.from(stringified).toString('base64');
             core.setOutput('context-base64', context_base64);
@@ -128,8 +146,6 @@ jobs:
         uses: ./.github/actions/set-up-deepseek-via-pi
         env:
           DEEPSEEK_API_KEY: ${{ env.DEEPSEEK_API_KEY }}
-        with:
-          api-key: ${{ env.DEEPSEEK_API_KEY }}
 
       - name: Classify request
         id: classify-request
@@ -142,19 +158,26 @@ jobs:
       - name: Save request type
         id: save-request-type
         run: |
-          REQUEST_TYPE=$(echo "${{ steps.classify-request.outputs.response-base64 }}" | base64 -d)
+          REQUEST_TYPE=$(echo "${{ steps.classify-request.outputs.response-base64 }}" | base64 -d | jq -r .request_type)
+          # Guard against unexpected model output: default to OTHER so the user
+          # always gets a visible response instead of a silent no-op.
+          case "${REQUEST_TYPE}" in
+            BUG_FIX|CHANGE_REQUEST|FEATURE_REQUEST|INVESTIGATION|QUESTION|SPAM|CAN_IGNORE|OTHER) ;;
+            *) REQUEST_TYPE=OTHER ;;
+          esac
           echo "request-type: ${REQUEST_TYPE}"
-          echo "request-type=${REQUEST_TYPE}" >> $GITHUB_OUTPUT
+          echo "request-type=${REQUEST_TYPE}" >> "$GITHUB_OUTPUT"
 
   thumbs-down-spam:
     needs: [triage]
     if: needs.triage.outputs.request-type == 'SPAM'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
       id-token: write
     steps:
-      - name: Get secrets
+      - name: Infisical
         uses: Infisical/secrets-action@v1.0.16
         with:
           method: "oidc"
@@ -189,12 +212,13 @@ jobs:
     needs: [triage]
     if: needs.triage.outputs.request-type == 'OTHER'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
       id-token: write
       issues: write
     steps:
-      - name: Get secrets
+      - name: Infisical
         uses: Infisical/secrets-action@v1.0.16
         with:
           method: "oidc"
@@ -240,13 +264,14 @@ jobs:
     needs: [triage]
     if: (needs.triage.outputs.request-type == 'BUG_FIX') || (needs.triage.outputs.request-type == 'CHANGE_REQUEST') || (needs.triage.outputs.request-type == 'FEATURE_REQUEST') || (needs.triage.outputs.request-type == 'INVESTIGATION') || (needs.triage.outputs.request-type == 'QUESTION')
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: write
       id-token: write
       issues: write
       pull-requests: write
     steps:
-      - name: Get secrets
+      - name: Infisical
         uses: Infisical/secrets-action@v1.0.16
         with:
           method: "oidc"
@@ -281,8 +306,6 @@ jobs:
         uses: ./.github/actions/set-up-deepseek-via-pi
         env:
           DEEPSEEK_API_KEY: ${{ env.DEEPSEEK_API_KEY }}
-        with:
-          api-key: ${{ env.DEEPSEEK_API_KEY }}
 
       - name: Classify response
         id: classify-response
@@ -294,9 +317,16 @@ jobs:
       - name: Save response type
         id: save-response-type
         run: |
-          RESPONSE_TYPE=$(echo ${{ steps.classify-response.outputs.response-base64 }} | base64 -d)
+          RESPONSE_TYPE=$(echo "${{ steps.classify-response.outputs.response-base64 }}" | base64 -d | jq -r .response_type)
+          # Guard against unexpected model output: default to
+          # REQUIRES_MORE_INFORMATION so the user always gets a visible response
+          # instead of a silent no-op.
+          case "${RESPONSE_TYPE}" in
+            ALREADY_ADDRESSED|REQUIRES_HUMAN|REQUIRES_MORE_INFORMATION|CAN_ADDRESS_FULLY) ;;
+            *) RESPONSE_TYPE=REQUIRES_MORE_INFORMATION ;;
+          esac
           echo "RESPONSE_TYPE: ${RESPONSE_TYPE}"
-          echo "response-type=${RESPONSE_TYPE}" >> $GITHUB_OUTPUT
+          echo "response-type=${RESPONSE_TYPE}" >> "$GITHUB_OUTPUT"
 
       - name: Classify extra information required
         id: classify-extra-information-required
@@ -310,11 +340,16 @@ jobs:
         id: save-extra-information-required
         if: steps.save-response-type.outputs.response-type == 'REQUIRES_MORE_INFORMATION'
         run: |
-          EXTRA_INFORMATION_REQUIRED=$(echo ${{ steps.classify-extra-information-required.outputs.response-base64 }} | base64 -d)
+          EXTRA_INFORMATION_REQUIRED=$(echo "${{ steps.classify-extra-information-required.outputs.response-base64 }}" | base64 -d | jq -c .information)
           echo "EXTRA_INFORMATION_REQUIRED: ${EXTRA_INFORMATION_REQUIRED}"
-          echo "extra-information-required<<EOF" >> $GITHUB_OUTPUT
-          echo "${EXTRA_INFORMATION_REQUIRED}" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Use a random delimiter so a model response containing a line that
+          # reads "EOF" cannot truncate the multi-line output value.
+          DELIM="GHA_EOF_$RANDOM"
+          {
+            echo "extra-information-required<<${DELIM}"
+            echo "${EXTRA_INFORMATION_REQUIRED}"
+            echo "${DELIM}"
+          } >> "$GITHUB_OUTPUT"
 
 # Already addressed
       - name: Reply as already addressed
@@ -361,7 +396,16 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const extraInfo = ${{ toJson(steps.save-extra-information-required.outputs.extra-information-required) }};
+            let extraInfo = ${{ toJson(steps.save-extra-information-required.outputs.extra-information-required) }};
+            // The response is schema-validated JSON (an array of strings); parse
+            // it, falling back to the raw text for robustness.
+            if (typeof extraInfo === 'string') {
+              try {
+                extraInfo = JSON.parse(extraInfo);
+              } catch (e) {
+                // Not JSON; use the raw text.
+              }
+            }
             let body = "The following additional information is required:\n";
             if (Array.isArray(extraInfo)) {
               extraInfo.forEach(item => {
@@ -417,20 +461,43 @@ jobs:
         if: steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY'
         run: |
           SUMMARY=$(echo "${{ steps.address-issue.outputs.response-base64 }}" | base64 -d)
-          echo "summary<<EOF" >> $GITHUB_OUTPUT
-          echo "${SUMMARY}" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # Use a random delimiter so a summary containing a line that reads
+          # "EOF" cannot truncate the multi-line output value.
+          DELIM="GHA_EOF_$RANDOM"
+          {
+            echo "summary<<${DELIM}"
+            echo "${SUMMARY}"
+            echo "${DELIM}"
+          } >> "$GITHUB_OUTPUT"
       - name: Check for code changes
         id: check-for-code-changes
         if: steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY'
         run: |
-          if git diff --quiet && git diff --cached --quiet && [ -z "$(git ls-files --others --exclude-standard)" ]; then
-            echo "has-changes=false" >> $GITHUB_OUTPUT
-          else
-            echo "has-changes=true" >> $GITHUB_OUTPUT
+          # quick local check
+          if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          # slow network check
+          ISSUE_BRANCH="${{ needs.triage.outputs.issue-branch }}"
+          ISSUE_BRANCH_BASE="${{ needs.triage.outputs.issue-branch-base }}"
+          git fetch origin "$ISSUE_BRANCH" 2>/dev/null || true
+          git fetch origin "$ISSUE_BRANCH_BASE" 2>/dev/null || true
+          if git rev-parse --verify "origin/$ISSUE_BRANCH" >/dev/null 2>&1; then
+            REFERENCE="origin/$ISSUE_BRANCH"
+          elif git rev-parse --verify "origin/$ISSUE_BRANCH_BASE" >/dev/null 2>&1; then
+            REFERENCE="origin/$ISSUE_BRANCH_BASE"
+          else
+            REFERENCE="HEAD"
+          fi
+          if ! git diff --quiet HEAD "$REFERENCE"; then
+            HAS_CHANGES=true
+          else
+            HAS_CHANGES=false
+          fi
+          echo "has-changes=${HAS_CHANGES}" >> "$GITHUB_OUTPUT"
       - name: Commit and push code changes
-        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY')
+        if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.check-for-code-changes.outputs.has-changes == 'true')
         run: |
           git config --global user.email "agent@stock-trek.com"
           git config --global user.name "Stock-Trek Agent"
@@ -454,17 +521,39 @@ jobs:
         if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.check-for-code-changes.outputs.has-changes == 'true')
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_IS_PR: ${{ github.event.issue.pull_request != null }}
         run: |
           # Write title and body to temporary files to handle quotes and backticks
-          echo "Closes #${{ github.event.issue.number }} ${{ github.event.issue.title }}" > /tmp/pr_title.txt
-          cat > /tmp/pr_body.txt << 'EOF'
+          # Use a random, quoted delimiter so a summary containing "EOF" or shell metacharacters cannot break the heredoc
+          # Event data is passed via environment variables so an issue title containing shell metacharacters cannot be injected into the script
+          # When the request came from a comment on a pull request, reference rather than "close" it: the number refers to a PR, not an issue
+          if [ "${ISSUE_IS_PR}" == "true" ]; then
+            REFERENCE="Addresses"
+          else
+            REFERENCE="Closes"
+          fi
+          printf '%s #%s %s\n' "${REFERENCE}" "${ISSUE_NUMBER}" "${ISSUE_TITLE}" > /tmp/pr_title.txt
+          # shellcheck disable=SC2034 # PR_BODY_DELIM is used as the heredoc delimiter below
+          PR_BODY_DELIM="PR_BODY_EOF_$RANDOM"
+          cat > /tmp/pr_body.txt << "$PR_BODY_DELIM"
           ${{ steps.save-address-issue-summary.outputs.summary }}
-          EOF
-          PR_URL=$(gh pr create \
-            --base "${{ needs.triage.outputs.issue-branch-base }}" \
+          $PR_BODY_DELIM
+          # Reuse an existing open PR for this branch if one was already created
+          # by a previous run, otherwise create a new one.
+          PR_URL=$(gh pr list \
             --head "${{ needs.triage.outputs.issue-branch }}" \
-            --title "$(cat /tmp/pr_title.txt)" \
-            --body-file /tmp/pr_body.txt)
+            --state open \
+            --json url \
+            --jq '.[0].url // empty' 2>/dev/null || true)
+          if [ -z "$PR_URL" ]; then
+            PR_URL=$(gh pr create \
+              --base "${{ needs.triage.outputs.issue-branch-base }}" \
+              --head "${{ needs.triage.outputs.issue-branch }}" \
+              --title "$(cat /tmp/pr_title.txt)" \
+              --body-file /tmp/pr_body.txt)
+          fi
           echo "pull-request-url=$PR_URL" >> "$GITHUB_OUTPUT"
       - name: Reply with diff and PR link
         if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.check-for-code-changes.outputs.has-changes == 'true')
@@ -478,5 +567,65 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
+              body
+            });
+
+  notify-failure:
+    needs: [triage, thumbs-down-spam, other-request, respond]
+    if: failure() || cancelled()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      issues: write
+    steps:
+      - name: Comment failure details on the issue
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issueNumber = context.issue.number;
+            const runId = context.runId;
+
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              owner,
+              repo,
+              run_id: runId
+            });
+            const { data: jobs } = await github.rest.actions.listJobsForWorkflowRun({
+              owner,
+              repo,
+              run_id: runId,
+              per_page: 100
+            });
+
+            const PROBLEM_CONCLUSIONS = new Set(['failure', 'cancelled', 'timed_out', 'startup_failure']);
+            const failedJobs = jobs.jobs.filter(job => PROBLEM_CONCLUSIONS.has(job.conclusion));
+
+            let body = "⚠️ I'm sorry, something went wrong while I was trying to address this issue.\n\n";
+            if (failedJobs.length === 0) {
+              body += "The workflow did not report a specific failed job.\n";
+            } else {
+              body += "The following failed:\n";
+              for (const job of failedJobs) {
+                body += `\n**${job.name}**\n`;
+                const failedSteps = (job.steps || []).filter(step => PROBLEM_CONCLUSIONS.has(step.conclusion));
+                if (failedSteps.length === 0) {
+                  body += "- The job failed without reporting a specific step.\n";
+                } else {
+                  for (const step of failedSteps) {
+                    body += `- ${step.name}\n`;
+                  }
+                }
+              }
+            }
+            body += `\nYou can find the full logs [here](${run.html_url}).\n`;
+            body += "\nIf you'd like me to try again, please add a comment mentioning @agent.";
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: issueNumber,
               body
             });
