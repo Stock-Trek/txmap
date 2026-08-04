@@ -78,7 +78,7 @@ fn serde_roundtrip_preserves_all_values() {
 
 #[test]
 fn serde_roundtrip_tx_result_completed() {
-    let result: TxResult<u64> = TxResult::Completed(42);
+    let result: TxResult<u64> = TxResult::Completed { state: 42 };
     let json = serde_json::to_string(&result).unwrap();
     let deserialized: TxResult<u64> = serde_json::from_str(&json).unwrap();
     assert_eq!(result, deserialized);
@@ -86,7 +86,11 @@ fn serde_roundtrip_tx_result_completed() {
 
 #[test]
 fn serde_roundtrip_tx_result_requirement_not_met() {
-    let result: TxResult<u64> = TxResult::RequirementNotMet(0, "balance_check".to_string(), 99);
+    let result: TxResult<u64> = TxResult::RequirementNotMet {
+        index: 0,
+        requirement: "balance_check".to_string(),
+        state: 99,
+    };
     let json = serde_json::to_string(&result).unwrap();
     let deserialized: TxResult<u64> = serde_json::from_str(&json).unwrap();
     assert_eq!(result, deserialized);
@@ -94,13 +98,18 @@ fn serde_roundtrip_tx_result_requirement_not_met() {
 
 #[test]
 fn serde_roundtrip_tx_result_with_string() {
-    let result: TxResult<String> = TxResult::Completed("hello".to_string());
+    let result: TxResult<String> = TxResult::Completed {
+        state: "hello".to_string(),
+    };
     let json = serde_json::to_string(&result).unwrap();
     let deserialized: TxResult<String> = serde_json::from_str(&json).unwrap();
     assert_eq!(result, deserialized);
 
-    let result: TxResult<String> =
-        TxResult::RequirementNotMet(2, "check".to_string(), "state".to_string());
+    let result: TxResult<String> = TxResult::RequirementNotMet {
+        index: 2,
+        requirement: "check".to_string(),
+        state: "state".to_string(),
+    };
     let json = serde_json::to_string(&result).unwrap();
     let deserialized: TxResult<String> = serde_json::from_str(&json).unwrap();
     assert_eq!(result, deserialized);

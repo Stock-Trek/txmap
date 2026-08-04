@@ -14,18 +14,22 @@ use std::marker::PhantomData;
 impl<T: Serialize> Serialize for TxResult<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
-            TxResult::Completed(state) => {
+            TxResult::Completed { state } => {
                 let mut m = serializer.serialize_map(Some(2))?;
-                m.serialize_entry("status", "Completed")?;
-                m.serialize_entry("value", state)?;
+                m.serialize_entry("variant", "Completed")?;
+                m.serialize_entry("state", state)?;
                 m.end()
             }
-            TxResult::RequirementNotMet(index, name, state) => {
+            TxResult::RequirementNotMet {
+                index,
+                requirement,
+                state,
+            } => {
                 let mut m = serializer.serialize_map(Some(4))?;
-                m.serialize_entry("status", "RequirementNotMet")?;
+                m.serialize_entry("variant", "RequirementNotMet")?;
                 m.serialize_entry("index", index)?;
-                m.serialize_entry("name", name)?;
-                m.serialize_entry("value", state)?;
+                m.serialize_entry("requirement", requirement)?;
+                m.serialize_entry("state", state)?;
                 m.end()
             }
         }
@@ -36,31 +40,35 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for TxResult<T> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
         struct TxResultHelper<T> {
-            status: String,
+            variant: String,
             index: Option<usize>,
-            name: Option<String>,
-            value: Option<T>,
+            requirement: Option<String>,
+            state: Option<T>,
         }
 
         let helper = TxResultHelper::<T>::deserialize(deserializer)?;
-        match helper.status.as_str() {
+        match helper.variant.as_str() {
             "Completed" => {
-                let value = helper
-                    .value
-                    .ok_or_else(|| de::Error::missing_field("value"))?;
-                Ok(TxResult::Completed(value))
+                let state = helper
+                    .state
+                    .ok_or_else(|| de::Error::missing_field("state"))?;
+                Ok(TxResult::Completed { state })
             }
             "RequirementNotMet" => {
                 let index = helper
                     .index
                     .ok_or_else(|| de::Error::missing_field("index"))?;
-                let name = helper
-                    .name
-                    .ok_or_else(|| de::Error::missing_field("name"))?;
-                let value = helper
-                    .value
-                    .ok_or_else(|| de::Error::missing_field("value"))?;
-                Ok(TxResult::RequirementNotMet(index, name, value))
+                let requirement = helper
+                    .requirement
+                    .ok_or_else(|| de::Error::missing_field("requirement"))?;
+                let state = helper
+                    .state
+                    .ok_or_else(|| de::Error::missing_field("state"))?;
+                Ok(TxResult::RequirementNotMet {
+                    index,
+                    requirement,
+                    state,
+                })
             }
             other => Err(de::Error::unknown_variant(
                 other,
