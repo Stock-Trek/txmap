@@ -55,7 +55,7 @@ where
         mut self,
         name: impl AsRef<str>,
         key: K,
-        condition: impl Fn(&K, Option<&V>, &mut STATE) -> bool + 'tx,
+        condition: impl FnOnce(&K, Option<&V>, &mut STATE) -> bool + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuilderPhase> {
         let guard = Guard {
             name: name.as_ref().into(),
@@ -89,7 +89,7 @@ where
     pub fn get(
         mut self,
         key: K,
-        get: impl Fn(&K, Option<&V>, &mut STATE) + 'tx,
+        get: impl FnOnce(&K, Option<&V>, &mut STATE) + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::Get {
             key: self.indexer.indexed_key(self.custodian.shard_count, key),
@@ -108,7 +108,7 @@ where
     pub fn insert_with(
         mut self,
         key: K,
-        value_generator: impl Fn(&K, &mut STATE) -> V + 'tx,
+        value_generator: impl FnOnce(&K, &mut STATE) -> V + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::InsertWith {
             key: self.indexer.indexed_key(self.custodian.shard_count, key),
@@ -127,7 +127,7 @@ where
     pub fn insert_with_if_absent(
         mut self,
         key: K,
-        value_generator: impl Fn(&K, &mut STATE) -> V + 'tx,
+        value_generator: impl FnOnce(&K, &mut STATE) -> V + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::InsertWithIfAbsent {
             key: self.indexer.indexed_key(self.custodian.shard_count, key),
@@ -146,7 +146,7 @@ where
     pub fn modify(
         mut self,
         key: K,
-        mutate: impl Fn(&K, &mut V, &mut STATE) + 'tx,
+        mutate: impl FnOnce(&K, &mut V, &mut STATE) + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::Modify {
             key: self.indexer.indexed_key(self.custodian.shard_count, key),
@@ -203,7 +203,7 @@ where
     pub fn remove_if(
         mut self,
         key: K,
-        condition: impl Fn(&K, &V, &mut STATE) -> bool + 'tx,
+        condition: impl FnOnce(&K, &V, &mut STATE) -> bool + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::RemoveIf {
             key: self.indexer.indexed_key(self.custodian.shard_count, key),
@@ -241,7 +241,7 @@ where
     pub fn update(
         mut self,
         key: K,
-        transform: impl Fn(&K, Option<&V>, &mut STATE) -> Option<V> + 'tx,
+        transform: impl FnOnce(&K, Option<&V>, &mut STATE) -> Option<V> + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::Update {
             key: self.indexer.indexed_key(self.custodian.shard_count, key),
@@ -266,7 +266,7 @@ where
     STATE: Default + 'tx,
 {
     #[must_use]
-    /// Executes the transaction.
+    /// Consumes self and executes the transaction.
     ///
     /// Acquires locks, checks guards, applies all operations, and
     /// returns the final state wrapped in [`TxResult`].

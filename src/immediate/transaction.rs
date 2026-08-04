@@ -65,9 +65,10 @@ where
 
         let mut lock_guards = custodian.lock_guards(total_read_bitmask, total_write_bitmask);
         let mut state = STATE::default();
-        for (i, guard) in guards.iter().enumerate() {
-            if !guard.is_condition_met::<L>(&mut lock_guards, &mut state) {
-                return TxResult::RequirementNotMet(i, guard.name.clone(), state);
+        for (i, guard) in guards.into_iter().enumerate() {
+            let guard_name = guard.name.clone();
+            if !guard.condition_is_met::<L>(&mut lock_guards, &mut state) {
+                return TxResult::RequirementNotMet(i, guard_name, state);
             }
         }
         for op in ops {
