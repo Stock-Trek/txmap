@@ -14,9 +14,11 @@ fn param_move_value() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetTwoParamState {
-            result_a: None,
-            result_b: Some(42)
-        })
+        TxResult::Completed {
+            state: GetTwoParamState {
+                result_a: None,
+                result_b: Some(42)
+            }
+        }
     );
 }

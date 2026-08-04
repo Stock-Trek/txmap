@@ -68,7 +68,9 @@ fn transfer() {
             },
             TransferParams { amount: 0 }
         ),
-        TxResult::Completed(TransferState { results: vec![] })
+        TxResult::Completed {
+            state: TransferState { results: vec![] }
+        }
     );
     assert_ne!(
         send_1_usd.execute(
@@ -78,7 +80,9 @@ fn transfer() {
             },
             TransferParams { amount: 0 }
         ),
-        TxResult::Completed(TransferState { results: vec![] })
+        TxResult::Completed {
+            state: TransferState { results: vec![] }
+        }
     );
 
     // Send X USD from Bob to Tim (parameterized with get verification)
@@ -109,9 +113,11 @@ fn transfer() {
             },
             TransferParams { amount: 40 }
         ),
-        TxResult::Completed(TransferState {
-            results: vec![Some(60), Some(90)]
-        })
+        TxResult::Completed {
+            state: TransferState {
+                results: vec![Some(60), Some(90)]
+            }
+        }
     );
 
     // Add 100 USD to Bob (modify existing)
@@ -129,7 +135,9 @@ fn transfer() {
             },
             TransferParams { amount: 0 }
         ),
-        TxResult::Completed(TransferState { results: vec![] })
+        TxResult::Completed {
+            state: TransferState { results: vec![] }
+        }
     );
     assert_eq!(
         add_100_usd_to_bob.execute(
@@ -139,7 +147,9 @@ fn transfer() {
             },
             TransferParams { amount: 0 }
         ),
-        TxResult::Completed(TransferState { results: vec![] })
+        TxResult::Completed {
+            state: TransferState { results: vec![] }
+        }
     );
 
     // Add 123 to Pam (insert_default_if_absent + modify + verify with get)
@@ -161,9 +171,11 @@ fn transfer() {
             },
             TransferParams { amount: 0 }
         ),
-        TxResult::Completed(TransferState {
-            results: vec![Some(123)]
-        })
+        TxResult::Completed {
+            state: TransferState {
+                results: vec![Some(123)]
+            }
+        }
     );
     assert_eq!(
         add_123_to_pam.execute(
@@ -173,8 +185,10 @@ fn transfer() {
             },
             TransferParams { amount: 0 }
         ),
-        TxResult::Completed(TransferState {
-            results: vec![Some(246)]
-        })
+        TxResult::Completed {
+            state: TransferState {
+                results: vec![Some(246)]
+            }
+        }
     );
 }

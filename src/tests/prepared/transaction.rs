@@ -17,7 +17,9 @@ fn empty_key_works() {
         .into_transaction();
     assert_eq!(
         tx.execute(GetOneKeys { key: "".into() }, GetOneParams {}),
-        TxResult::Completed(GetOneState { result: Some(2) })
+        TxResult::Completed {
+            state: GetOneState { result: Some(2) }
+        }
     );
 }
 
@@ -32,7 +34,12 @@ fn transaction_on_empty_map() {
         })
         .into_transaction()
         .execute(GetOneKeys { key: ALICE.into() }, GetOneParams {});
-    assert_eq!(result, TxResult::Completed(GetOneState { result: None }));
+    assert_eq!(
+        result,
+        TxResult::Completed {
+            state: GetOneState { result: None }
+        }
+    );
 }
 
 #[test]
@@ -65,9 +72,11 @@ fn mixed_ops_in_one_transaction() {
             },
             GetThreeParams {}
         ),
-        TxResult::Completed(GetThreeState {
-            results: vec![Some(10), Some(20), Some(30)]
-        })
+        TxResult::Completed {
+            state: GetThreeState {
+                results: vec![Some(10), Some(20), Some(30)]
+            }
+        }
     );
 }
 
@@ -81,7 +90,9 @@ fn chain_many_ops() {
             .into_transaction();
         assert_eq!(
             tx.execute(IncrementKeys { k: i }, IncrementParams {}),
-            TxResult::Completed(IncrementState {})
+            TxResult::Completed {
+                state: IncrementState {}
+            }
         );
     }
     assert_eq!(map.len(), 5);
@@ -114,9 +125,11 @@ fn chain_many_ops_with_params() {
     );
     assert_eq!(
         result,
-        TxResult::Completed(GetVecParamState {
-            results: vec![Some(10), Some(20)]
-        })
+        TxResult::Completed {
+            state: GetVecParamState {
+                results: vec![Some(10), Some(20)]
+            }
+        }
     );
 }
 
@@ -135,7 +148,9 @@ fn chained_modify_and_get() {
     let result = tx.execute(GetCounterKeys { key: "ctr".into() }, GetCounterParams {});
     assert_eq!(
         result,
-        TxResult::Completed(GetCounterState { result: Some(2) })
+        TxResult::Completed {
+            state: GetCounterState { result: Some(2) }
+        }
     );
 }
 
@@ -163,10 +178,12 @@ fn chained_ops_on_multiple_keys() {
             },
             GetTwoParams {}
         ),
-        TxResult::Completed(GetTwoState {
-            result_a: Some(10),
-            result_b: Some(20)
-        })
+        TxResult::Completed {
+            state: GetTwoState {
+                result_a: Some(10),
+                result_b: Some(20)
+            }
+        }
     );
 }
 
@@ -185,13 +202,17 @@ fn param_transaction_basic() {
             GetOneParamU64Keys { key: ALICE.into() },
             GetOneParamU64Params { param: 50 }
         ),
-        TxResult::Completed(GetOneParamU64State { result: Some(50) })
+        TxResult::Completed {
+            state: GetOneParamU64State { result: Some(50) }
+        }
     );
     assert_eq!(
         tx.execute(
             GetOneParamU64Keys { key: ALICE.into() },
             GetOneParamU64Params { param: 30 }
         ),
-        TxResult::Completed(GetOneParamU64State { result: Some(80) })
+        TxResult::Completed {
+            state: GetOneParamU64State { result: Some(80) }
+        }
     );
 }

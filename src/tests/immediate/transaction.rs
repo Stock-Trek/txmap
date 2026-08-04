@@ -15,7 +15,12 @@ fn empty_key_works() {
             s.result = Some(*v);
         })
         .execute();
-    assert_eq!(result, TxResult::Completed(GetOneState { result: Some(2) }));
+    assert_eq!(
+        result,
+        TxResult::Completed {
+            state: GetOneState { result: Some(2) }
+        }
+    );
 }
 
 #[test]
@@ -28,7 +33,12 @@ fn transaction_on_empty_map() {
             s.result = Some(*v);
         })
         .execute();
-    assert_eq!(result, TxResult::Completed(GetOneState { result: None }));
+    assert_eq!(
+        result,
+        TxResult::Completed {
+            state: GetOneState { result: None }
+        }
+    );
 }
 
 #[test]
@@ -48,9 +58,11 @@ fn mixed_ops_in_one_transaction() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetThreeState {
-            results: vec![Some(10), Some(20), Some(30)]
-        })
+        TxResult::Completed {
+            state: GetThreeState {
+                results: vec![Some(10), Some(20), Some(30)]
+            }
+        }
     );
 }
 
@@ -62,7 +74,12 @@ fn chain_many_ops() {
             .immediate_tx::<IncrementState>()
             .insert_with(i, |_k, _s| 0)
             .execute();
-        assert_eq!(result, TxResult::Completed(IncrementState {}));
+        assert_eq!(
+            result,
+            TxResult::Completed {
+                state: IncrementState {}
+            }
+        );
     }
     assert_eq!(map.len(), 5);
 }
@@ -86,9 +103,11 @@ fn chain_many_ops_with_params() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetVecParamState {
-            results: vec![Some(10), Some(20)]
-        })
+        TxResult::Completed {
+            state: GetVecParamState {
+                results: vec![Some(10), Some(20)]
+            }
+        }
     );
 }
 
@@ -106,7 +125,9 @@ fn chained_modify_and_get() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetCounterState { result: Some(2) })
+        TxResult::Completed {
+            state: GetCounterState { result: Some(2) }
+        }
     );
 }
 
@@ -124,10 +145,12 @@ fn chained_ops_on_multiple_keys() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetTwoState {
-            result_a: Some(10),
-            result_b: Some(20)
-        })
+        TxResult::Completed {
+            state: GetTwoState {
+                result_a: Some(10),
+                result_b: Some(20)
+            }
+        }
     );
 }
 
@@ -144,7 +167,9 @@ fn param_transaction_basic() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetOneParamU64State { result: Some(50) })
+        TxResult::Completed {
+            state: GetOneParamU64State { result: Some(50) }
+        }
     );
     let param2 = 30u64;
     let result2 = map
@@ -156,6 +181,8 @@ fn param_transaction_basic() {
         .execute();
     assert_eq!(
         result2,
-        TxResult::Completed(GetOneParamU64State { result: Some(80) })
+        TxResult::Completed {
+            state: GetOneParamU64State { result: Some(80) }
+        }
     );
 }

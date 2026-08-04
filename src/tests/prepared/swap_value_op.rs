@@ -24,10 +24,12 @@ fn swap_value_exchanges_values() {
             },
             GetTwoParams {}
         ),
-        TxResult::Completed(GetTwoState {
-            result_a: Some(2),
-            result_b: Some(1)
-        })
+        TxResult::Completed {
+            state: GetTwoState {
+                result_a: Some(2),
+                result_b: Some(1)
+            }
+        }
     );
 }
 
@@ -52,10 +54,12 @@ fn swap_with_missing_value() {
             },
             GetTwoParams {}
         ),
-        TxResult::Completed(GetTwoState {
-            result_a: None,
-            result_b: Some(1)
-        })
+        TxResult::Completed {
+            state: GetTwoState {
+                result_a: None,
+                result_b: Some(1)
+            }
+        }
     );
 }
 
@@ -71,7 +75,9 @@ fn swap_value_same_key() {
         .into_transaction();
     assert_eq!(
         tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
-        TxResult::Completed(GetOneState { result: Some(7) })
+        TxResult::Completed {
+            state: GetOneState { result: Some(7) }
+        }
     );
 }
 
@@ -96,9 +102,11 @@ fn param_swap_value() {
             },
             GetTwoParamParams { _p: () }
         ),
-        TxResult::Completed(GetTwoParamState {
-            result_a: Some(2),
-            result_b: Some(1)
-        })
+        TxResult::Completed {
+            state: GetTwoParamState {
+                result_a: Some(2),
+                result_b: Some(1)
+            }
+        }
     );
 }

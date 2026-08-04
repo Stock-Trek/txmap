@@ -68,12 +68,16 @@ where
         for (i, guard) in guards.into_iter().enumerate() {
             let guard_name = guard.name.clone();
             if !guard.condition_is_met::<L>(&mut lock_guards, &mut state) {
-                return TxResult::RequirementNotMet(i, guard_name, state);
+                return TxResult::RequirementNotMet {
+                    index: i,
+                    requirement: guard_name,
+                    state,
+                };
             }
         }
         for op in ops {
             op.apply::<L, S>(&mut lock_guards, indexer, &mut state);
         }
-        TxResult::Completed(state)
+        TxResult::Completed { state }
     }
 }

@@ -13,7 +13,9 @@ fn insert_with_if_absent_creates_entry() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetOneState { result: Some(42) })
+        TxResult::Completed {
+            state: GetOneState { result: Some(42) }
+        }
     );
 }
 
@@ -25,5 +27,10 @@ fn insert_with_if_absent_does_not_overwrite_existing() {
         .insert_with_if_absent(ALICE.into(), |_k, _s| 42)
         .get(ALICE.into(), |_k, v, s| s.result = v.copied())
         .execute();
-    assert_eq!(result, TxResult::Completed(GetOneState { result: Some(1) }));
+    assert_eq!(
+        result,
+        TxResult::Completed {
+            state: GetOneState { result: Some(1) }
+        }
+    );
 }

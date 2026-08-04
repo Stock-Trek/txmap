@@ -17,6 +17,8 @@ fn param_map_op() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetOneParamU64State { result: Some(30) })
+        TxResult::Completed {
+            state: GetOneParamU64State { result: Some(30) }
+        }
     );
 }

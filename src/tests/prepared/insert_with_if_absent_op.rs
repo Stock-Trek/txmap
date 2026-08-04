@@ -15,7 +15,9 @@ fn insert_with_if_absent_creates_entry() {
         .into_transaction();
     assert_eq!(
         tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
-        TxResult::Completed(GetOneState { result: Some(42) })
+        TxResult::Completed {
+            state: GetOneState { result: Some(42) }
+        }
     );
 }
 
@@ -31,6 +33,8 @@ fn insert_with_if_absent_does_not_overwrite_existing() {
         .into_transaction();
     assert_eq!(
         tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
-        TxResult::Completed(GetOneState { result: Some(1) })
+        TxResult::Completed {
+            state: GetOneState { result: Some(1) }
+        }
     );
 }

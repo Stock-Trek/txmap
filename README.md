@@ -27,7 +27,7 @@ Add `txmap` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-txmap = "3.1.4"
+txmap = "3.2.0"
 ```
 
 ### Creating a `TxMap`
@@ -98,7 +98,7 @@ let result = db.immediate_tx::<TransferState>()
     })
     .execute();
 
-assert!(matches!(result, TxResult::Completed(TransferState { new_from: 50, new_to: 50 })));
+assert!(matches!(result, TxResult::Completed { state: TransferState { new_from: 50, new_to: 50 } }));
 ```
 
 ### Parameterized transactions
@@ -169,11 +169,13 @@ let transfer_tx = db
     );
     assert_eq!(
         result1,
-        TxResult::Completed(TransferState {
-            total_cost: 100,
-            total_received: 100,
-            commission_paid: 0
-        })
+        TxResult::Completed {
+            state: TransferState {
+                total_cost: 100,
+                total_received: 100,
+                commission_paid: 0
+            }
+        }
     );
 
     let result2 = transfer_tx.execute(
@@ -188,11 +190,13 @@ let transfer_tx = db
     );
     assert_eq!(
         result2,
-        TxResult::Completed(TransferState {
-            total_cost: 50,
-            total_received: 45,
-            commission_paid: 5
-        })
+        TxResult::Completed {
+            state: TransferState {
+                total_cost: 50,
+                total_received: 45,
+                commission_paid: 5
+            }
+        }
     );
 ```
 
@@ -239,9 +243,9 @@ let result = db
     .execute();
 
 match result {
-    TxResult::RequirementNotMet(guard_idx, guard_name, state) => {
-        assert_eq!(guard_idx, 0);
-        assert_eq!(guard_name, "Alice has sufficient funds");
+    TxResult::RequirementNotMet { index, requirement, state } => {
+        assert_eq!(index, 0);
+        assert_eq!(requirement, "Alice has sufficient funds");
         assert!(
             matches!(
                 state,

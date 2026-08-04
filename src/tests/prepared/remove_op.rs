@@ -19,7 +19,9 @@ fn remove_multiple_keys() {
             },
             RemoveMultipleParams {},
         ),
-        TxResult::Completed(RemoveMultipleState { user: vec![] })
+        TxResult::Completed {
+            state: RemoveMultipleState { user: vec![] }
+        }
     );
     assert_eq!(map.len(), 1);
 }

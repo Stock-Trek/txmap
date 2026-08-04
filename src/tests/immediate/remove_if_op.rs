@@ -11,7 +11,12 @@ fn remove_if_condition_not_met() {
         .immediate_tx::<GetOneState>()
         .remove_if(ALICE.into(), move |_k, v, _s| *v > threshold)
         .execute();
-    assert_eq!(result, TxResult::Completed(GetOneState { result: None }));
+    assert_eq!(
+        result,
+        TxResult::Completed {
+            state: GetOneState { result: None }
+        }
+    );
     assert_eq!(map.len(), 1);
 }
 
@@ -27,10 +32,12 @@ fn param_remove_if() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetTwoParamU64State {
-            result_a: Some(5),
-            result_b: None
-        })
+        TxResult::Completed {
+            state: GetTwoParamU64State {
+                result_a: Some(5),
+                result_b: None
+            }
+        }
     );
     assert_eq!(map.len(), 1);
 }

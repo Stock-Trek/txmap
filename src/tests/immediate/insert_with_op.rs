@@ -13,7 +13,9 @@ fn insert_with_creates_entry() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetOneState { result: Some(42) })
+        TxResult::Completed {
+            state: GetOneState { result: Some(42) }
+        }
     );
 }
 
@@ -27,7 +29,9 @@ fn insert_with_overwrites_existing() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetOneState { result: Some(42) })
+        TxResult::Completed {
+            state: GetOneState { result: Some(42) }
+        }
     );
 }
 
@@ -42,8 +46,10 @@ fn param_insert_with() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetOneParamStringState {
-            result: Some("hello".into())
-        })
+        TxResult::Completed {
+            state: GetOneParamStringState {
+                result: Some("hello".into())
+            }
+        }
     );
 }

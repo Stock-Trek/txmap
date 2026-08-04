@@ -24,10 +24,12 @@ fn move_existing_value() {
             },
             GetTwoParams {}
         ),
-        TxResult::Completed(GetTwoState {
-            result_a: None,
-            result_b: Some(1)
-        })
+        TxResult::Completed {
+            state: GetTwoState {
+                result_a: None,
+                result_b: Some(1)
+            }
+        }
     );
 }
 
@@ -52,10 +54,12 @@ fn move_value_overwrites_existing() {
             },
             GetTwoParams {}
         ),
-        TxResult::Completed(GetTwoState {
-            result_a: None,
-            result_b: Some(1)
-        })
+        TxResult::Completed {
+            state: GetTwoState {
+                result_a: None,
+                result_b: Some(1)
+            }
+        }
     );
 }
 
@@ -80,10 +84,12 @@ fn move_none_removes_existing() {
             },
             GetTwoParams {}
         ),
-        TxResult::Completed(GetTwoState {
-            result_a: None,
-            result_b: None
-        })
+        TxResult::Completed {
+            state: GetTwoState {
+                result_a: None,
+                result_b: None
+            }
+        }
     );
 }
 
@@ -100,7 +106,9 @@ fn move_value_to_self() {
         .into_transaction();
     assert_eq!(
         tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
-        TxResult::Completed(GetOneState { result: Some(7) })
+        TxResult::Completed {
+            state: GetOneState { result: Some(7) }
+        }
     );
 }
 
@@ -125,9 +133,11 @@ fn param_move_value() {
             },
             GetTwoParamParams { _p: () }
         ),
-        TxResult::Completed(GetTwoParamState {
-            result_a: None,
-            result_b: Some(42)
-        })
+        TxResult::Completed {
+            state: GetTwoParamState {
+                result_a: None,
+                result_b: Some(42)
+            }
+        }
     );
 }

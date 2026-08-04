@@ -25,9 +25,11 @@ fn param_get_many() {
             },
             GetTwoParamParams { _p: () }
         ),
-        TxResult::Completed(GetTwoParamState {
-            result_a: Some(10),
-            result_b: None
-        })
+        TxResult::Completed {
+            state: GetTwoParamState {
+                result_a: Some(10),
+                result_b: None
+            }
+        }
     );
 }

@@ -13,10 +13,12 @@ fn chain_get_only() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetTwoState {
-            result_a: Some(10),
-            result_b: Some(20)
-        })
+        TxResult::Completed {
+            state: GetTwoState {
+                result_a: Some(10),
+                result_b: Some(20)
+            }
+        }
     );
 }
 
@@ -32,9 +34,11 @@ fn param_get_many() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetTwoParamState {
-            result_a: Some(10),
-            result_b: None
-        })
+        TxResult::Completed {
+            state: GetTwoParamState {
+                result_a: Some(10),
+                result_b: None
+            }
+        }
     );
 }

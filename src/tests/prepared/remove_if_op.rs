@@ -35,9 +35,11 @@ fn remove_if() {
             },
             RemoveMultipleParams {}
         ),
-        TxResult::Completed(RemoveMultipleState {
-            user: vec![None, Some(BOB.into())]
-        })
+        TxResult::Completed {
+            state: RemoveMultipleState {
+                user: vec![None, Some(BOB.into())]
+            }
+        }
     );
     assert_eq!(map.len(), 1);
 }
@@ -61,10 +63,12 @@ fn param_remove_if() {
             },
             GetTwoParamU64Params { param: 10 }
         ),
-        TxResult::Completed(GetTwoParamU64State {
-            result_a: Some(5),
-            result_b: None
-        })
+        TxResult::Completed {
+            state: GetTwoParamU64State {
+                result_a: Some(5),
+                result_b: None
+            }
+        }
     );
     assert_eq!(map.len(), 1);
 }

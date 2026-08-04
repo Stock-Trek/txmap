@@ -13,7 +13,11 @@ fn empty_values_in_guard() {
         .into_transaction();
     assert!(matches!(
         tx.execute(IncrementKeys { k: ALICE.into() }, IncrementParams {}),
-        TxResult::RequirementNotMet(0, _, _)
+        TxResult::RequirementNotMet {
+            index: 0,
+            requirement: _,
+            state: _
+        }
     ));
 }
 
@@ -35,7 +39,14 @@ fn one_failed_requirement_can_veto_transaction() {
         .modify(Increment::k, |_, v, _, _| *v = 100)
         .into_transaction()
         .execute(IncrementKeys { k: ALICE.into() }, IncrementParams {});
-    assert!(matches!(result, TxResult::RequirementNotMet(3, _, _)));
+    assert!(matches!(
+        result,
+        TxResult::RequirementNotMet {
+            index: 3,
+            requirement: _,
+            state: _
+        }
+    ));
     assert_eq!(map.get_copied(&ALICE.into()), Some(1));
 }
 
@@ -57,7 +68,9 @@ fn param_requirement_not_met() {
             },
             GetOneParamU64Params { param: 50 }
         ),
-        TxResult::Completed(GetOneParamU64State { result: None })
+        TxResult::Completed {
+            state: GetOneParamU64State { result: None }
+        }
     );
     assert!(matches!(
         tx.execute(
@@ -66,6 +79,10 @@ fn param_requirement_not_met() {
             },
             GetOneParamU64Params { param: 200 }
         ),
-        TxResult::RequirementNotMet(0, _, _)
+        TxResult::RequirementNotMet {
+            index: 0,
+            requirement: _,
+            state: _
+        }
     ));
 }

@@ -15,7 +15,9 @@ fn insert_with_creates_entry() {
         .into_transaction();
     assert_eq!(
         tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
-        TxResult::Completed(GetOneState { result: Some(42) })
+        TxResult::Completed {
+            state: GetOneState { result: Some(42) }
+        }
     );
 }
 
@@ -31,7 +33,9 @@ fn insert_with_overwrites_existing() {
         .into_transaction();
     assert_eq!(
         tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
-        TxResult::Completed(GetOneState { result: Some(42) })
+        TxResult::Completed {
+            state: GetOneState { result: Some(42) }
+        }
     );
 }
 
@@ -52,8 +56,10 @@ fn param_insert_with() {
                 param: "hello".into()
             }
         ),
-        TxResult::Completed(GetOneParamStringState {
-            result: Some("hello".into())
-        })
+        TxResult::Completed {
+            state: GetOneParamStringState {
+                result: Some("hello".into())
+            }
+        }
     );
 }

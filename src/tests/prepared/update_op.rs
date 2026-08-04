@@ -15,7 +15,9 @@ fn update_overwrites_when_returning_some() {
         .into_transaction();
     assert_eq!(
         tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
-        TxResult::Completed(GetOneState { result: Some(42) })
+        TxResult::Completed {
+            state: GetOneState { result: Some(42) }
+        }
     );
 }
 
@@ -31,7 +33,9 @@ fn update_removes_when_returning_none() {
         .into_transaction();
     assert_eq!(
         tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
-        TxResult::Completed(GetOneState { result: None })
+        TxResult::Completed {
+            state: GetOneState { result: None }
+        }
     );
 }
 
@@ -47,7 +51,9 @@ fn update_transforms_existing_value() {
         .into_transaction();
     assert_eq!(
         tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
-        TxResult::Completed(GetOneState { result: Some(2) })
+        TxResult::Completed {
+            state: GetOneState { result: Some(2) }
+        }
     );
 }
 
@@ -66,6 +72,8 @@ fn param_map_op() {
             GetOneParamU64Keys { key: ALICE.into() },
             GetOneParamU64Params { param: 3 }
         ),
-        TxResult::Completed(GetOneParamU64State { result: Some(30) })
+        TxResult::Completed {
+            state: GetOneParamU64State { result: Some(30) }
+        }
     );
 }

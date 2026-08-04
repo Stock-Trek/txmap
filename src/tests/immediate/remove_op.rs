@@ -10,7 +10,12 @@ fn remove() {
         .immediate_tx::<GetOneState>()
         .remove(ALICE.into())
         .execute();
-    assert_eq!(result, TxResult::Completed(GetOneState { result: None }));
+    assert_eq!(
+        result,
+        TxResult::Completed {
+            state: GetOneState { result: None }
+        }
+    );
     assert!(map.is_empty());
 }
 
@@ -21,5 +26,10 @@ fn remove_missing_key() {
         .immediate_tx::<GetOneState>()
         .remove(ALICE.into())
         .execute();
-    assert_eq!(result, TxResult::Completed(GetOneState { result: None }));
+    assert_eq!(
+        result,
+        TxResult::Completed {
+            state: GetOneState { result: None }
+        }
+    );
 }

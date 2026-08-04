@@ -20,7 +20,9 @@ fn require_condition_met() {
         .execute();
     assert_eq!(
         result,
-        TxResult::Completed(GetOneParamU64State { result: Some(70) })
+        TxResult::Completed {
+            state: GetOneParamU64State { result: Some(70) }
+        }
     );
 }
 
@@ -36,7 +38,14 @@ fn require_condition_not_met() {
         })
         .modify("funds".into(), |_k, v, _s| *v -= 30)
         .execute();
-    assert!(matches!(result, TxResult::RequirementNotMet(0, _, _)));
+    assert!(matches!(
+        result,
+        TxResult::RequirementNotMet {
+            index: 0,
+            requirement: _,
+            state: _
+        }
+    ));
 }
 
 #[test]
@@ -51,5 +60,12 @@ fn param_requirement_not_met() {
         })
         .modify("funds".into(), |_k, v, _s| *v += 0)
         .execute();
-    assert!(matches!(result, TxResult::RequirementNotMet(0, _, _)));
+    assert!(matches!(
+        result,
+        TxResult::RequirementNotMet {
+            index: 0,
+            requirement: _,
+            state: _
+        }
+    ));
 }

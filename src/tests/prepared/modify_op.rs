@@ -15,7 +15,9 @@ fn modify_existing_key() {
         .into_transaction();
     assert_eq!(
         tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
-        TxResult::Completed(GetOneState { result: Some(6) })
+        TxResult::Completed {
+            state: GetOneState { result: Some(6) }
+        }
     );
 }
 
@@ -31,6 +33,8 @@ fn modify_missing_key_is_noop() {
         .into_transaction();
     assert_eq!(
         tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
-        TxResult::Completed(GetOneState { result: None })
+        TxResult::Completed {
+            state: GetOneState { result: None }
+        }
     );
 }

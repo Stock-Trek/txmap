@@ -13,7 +13,12 @@ fn modify_existing_key() {
             s.result = Some(*v);
         })
         .execute();
-    assert_eq!(result, TxResult::Completed(GetOneState { result: Some(6) }));
+    assert_eq!(
+        result,
+        TxResult::Completed {
+            state: GetOneState { result: Some(6) }
+        }
+    );
 }
 
 #[test]
@@ -26,5 +31,10 @@ fn modify_missing_key_is_noop() {
             s.result = Some(*v);
         })
         .execute();
-    assert_eq!(result, TxResult::Completed(GetOneState { result: None }));
+    assert_eq!(
+        result,
+        TxResult::Completed {
+            state: GetOneState { result: None }
+        }
+    );
 }

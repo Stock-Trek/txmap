@@ -66,12 +66,16 @@ where
         let mut state = STATE::default();
         for (i, guard) in self.guards.iter().enumerate() {
             if !guard.is_condition_met::<L>(&mut lock_guards, &keys, &params, &mut state) {
-                return TxResult::RequirementNotMet(i, guard.name.clone(), state);
+                return TxResult::RequirementNotMet {
+                    index: i,
+                    requirement: guard.name.clone(),
+                    state,
+                };
             }
         }
         for op in self.ops.iter() {
             op.apply::<L, S>(&mut lock_guards, &keys, &params, self.indexer, &mut state);
         }
-        TxResult::Completed(state)
+        TxResult::Completed { state }
     }
 }
