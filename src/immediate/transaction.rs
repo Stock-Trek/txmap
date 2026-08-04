@@ -35,20 +35,27 @@ where
     STATE: Default,
 {
     #[must_use]
-    /// Executes the transaction.
+    /// Consumes self and executes the transaction.
     ///
     /// Acquires read/write locks for all involved shards, verifies
     /// all guard conditions, applies the operations, and returns
     /// the final state wrapped in [`TxResult`].
-    pub fn execute(&self) -> TxResult<STATE> {
+    pub fn execute(self) -> TxResult<STATE> {
+        let Self {
+            custodian,
+            indexer,
+            guards,
+            ops,
+        } = self;
+
         let mut total_read_bitmask = BitMask::ZERO;
         let mut total_write_bitmask = BitMask::ZERO;
 
         // get all bitmasks
-        for guard in self.guards.iter() {
+        for guard in guards.iter() {
             total_read_bitmask |= guard.read_bitmask();
         }
-        for op in self.ops.iter() {
+        for op in ops.iter() {
             let (read_bitmask, write_bitmask) = op.read_write_bitmasks();
             total_read_bitmask |= read_bitmask;
             total_write_bitmask |= write_bitmask;
@@ -56,17 +63,15 @@ where
         // ensure locks are either read or write, not both
         total_read_bitmask &= !total_write_bitmask;
 
-        let mut lock_guards = self
-            .custodian
-            .lock_guards(total_read_bitmask, total_write_bitmask);
+        let mut lock_guards = custodian.lock_guards(total_read_bitmask, total_write_bitmask);
         let mut state = STATE::default();
-        for (i, guard) in self.guards.iter().enumerate() {
+        for (i, guard) in guards.iter().enumerate() {
             if !guard.is_condition_met::<L>(&mut lock_guards, &mut state) {
                 return TxResult::RequirementNotMet(i, guard.name.clone(), state);
             }
         }
-        for op in self.ops.iter() {
-            op.apply::<L, S>(&mut lock_guards, self.indexer, &mut state);
+        for op in ops {
+            op.apply::<L, S>(&mut lock_guards, indexer, &mut state);
         }
         TxResult::Completed(state)
     }
