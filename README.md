@@ -8,7 +8,7 @@ A concurrent transactional hash map for Rust with fine-grained user-defined lock
 
 ## Features
 
-- [**Proven performance**](https://github.com/Stock-Trek/map-benchmarks) The fastest concurrent map available
+- [**Proven performance**](https://github.com/Stock-Trek/map-benchmarks) One of the fastest concurrent maps available
 - [**Customizable**](#creating-a-txmap) Choose the number of shards, shard locking policy (Mutex, RwLock or bring your own) and capacity
 - [**Immediate Transactions**](#immediate-transactions) Immediately execute an atomic, composable batch of modifications
 - [**Parameterized Transactions**](#parameterized-transactions) Create re-usable transactions for faster parameterized execution
