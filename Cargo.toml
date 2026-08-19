@@ -47,3 +47,7 @@ harness = false
 [[bench]]
 name = "shards"
 harness = false
+
+[[bench]]
+name = "workload"
+harness = false
