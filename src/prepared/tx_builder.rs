@@ -122,7 +122,7 @@ where
     where
         V: Clone,
     {
-        self.ops.push(PreparedOp::GetOrInsert {
+        self.ops.push(PreparedOp::GetOrInsertWith {
             key_selector: Box::new(key_selector),
             value_generator: Box::new(move |_k, _p, _s| value.clone()),
             get: Box::new(get),

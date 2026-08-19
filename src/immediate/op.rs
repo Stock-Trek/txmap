@@ -66,10 +66,9 @@ where
     pub fn read_write_bitmasks(&self) -> (BitMask, BitMask) {
         match self {
             Self::Get { key, .. } => (key.shard_index.bitmask(), BitMask::ZERO),
-            Self::GetOrInsert { key, .. } | Self::GetOrInsertWith { key, .. } => {
-                (BitMask::ZERO, key.shard_index.bitmask())
-            }
-            Self::InsertWith { key, .. }
+            Self::GetOrInsert { key, .. }
+            | Self::GetOrInsertWith { key, .. }
+            | Self::InsertWith { key, .. }
             | Self::InsertWithIfAbsent { key, .. }
             | Self::Modify { key, .. }
             | Self::Remove { key, .. }

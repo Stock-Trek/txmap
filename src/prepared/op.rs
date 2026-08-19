@@ -18,11 +18,6 @@ where
         key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
         get: Box<dyn Fn(&K, Option<&V>, &PARAMS, &mut STATE) + 'tx>,
     },
-    GetOrInsert {
-        key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
-        value_generator: Box<dyn Fn(&K, &PARAMS, &mut STATE) -> V + 'tx>,
-        get: Box<dyn Fn(&K, &V, &PARAMS, &mut STATE) + 'tx>,
-    },
     GetOrInsertWith {
         key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
         value_generator: Box<dyn Fn(&K, &PARAMS, &mut STATE) -> V + 'tx>,
@@ -71,10 +66,8 @@ where
             Self::Get { key_selector, .. } => {
                 (key_selector.get(keys).shard_index.bitmask(), BitMask::ZERO)
             }
-            Self::GetOrInsert { key_selector, .. } | Self::GetOrInsertWith { key_selector, .. } => {
-                (BitMask::ZERO, key_selector.get(keys).shard_index.bitmask())
-            }
-            Self::InsertWith { key_selector, .. }
+            Self::GetOrInsertWith { key_selector, .. }
+            | Self::InsertWith { key_selector, .. }
             | Self::InsertWithIfAbsent { key_selector, .. }
             | Self::Modify { key_selector, .. }
             | Self::Remove { key_selector, .. }
@@ -125,12 +118,7 @@ where
                 let value_ref = ShardOps::value_ref(shard, key);
                 (get)(&key.key, value_ref, params, state)
             }
-            Self::GetOrInsert {
-                key_selector,
-                value_generator,
-                get,
-            }
-            | Self::GetOrInsertWith {
+            Self::GetOrInsertWith {
                 key_selector,
                 value_generator,
                 get,

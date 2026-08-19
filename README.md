@@ -291,8 +291,6 @@ There are also some additional operations that are only available on TxMap which
 | `contains_key`  | Returns if the map contains the key           |
 | `drain`         | Removes and returns all the entries           |
 | `fold`          | Performs a fold on all the entries            |
-| `get_or_insert` | Gets the value for a key, inserting a given value if the key is absent |
-| `get_or_insert_with` | Gets the value for a key, inserting a generated value if the key is absent |
 | `hasher`        | Returns the hasher builder                    |
 | `into_keys`     | Consumes the map, returning its keys          |
 | `into_values`   | Consumes the map, returning its values        |
