@@ -115,7 +115,9 @@ fn build_trace(workload: Workload, mode: KeyMode, thread_id: usize) -> Vec<Op> {
     (0..OPS_PER_THREAD)
         .map(|_| {
             let key = |rng: &mut Rng| match mode {
-                KeyMode::Partitioned => thread_id as u64 * PARTITION_KEYS + rng.below(PARTITION_KEYS),
+                KeyMode::Partitioned => {
+                    thread_id as u64 * PARTITION_KEYS + rng.below(PARTITION_KEYS)
+                }
                 KeyMode::Contended => rng.below(HOT_KEYS),
             };
             let roll = rng.below(100);
@@ -272,9 +274,8 @@ fn workloads(c: &mut Criterion) {
                     KeyMode::Contended => HOT_KEYS,
                 };
                 let prefix = format!("{}/{}/", workload.as_str(), mode.as_str());
-                let throughput = || {
-                    criterion::Throughput::Elements((threads * OPS_PER_THREAD) as u64)
-                };
+                let throughput =
+                    || criterion::Throughput::Elements((threads * OPS_PER_THREAD) as u64);
 
                 // TxMap (default 32 shards).
                 let map = TxMap::<u64, u64>::new();
@@ -282,26 +283,24 @@ fn workloads(c: &mut Criterion) {
                     map.insert(k, 0);
                 }
                 group.throughput(throughput());
-                group.bench_function(
-                    format!("{}txmap/threads_{}", prefix, threads),
-                    |b| b.iter(|| run_concurrent(&map, &traces, run_txmap)),
-                );
+                group.bench_function(format!("{}txmap/threads_{}", prefix, threads), |b| {
+                    b.iter(|| run_concurrent(&map, &traces, run_txmap))
+                });
 
                 // RwLock<HashMap> baseline.
-                let map = RwLock::<HashMap<u64, u64>>::new((0..key_count).map(|k| (k, 0)).collect());
+                let map =
+                    RwLock::<HashMap<u64, u64>>::new((0..key_count).map(|k| (k, 0)).collect());
                 group.throughput(throughput());
-                group.bench_function(
-                    format!("{}rwlock/threads_{}", prefix, threads),
-                    |b| b.iter(|| run_concurrent(&map, &traces, run_rwlock)),
-                );
+                group.bench_function(format!("{}rwlock/threads_{}", prefix, threads), |b| {
+                    b.iter(|| run_concurrent(&map, &traces, run_rwlock))
+                });
 
                 // Mutex<HashMap> baseline.
                 let map = Mutex::<HashMap<u64, u64>>::new((0..key_count).map(|k| (k, 0)).collect());
                 group.throughput(throughput());
-                group.bench_function(
-                    format!("{}mutex/threads_{}", prefix, threads),
-                    |b| b.iter(|| run_concurrent(&map, &traces, run_mutex)),
-                );
+                group.bench_function(format!("{}mutex/threads_{}", prefix, threads), |b| {
+                    b.iter(|| run_concurrent(&map, &traces, run_mutex))
+                });
             }
         }
     }
