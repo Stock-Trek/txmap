@@ -7,6 +7,7 @@ pub mod serde;
 
 pub mod prepared {
     pub mod get_op;
+    pub mod get_or_insert_op;
     pub mod guards;
     pub mod insert_with_if_absent_op;
     pub mod insert_with_op;
@@ -22,6 +23,7 @@ pub mod prepared {
 
 pub mod immediate {
     pub mod get_op;
+    pub mod get_or_insert_op;
     pub mod guards;
     pub mod insert_with_if_absent_op;
     pub mod insert_with_op;
@@ -38,6 +40,7 @@ pub mod map {
     pub mod api_surface;
     pub mod basic_operations;
     pub mod concurrency;
+    pub mod get_or_insert;
     pub mod global;
     pub mod indexer;
     pub mod insert;

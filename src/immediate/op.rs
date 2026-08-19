@@ -16,6 +16,16 @@ where
         key: TxKey<K>,
         get: Box<dyn FnOnce(&K, Option<&V>, &mut STATE) + 'tx>,
     },
+    GetOrInsert {
+        key: TxKey<K>,
+        value: V,
+        get: Box<dyn FnOnce(&K, &V, &mut STATE) + 'tx>,
+    },
+    GetOrInsertWith {
+        key: TxKey<K>,
+        value_generator: Box<dyn FnOnce(&K, &mut STATE) -> V + 'tx>,
+        get: Box<dyn FnOnce(&K, &V, &mut STATE) + 'tx>,
+    },
     InsertWith {
         key: TxKey<K>,
         value_generator: Box<dyn FnOnce(&K, &mut STATE) -> V + 'tx>,
@@ -56,7 +66,9 @@ where
     pub fn read_write_bitmasks(&self) -> (BitMask, BitMask) {
         match self {
             Self::Get { key, .. } => (key.shard_index.bitmask(), BitMask::ZERO),
-            Self::InsertWith { key, .. }
+            Self::GetOrInsert { key, .. }
+            | Self::GetOrInsertWith { key, .. }
+            | Self::InsertWith { key, .. }
             | Self::InsertWithIfAbsent { key, .. }
             | Self::Modify { key, .. }
             | Self::Remove { key, .. }
@@ -92,6 +104,25 @@ where
                         lock_guards.read_guard(&key).deref()
                     };
                 let value_ref = ShardOps::value_ref(shard, &key);
+                (get)(&key.key, value_ref, state)
+            }
+            Self::GetOrInsert { key, value, get } => {
+                let shard = lock_guards.write_guard(&key);
+                let value_ref = ShardOps::get_or_insert::<K, V, S>(shard, &key, value, indexer);
+                (get)(&key.key, value_ref, state)
+            }
+            Self::GetOrInsertWith {
+                key,
+                value_generator,
+                get,
+            } => {
+                let shard = lock_guards.write_guard(&key);
+                let value_ref = ShardOps::get_or_insert_with(
+                    shard,
+                    &key,
+                    |k| (value_generator)(k, state),
+                    indexer,
+                );
                 (get)(&key.key, value_ref, state)
             }
             Self::InsertWith {

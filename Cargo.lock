@@ -669,7 +669,7 @@ dependencies = [
 
 [[package]]
 name = "txmap"
-version = "3.1.6"
+version = "3.2.0"
 dependencies = [
  "criterion",
  "hashbrown",

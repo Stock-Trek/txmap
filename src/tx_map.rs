@@ -78,6 +78,44 @@ where
         entry.map(|e| transform(&e.1))
     }
 
+    /// Reads the value for `key`, inserting `value` if the key is absent and returns a transformated value.
+    ///
+    /// If the key is present, the existing value is transformed and returned and
+    /// `value` is discarded. If the key is absent, `value` is inserted,
+    /// transformed and returned.
+    #[must_use]
+    pub fn get_with_or_insert<R>(&self, key: &K, transform: impl FnOnce(&V) -> R, value: V) -> R {
+        let tx_key = self.indexer.indexed_key(self.shard_count, key.clone());
+        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
+        let value = ShardOps::get_or_insert::<K, V, S>(&mut shard, &tx_key, value, &self.indexer);
+        transform(value)
+    }
+
+    /// Returns the value for `key`, inserting a generated value if the key is
+    /// absent and returns a transformed value.
+    ///
+    /// If the key is present, the existing value is transformed and returned and
+    /// `value_generator` is never called. If the key is absent,
+    /// `value_generator` is called with `key`, its result is inserted, and a
+    /// transformed value is returned.
+    #[must_use]
+    pub fn get_with_or_insert_with<R>(
+        &self,
+        key: &K,
+        transform: impl FnOnce(&V) -> R,
+        value_generator: impl FnOnce(&K) -> V,
+    ) -> R {
+        let tx_key = self.indexer.indexed_key(self.shard_count, key.clone());
+        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
+        let value = ShardOps::get_or_insert_with::<K, V, S>(
+            &mut shard,
+            &tx_key,
+            |k| value_generator(k),
+            &self.indexer,
+        );
+        transform(value)
+    }
+
     /// Inserts a key-value pair.
     ///
     /// Returns the previous value if the key already existed.

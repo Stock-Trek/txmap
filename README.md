@@ -268,6 +268,8 @@ Available transaction operations are as follows
 | Transaction operation      | Description                                                                  |
 |----------------------------|------------------------------------------------------------------------------|
 | `get`                      | Reads a value, allows updating state without making any changes.             |
+| `get_or_insert`            | Gets the value for a key, inserting a given value if the key is absent.      |
+| `get_or_insert_with`       | Gets the value for a key, inserting a generated value if the key is absent.  |
 | `insert_with`              | Insert a value generated from the key.                                       |
 | `insert_with_if_absent`    | Insert a value generated from the key, only if the key is absent.            |
 | `modify`                   | Mutate an existing value in-place. Does nothing if key absent.               |

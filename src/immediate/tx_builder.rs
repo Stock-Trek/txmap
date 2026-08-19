@@ -104,6 +104,59 @@ where
         }
     }
 
+    /// Ensures the key has a value, inserting `value` if the key is absent,
+    /// then passes the resulting value to `get`.
+    ///
+    /// If the key is present, its value is passed to `get` and `value` is
+    /// discarded. If the key is absent, `value` is inserted and then passed
+    /// to `get`.
+    pub fn get_or_insert(
+        mut self,
+        key: K,
+        value: V,
+        get: impl FnOnce(&K, &V, &mut STATE) + 'tx,
+    ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
+        self.ops.push(ImmediateOp::GetOrInsert {
+            key: self.indexer.indexed_key(self.custodian.shard_count, key),
+            value,
+            get: Box::new(get),
+        });
+        ImmediateTxBuilder {
+            custodian: self.custodian,
+            indexer: self.indexer,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+
+    /// Ensures the key has a value, inserting a generated value if the key is
+    /// absent, then passes the resulting value to `get`.
+    ///
+    /// If the key is present, its value is passed to `get` and
+    /// `value_generator` is never called. If the key is absent,
+    /// `value_generator` is called with the key and state and its result is
+    /// inserted and then passed to `get`.
+    pub fn get_or_insert_with(
+        mut self,
+        key: K,
+        value_generator: impl FnOnce(&K, &mut STATE) -> V + 'tx,
+        get: impl FnOnce(&K, &V, &mut STATE) + 'tx,
+    ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
+        self.ops.push(ImmediateOp::GetOrInsertWith {
+            key: self.indexer.indexed_key(self.custodian.shard_count, key),
+            value_generator: Box::new(value_generator),
+            get: Box::new(get),
+        });
+        ImmediateTxBuilder {
+            custodian: self.custodian,
+            indexer: self.indexer,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+
     /// Inserts a value generated from the key.
     pub fn insert_with(
         mut self,
