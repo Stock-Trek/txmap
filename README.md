@@ -268,6 +268,8 @@ Available transaction operations are as follows
 | Transaction operation      | Description                                                                  |
 |----------------------------|------------------------------------------------------------------------------|
 | `get`                      | Reads a value, allows updating state without making any changes.             |
+| `get_or_insert`            | Gets the value for a key, inserting a given value if the key is absent.      |
+| `get_or_insert_with`       | Gets the value for a key, inserting a generated value if the key is absent.  |
 | `insert_with`              | Insert a value generated from the key.                                       |
 | `insert_with_if_absent`    | Insert a value generated from the key, only if the key is absent.            |
 | `modify`                   | Mutate an existing value in-place. Does nothing if key absent.               |
@@ -289,6 +291,8 @@ There are also some additional operations that are only available on TxMap which
 | `contains_key`  | Returns if the map contains the key           |
 | `drain`         | Removes and returns all the entries           |
 | `fold`          | Performs a fold on all the entries            |
+| `get_or_insert` | Gets the value for a key, inserting a given value if the key is absent |
+| `get_or_insert_with` | Gets the value for a key, inserting a generated value if the key is absent |
 | `hasher`        | Returns the hasher builder                    |
 | `into_keys`     | Consumes the map, returning its keys          |
 | `into_values`   | Consumes the map, returning its values        |

@@ -18,6 +18,16 @@ where
         key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
         get: Box<dyn Fn(&K, Option<&V>, &PARAMS, &mut STATE) + 'tx>,
     },
+    GetOrInsert {
+        key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
+        value_generator: Box<dyn Fn(&K, &PARAMS, &mut STATE) -> V + 'tx>,
+        get: Box<dyn Fn(&K, &V, &PARAMS, &mut STATE) + 'tx>,
+    },
+    GetOrInsertWith {
+        key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
+        value_generator: Box<dyn Fn(&K, &PARAMS, &mut STATE) -> V + 'tx>,
+        get: Box<dyn Fn(&K, &V, &PARAMS, &mut STATE) + 'tx>,
+    },
     InsertWith {
         key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
         value_generator: Box<dyn Fn(&K, &PARAMS, &mut STATE) -> V + 'tx>,
@@ -60,6 +70,9 @@ where
         match self {
             Self::Get { key_selector, .. } => {
                 (key_selector.get(keys).shard_index.bitmask(), BitMask::ZERO)
+            }
+            Self::GetOrInsert { key_selector, .. } | Self::GetOrInsertWith { key_selector, .. } => {
+                (BitMask::ZERO, key_selector.get(keys).shard_index.bitmask())
             }
             Self::InsertWith { key_selector, .. }
             | Self::InsertWithIfAbsent { key_selector, .. }
@@ -110,6 +123,26 @@ where
                         lock_guards.read_guard(key).deref()
                     };
                 let value_ref = ShardOps::value_ref(shard, key);
+                (get)(&key.key, value_ref, params, state)
+            }
+            Self::GetOrInsert {
+                key_selector,
+                value_generator,
+                get,
+            }
+            | Self::GetOrInsertWith {
+                key_selector,
+                value_generator,
+                get,
+            } => {
+                let key = key_selector.get(keys);
+                let shard = lock_guards.write_guard(key);
+                let value_ref = ShardOps::get_or_insert_with(
+                    shard,
+                    key,
+                    |k| (value_generator)(k, params, state),
+                    indexer,
+                );
                 (get)(&key.key, value_ref, params, state)
             }
             Self::InsertWith {

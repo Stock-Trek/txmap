@@ -81,6 +81,7 @@ Because `TxMap` is internally mutable and lock-based, it can never return refere
 | `TxMap`                                                 | Description                                                            |
 |---------------------------------------------------------|------------------------------------------------------------------------|
 | `get_with`, `get_copied`, `get_cloned`                  | Lock-safe reads (return values/closures instead of references)         |
+| `get_or_insert`, `get_or_insert_with`                   | `entry().or_insert`-style semantics without returning a reference (requires `V: Clone` on `TxMap`) |
 | `insert_with_if_absent`                                 | Insert only if absent, without re-hashing the key twice                |
 | `modify`                                                | In-place mutation of an existing value                                 |
 | `update`                                                | Insert/replace/remove in one operation based on the current value      |

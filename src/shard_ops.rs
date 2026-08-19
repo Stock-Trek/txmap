@@ -91,6 +91,53 @@ impl ShardOps {
     }
 
     #[inline]
+    pub fn get_or_insert<'a, K, V, S>(
+        shard: &'a mut Shard<K, V>,
+        key: &TxKey<K>,
+        value: V,
+        indexer: &Indexer<S>,
+    ) -> &'a V
+    where
+        K: Clone + Hash + Eq,
+        S: BuildHasher,
+    {
+        let entry = shard.entry(
+            key.hash_code.0,
+            |entry| entry.0 == key.key,
+            |entry| indexer.hash(&entry.0).0,
+        );
+        match entry {
+            Entry::Occupied(occupied) => &occupied.into_mut().1,
+            Entry::Vacant(vacant) => &vacant.insert((key.key.clone(), value)).into_mut().1,
+        }
+    }
+
+    #[inline]
+    pub fn get_or_insert_with<'a, K, V, S>(
+        shard: &'a mut Shard<K, V>,
+        key: &TxKey<K>,
+        value_gen: impl FnOnce(&K) -> V,
+        indexer: &Indexer<S>,
+    ) -> &'a V
+    where
+        K: Clone + Hash + Eq,
+        S: BuildHasher,
+    {
+        let entry = shard.entry(
+            key.hash_code.0,
+            |entry| entry.0 == key.key,
+            |entry| indexer.hash(&entry.0).0,
+        );
+        match entry {
+            Entry::Occupied(occupied) => &occupied.into_mut().1,
+            Entry::Vacant(vacant) => {
+                let value = value_gen(&key.key);
+                &vacant.insert((key.key.clone(), value)).into_mut().1
+            }
+        }
+    }
+
+    #[inline]
     pub fn modify<K, V>(
         shard: &mut Shard<K, V>,
         key: &TxKey<K>,

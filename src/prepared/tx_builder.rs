@@ -106,6 +106,63 @@ where
             _phase: PhantomData,
         }
     }
+    /// Ensures the key has a value, inserting `value` if the key is absent,
+    /// then passes the resulting value to `get`.
+    ///
+    /// If the key is present, its value is passed to `get` and `value` is
+    /// discarded. If the key is absent, `value` is inserted and then passed
+    /// to `get`. Requires `V: Clone` because the transaction is re-usable and
+    /// `value` must be duplicated for each execution that needs to insert it.
+    pub fn get_or_insert(
+        mut self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        value: V,
+        get: impl Fn(&K, &V, &PARAMS, &mut STATE) + 'tx,
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase>
+    where
+        V: Clone,
+    {
+        self.ops.push(PreparedOp::GetOrInsert {
+            key_selector: Box::new(key_selector),
+            value_generator: Box::new(move |_k, _p, _s| value.clone()),
+            get: Box::new(get),
+        });
+        PreparedTxBuilder {
+            custodian: self.custodian,
+            indexer: self.indexer,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+
+    /// Ensures the key has a value, inserting a generated value if the key is
+    /// absent, then passes the resulting value to `get`.
+    ///
+    /// If the key is present, its value is passed to `get` and
+    /// `value_generator` is never called. If the key is absent,
+    /// `value_generator` is called with the key, params and state and its
+    /// result is inserted and then passed to `get`.
+    pub fn get_or_insert_with(
+        mut self,
+        key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
+        value_generator: impl Fn(&K, &PARAMS, &mut STATE) -> V + 'tx,
+        get: impl Fn(&K, &V, &PARAMS, &mut STATE) + 'tx,
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase> {
+        self.ops.push(PreparedOp::GetOrInsertWith {
+            key_selector: Box::new(key_selector),
+            value_generator: Box::new(value_generator),
+            get: Box::new(get),
+        });
+        PreparedTxBuilder {
+            custodian: self.custodian,
+            indexer: self.indexer,
+            guards: self.guards,
+            ops: self.ops,
+            _phase: PhantomData,
+        }
+    }
+
     /// Inserts a value generated from the key and parameters.
     pub fn insert_with(
         mut self,
