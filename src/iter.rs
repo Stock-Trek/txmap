@@ -3,7 +3,6 @@ use crate::{
     result::MISSING_LOCK_GUARD_ERROR, shard::Shard, tx_map::TxMap,
 };
 use hashbrown::hash_table::{Drain as ShardDrain, Iter as ShardIter};
-use intmap::IntMap;
 use std::hash::Hash;
 
 /// An iterator over all key-value pairs in a [`TxMap`].
@@ -20,9 +19,7 @@ where
 {
     /// The shard custodian, used to acquire read guards lazily.
     pub(crate) custodian: &'a Custodian<K, V, L>,
-    /// Read guards keeping every visited shard locked (and alive) for `'a`.
-    pub(crate) _guards: IntMap<u8, L::ReadGuard<'a, Shard<K, V>>>,
-    /// One `hashbrown` iterator per visited shard, aligned with shard indices.
+    /// One `hashbrown` iterator per shard, aligned with shard indices.
     pub(crate) shard_iters: Vec<ShardIter<'a, (K, V)>>,
     pub(crate) shard_index: usize,
     /// Entries remaining in shards visited so far (an exact lower bound).
@@ -38,7 +35,6 @@ where
     pub(crate) fn new(custodian: &'a Custodian<K, V, L>) -> Self {
         Self {
             custodian,
-            _guards: IntMap::new(),
             shard_iters: Vec::with_capacity(custodian.shard_count.0 as usize),
             shard_index: 0,
             remaining: 0,
@@ -191,7 +187,7 @@ where
     /// held.
     pub(crate) shard_drains: Vec<ShardDrain<'a, (K, V)>>,
     /// Write guards keeping every shard locked (and alive) for `'a`.
-    pub(crate) _guards: IntMap<u8, L::WriteGuard<'a, Shard<K, V>>>,
+    pub(crate) _guards: Vec<L::WriteGuard<'a, Shard<K, V>>>,
     pub(crate) shard_index: usize,
     pub(crate) remaining: usize,
 }
@@ -202,14 +198,13 @@ where
     V: 'a,
     L: LockPolicy + 'a,
 {
-    pub(crate) fn new(
-        mut guards: IntMap<u8, L::WriteGuard<'a, Shard<K, V>>>,
-        shard_count: u8,
-    ) -> Self {
-        let remaining: usize = guards.iter().map(|(_, guard)| guard.len()).sum();
+    pub(crate) fn new(mut guards: Vec<L::WriteGuard<'a, Shard<K, V>>>, shard_count: u8) -> Self {
+        let remaining: usize = guards.iter().map(|guard| guard.len()).sum();
         let mut shard_drains = Vec::with_capacity(shard_count as usize);
         for shard_index in 0..shard_count {
-            let guard = guards.get_mut(shard_index).expect(MISSING_LOCK_GUARD_ERROR);
+            let guard = guards
+                .get_mut(shard_index as usize)
+                .expect(MISSING_LOCK_GUARD_ERROR);
             // SAFETY: `hashbrown`'s `Drain` stores only raw pointers into the
             // shard's heap-allocated buckets plus a `PhantomData` marker; the
             // lifetime is not tracked at runtime. The write guard keeps the

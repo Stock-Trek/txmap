@@ -277,7 +277,7 @@ where
     /// Removes all entries from the map.
     pub fn clear(&self) {
         for mut write_guard in self.custodian.all_write_guards() {
-            write_guard.1.clear();
+            write_guard.clear();
         }
     }
 
@@ -313,7 +313,7 @@ where
         self.custodian
             .all_read_guards()
             .iter()
-            .map(|(_, guard)| guard.capacity())
+            .map(|guard| guard.capacity())
             .sum()
     }
 
@@ -328,7 +328,7 @@ where
     /// The additional capacity is distributed evenly across all shards.
     pub fn reserve(&self, additional: usize) {
         let per_shard = additional.div_ceil(self.shard_count.0 as usize);
-        for (_, mut guard) in self.custodian.all_write_guards() {
+        for mut guard in self.custodian.all_write_guards() {
             guard.reserve(per_shard, |entry| self.indexer.hash(&entry.0).0);
         }
     }
@@ -338,7 +338,7 @@ where
     /// The additional capacity is distributed evenly across all shards.
     pub fn try_reserve(&self, additional: usize) -> Result<(), crate::result::TryReserveError> {
         let per_shard = additional.div_ceil(self.shard_count.0 as usize);
-        for (_, mut guard) in self.custodian.all_write_guards() {
+        for mut guard in self.custodian.all_write_guards() {
             guard
                 .try_reserve(per_shard, |entry| self.indexer.hash(&entry.0).0)
                 .map_err(|error| match error {
@@ -355,7 +355,7 @@ where
 
     /// Shrinks the capacity of all shards as much as possible.
     pub fn shrink_to_fit(&self) {
-        for (_, mut guard) in self.custodian.all_write_guards() {
+        for mut guard in self.custodian.all_write_guards() {
             guard.shrink_to_fit(|entry| self.indexer.hash(&entry.0).0);
         }
     }
@@ -365,7 +365,7 @@ where
     /// The lower bound is distributed evenly across all shards.
     pub fn shrink_to(&self, min_capacity: usize) {
         let per_shard = min_capacity.div_ceil(self.shard_count.0 as usize);
-        for (_, mut guard) in self.custodian.all_write_guards() {
+        for mut guard in self.custodian.all_write_guards() {
             guard.shrink_to(per_shard, |entry| self.indexer.hash(&entry.0).0);
         }
     }
@@ -457,7 +457,7 @@ where
     /// Removes all entries for which `condition` returns `false`.
     pub fn retain(&self, condition: impl Fn(&K, &V) -> bool) {
         let shards = self.custodian.all_write_guards();
-        for (_, mut shard) in shards {
+        for mut shard in shards {
             shard.retain(|entry| condition(&entry.0, &entry.1))
         }
     }
@@ -501,7 +501,7 @@ where
     fn clone(&self) -> Self {
         let shard_count = self.shard_count;
         let mut shards = Vec::with_capacity(shard_count.0 as usize);
-        for (_, shard) in self.custodian.all_read_guards() {
+        for shard in self.custodian.all_read_guards() {
             let cloned_shard = shard.clone();
             shards.push(CachePadded::new(L::new(cloned_shard)));
         }
