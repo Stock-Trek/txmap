@@ -12,7 +12,7 @@ impl ShardOps {
         key: &K,
     ) -> Option<&'op V>
     where
-        K: Clone + Hash + Eq,
+        K: Hash + Eq,
     {
         shard
             .find(hash_code.0, |entry| entry.0 == *key)
