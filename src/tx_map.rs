@@ -7,6 +7,7 @@ use crate::{
     lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
     multi_shard_ops::MultiShardOps,
     new_types::ShardCount,
+    new_types::ShardIndex,
     prepared::{
         schema::{TxKeys, TxSchema},
         tx_builder::{PreparedBuilderPhase, PreparedTxBuilder},
@@ -284,8 +285,14 @@ where
     #[must_use]
     pub fn len(&self) -> usize {
         let mut total_length = 0;
-        for read_guard in self.custodian.all_read_guards() {
-            total_length += read_guard.len();
+        // Acquire each shard's read lock lazily, one at a time, and hold all
+        // acquired locks until the count is complete so the result is a
+        // consistent snapshot.
+        let mut guards = Vec::new();
+        for shard_index in 0..self.shard_count.0 {
+            let guard = self.custodian.read_guard_at(ShardIndex(shard_index));
+            total_length += guard.len();
+            guards.push(guard);
         }
         total_length
     }
@@ -368,29 +375,37 @@ where
     ///
     /// Each entry is optionally converted to an intermediate value via
     /// `convert`, then accumulated with `accumulate`. Iteration order
-    /// is not guaranteed.
+    /// is not guaranteed. Read locks are acquired lazily, one shard at a
+    /// time, and held until the fold completes.
     pub fn fold<T, R>(
         &self,
         initial: R,
         convert: impl Fn(&K, &V) -> Option<T>,
         accumulate: impl Fn(R, T) -> R,
     ) -> R {
-        self.custodian
-            .all_read_guards()
-            .iter()
-            .flat_map(|guard| guard.iter())
-            .filter_map(|(key, value)| convert(key, value))
-            .fold(initial, accumulate)
+        let mut result = initial;
+        // Acquire each shard's read lock lazily, one at a time, and hold all
+        // acquired locks until the fold is complete.
+        let mut guards = Vec::new();
+        for shard_index in 0..self.shard_count.0 {
+            let guard = self.custodian.read_guard_at(ShardIndex(shard_index));
+            for (key, value) in guard.iter() {
+                if let Some(intermediate) = convert(key, value) {
+                    result = accumulate(result, intermediate);
+                }
+            }
+            guards.push(guard);
+        }
+        result
     }
 
     #[must_use]
     /// Returns an iterator over all key-value pairs.
     ///
-    /// Acquires read locks on all shards for the duration of iteration.
+    /// Acquires read locks lazily, one shard at a time, as iteration
+    /// progresses. Acquired locks are held until the iterator is dropped.
     pub fn iter(&self) -> Iter<'_, K, V, L> {
-        let guards = self.custodian.all_read_guards();
-        let remaining: usize = guards.iter().map(|guard| guard.len()).sum();
-        Iter::new(guards, self.shard_count.0, remaining)
+        Iter::new(&self.custodian)
     }
 
     #[must_use]

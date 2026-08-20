@@ -1,24 +1,30 @@
 use crate::{
-    lock_policies::lock_policy::LockPolicy, result::MISSING_LOCK_GUARD_ERROR, shard::Shard,
-    tx_map::TxMap,
+    custodian::Custodian, lock_policies::lock_policy::LockPolicy, new_types::ShardIndex,
+    result::MISSING_LOCK_GUARD_ERROR, shard::Shard, tx_map::TxMap,
 };
 use hashbrown::hash_table::{Drain as ShardDrain, Iter as ShardIter};
 use std::hash::Hash;
 
 /// An iterator over all key-value pairs in a [`TxMap`].
 ///
-/// Holds read guards on all shards for the duration of iteration.
+/// Read guards are acquired lazily, one shard at a time, as iteration
+/// progresses. Guards for shards already visited are held until the
+/// iterator is dropped, so entries yielded remain valid for the lifetime
+/// of the iterator.
 pub struct Iter<'a, K, V, L>
 where
     K: Clone + Hash + Eq + 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
+    /// The shard custodian, used to acquire read guards lazily.
+    pub(crate) custodian: &'a Custodian<K, V, L>,
     /// Read guards keeping every shard locked (and alive) for `'a`.
     pub(crate) _guards: Vec<L::ReadGuard<'a, Shard<K, V>>>,
     /// One `hashbrown` iterator per shard, aligned with shard indices.
     pub(crate) shard_iters: Vec<ShardIter<'a, (K, V)>>,
     pub(crate) shard_index: usize,
+    /// Entries remaining in shards visited so far (an exact lower bound).
     pub(crate) remaining: usize,
 }
 
@@ -28,27 +34,13 @@ where
     V: 'a,
     L: LockPolicy + 'a,
 {
-    pub(crate) fn new(
-        guards: Vec<L::ReadGuard<'a, Shard<K, V>>>,
-        shard_count: u8,
-        remaining: usize,
-    ) -> Self {
-        let mut shard_iters = Vec::with_capacity(shard_count as usize);
-        for guard in guards.iter() {
-            // SAFETY: `hashbrown`'s `Iter` stores only raw pointers into the
-            // shard's heap-allocated buckets plus a `PhantomData` marker; the
-            // lifetime is not tracked at runtime. The read guard keeps the
-            // shard data alive and immutable for `'a`, and is stored
-            // alongside the iterators in this struct, so the iterators can
-            // never outlive the data they reference.
-            let iter: ShardIter<'a, (K, V)> = unsafe { std::mem::transmute(guard.iter()) };
-            shard_iters.push(iter);
-        }
+    pub(crate) fn new(custodian: &'a Custodian<K, V, L>) -> Self {
         Self {
-            _guards: guards,
-            shard_iters,
+            custodian,
+            _guards: Vec::with_capacity(custodian.shard_count.0 as usize),
+            shard_iters: Vec::with_capacity(custodian.shard_count.0 as usize),
             shard_index: 0,
-            remaining,
+            remaining: 0,
         }
     }
 }
@@ -62,7 +54,26 @@ where
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.shard_index < self.shard_iters.len() {
+        loop {
+            // Lazily acquire the read guard for the next shard on first visit.
+            if self.shard_index == self.shard_iters.len() {
+                if self.shard_index >= self.custodian.shard_count.0 as usize {
+                    return None;
+                }
+                let guard = self
+                    .custodian
+                    .read_guard_at(ShardIndex(self.shard_index as u8));
+                self.remaining += guard.len();
+                // SAFETY: `hashbrown`'s `Iter` stores only raw pointers into
+                // the shard's heap-allocated buckets plus a `PhantomData`
+                // marker; the lifetime is not tracked at runtime. The read
+                // guard keeps the shard data alive and immutable for `'a`, and
+                // is stored alongside the iterators in this struct, so the
+                // iterators can never outlive the data they reference.
+                let iter: ShardIter<'a, (K, V)> = unsafe { std::mem::transmute(guard.iter()) };
+                self._guards.insert(self.shard_index, guard);
+                self.shard_iters.push(iter);
+            }
             let shard = &mut self.shard_iters[self.shard_index];
             if let Some(entry) = shard.next() {
                 self.remaining -= 1;
@@ -70,11 +81,11 @@ where
             }
             self.shard_index += 1;
         }
-        None
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.remaining, Some(self.remaining))
+        let exact = self.shard_index >= self.custodian.shard_count.0 as usize;
+        (self.remaining, exact.then_some(self.remaining))
     }
 }
 
@@ -108,8 +119,8 @@ where
 
 /// An iterator over all the keys in a [`TxMap`].
 ///
-/// Created by [`TxMap::keys`]. Holds read guards on all shards for the
-/// duration of iteration.
+/// Created by [`TxMap::keys`]. Acquires read guards lazily, one shard at a
+/// time, holding them until the iterator is dropped.
 pub struct Keys<'a, K, V, L>(pub(crate) Iter<'a, K, V, L>)
 where
     K: Clone + Hash + Eq + 'a,
@@ -135,8 +146,8 @@ where
 
 /// An iterator over all the values in a [`TxMap`].
 ///
-/// Created by [`TxMap::values`]. Holds read guards on all shards for the
-/// duration of iteration.
+/// Created by [`TxMap::values`]. Acquires read guards lazily, one shard at a
+/// time, holding them until the iterator is dropped.
 pub struct Values<'a, K, V, L>(pub(crate) Iter<'a, K, V, L>)
 where
     K: Clone + Hash + Eq + 'a,
