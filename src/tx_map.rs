@@ -87,9 +87,11 @@ where
     /// transformed and returned.
     #[must_use]
     pub fn get_with_or_insert<R>(&self, key: &K, transform: impl FnOnce(&V) -> R, value: V) -> R {
-        let tx_key = self.indexer.indexed_key(self.shard_count, key.clone());
-        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
-        let value = ShardOps::get_or_insert::<K, V, S>(&mut shard, &tx_key, value, &self.indexer);
+        let hash_code = self.indexer.hash(key);
+        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
+        let mut shard = self.custodian.write_guard_at(shard_index);
+        let value =
+            ShardOps::get_or_insert::<K, V, S>(&mut shard, hash_code, key, value, &self.indexer);
         transform(value)
     }
 
@@ -107,11 +109,13 @@ where
         transform: impl FnOnce(&V) -> R,
         value_generator: impl FnOnce(&K) -> V,
     ) -> R {
-        let tx_key = self.indexer.indexed_key(self.shard_count, key.clone());
-        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
+        let hash_code = self.indexer.hash(key);
+        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
+        let mut shard = self.custodian.write_guard_at(shard_index);
         let value = ShardOps::get_or_insert_with::<K, V, S>(
             &mut shard,
-            &tx_key,
+            hash_code,
+            key,
             |k| value_generator(k),
             &self.indexer,
         );
@@ -122,9 +126,10 @@ where
     ///
     /// Returns the previous value if the key already existed.
     pub fn insert(&self, key: K, value: V) -> Option<V> {
-        let tx_key = self.indexer.indexed_key(self.shard_count, key);
-        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
-        ShardOps::insert::<K, V, S>(&mut shard, &tx_key, value, &self.indexer)
+        let hash_code = self.indexer.hash(&key);
+        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
+        let mut shard = self.custodian.write_guard_at(shard_index);
+        ShardOps::insert::<K, V, S>(&mut shard, hash_code, key, value, &self.indexer)
     }
 
     /// Inserts a value only if the key is absent.
@@ -132,9 +137,16 @@ where
     /// The value is lazily created by `value_generator`. Returns `true`
     /// if the insertion succeeded (key was absent).
     pub fn insert_with_if_absent(&self, key: K, value_generator: impl FnOnce() -> V) -> bool {
-        let tx_key = self.indexer.indexed_key(self.shard_count, key);
-        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
-        ShardOps::insert_if_absent::<K, V, S>(&mut shard, &tx_key, value_generator, &self.indexer)
+        let hash_code = self.indexer.hash(&key);
+        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
+        let mut shard = self.custodian.write_guard_at(shard_index);
+        ShardOps::insert_if_absent::<K, V, S>(
+            &mut shard,
+            hash_code,
+            key,
+            |_key| value_generator(),
+            &self.indexer,
+        )
     }
 
     /// Mutates an existing value in-place.
@@ -142,9 +154,10 @@ where
     /// Does nothing if the key is absent. Returns `true` if the key existed
     /// and the mutation was applied.
     pub fn modify(&self, key: &K, mutate: impl FnOnce(&K, &mut V)) -> bool {
-        let tx_key = self.indexer.indexed_key(self.shard_count, key.clone());
-        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
-        ShardOps::modify::<K, V>(&mut shard, &tx_key, mutate)
+        let hash_code = self.indexer.hash(key);
+        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
+        let mut shard = self.custodian.write_guard_at(shard_index);
+        ShardOps::modify::<K, V>(&mut shard, hash_code, key, mutate)
     }
 
     /// Moves a value from one key to another atomically.
@@ -169,28 +182,29 @@ where
     ///
     /// Returns `None` if the key was absent.
     pub fn remove(&self, key: &K) -> Option<V> {
-        let tx_key = self.indexer.indexed_key(self.shard_count, key.clone());
-        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
-        ShardOps::remove_entry::<K, V>(&mut shard, &tx_key).map(|removed| removed.1)
+        let hash_code = self.indexer.hash(key);
+        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
+        let mut shard = self.custodian.write_guard_at(shard_index);
+        ShardOps::remove_entry::<K, V>(&mut shard, hash_code, key).map(|removed| removed.1)
     }
 
     /// Removes a key only if `condition` is satisfied.
     ///
     /// Returns the value if it was removed, `None` otherwise.
     pub fn remove_if(&self, key: &K, condition: impl FnOnce(&K, &V) -> bool) -> Option<V> {
-        let tx_key = self.indexer.indexed_key(self.shard_count, key.clone());
-        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
-        ShardOps::remove_if::<K, V, S>(&mut shard, &tx_key, condition, &self.indexer)
+        let hash_code = self.indexer.hash(key);
+        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
+        let mut shard = self.custodian.write_guard_at(shard_index);
+        ShardOps::remove_if::<K, V>(&mut shard, hash_code, key, condition)
     }
 
     /// Returns `true` if the map contains the given key.
     #[must_use]
     pub fn contains_key(&self, key: &K) -> bool {
-        let tx_key = self.indexer.indexed_key(self.shard_count, key.clone());
-        let shard = self.custodian.read_guard_at(tx_key.shard_index);
-        shard
-            .find(tx_key.hash_code.0, |entry| entry.0 == *key)
-            .is_some()
+        let hash_code = self.indexer.hash(key);
+        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
+        let shard = self.custodian.read_guard_at(shard_index);
+        shard.find(hash_code.0, |entry| entry.0 == *key).is_some()
     }
 
     /// Removes a key and returns both the key and its value.
@@ -198,9 +212,10 @@ where
     /// Returns `None` if the key was absent.
     #[must_use]
     pub fn remove_entry(&self, key: &K) -> Option<(K, V)> {
-        let tx_key = self.indexer.indexed_key(self.shard_count, key.clone());
-        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
-        ShardOps::remove_entry::<K, V>(&mut shard, &tx_key)
+        let hash_code = self.indexer.hash(key);
+        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
+        let mut shard = self.custodian.write_guard_at(shard_index);
+        ShardOps::remove_entry::<K, V>(&mut shard, hash_code, key)
     }
 
     /// Swaps the values of two keys atomically.
@@ -220,9 +235,10 @@ where
     /// If `transform` returns `Some(v)` the entry is inserted or replaced;
     /// if it returns `None` the entry is removed.
     pub fn update(&self, key: K, transform: impl FnOnce(&K, Option<&V>) -> Option<V>) {
-        let tx_key = self.indexer.indexed_key(self.shard_count, key);
-        let mut shard = self.custodian.write_guard_at(tx_key.shard_index);
-        ShardOps::update::<K, V, S>(&mut shard, &tx_key, transform, &self.indexer)
+        let hash_code = self.indexer.hash(&key);
+        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
+        let mut shard = self.custodian.write_guard_at(shard_index);
+        ShardOps::update::<K, V, S>(&mut shard, hash_code, key, transform, &self.indexer)
     }
 
     #[must_use]

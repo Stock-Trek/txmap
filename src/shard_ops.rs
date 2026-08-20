@@ -1,25 +1,29 @@
+use crate::{HashCode, indexer::Indexer, shard::Shard};
 use hashbrown::hash_table::Entry;
-
-use crate::{indexer::Indexer, key::TxKey, shard::Shard};
 use std::hash::{BuildHasher, Hash};
 
 pub(crate) struct ShardOps;
 
 impl ShardOps {
     #[inline]
-    pub fn value_ref<'op, K, V>(shard: &'op Shard<K, V>, key: &TxKey<K>) -> Option<&'op V>
+    pub fn value_ref<'op, K, V>(
+        shard: &'op Shard<K, V>,
+        hash_code: HashCode,
+        key: &K,
+    ) -> Option<&'op V>
     where
-        K: Clone + Hash + Eq,
+        K: Hash + Eq,
     {
         shard
-            .find(key.hash_code.0, |entry| entry.0 == key.key)
+            .find(hash_code.0, |entry| entry.0 == *key)
             .map(|(_key, value)| value)
     }
 
     #[inline]
     pub fn get_or_insert<'op, K, V, S>(
         shard: &'op mut Shard<K, V>,
-        key: &TxKey<K>,
+        hash_code: HashCode,
+        key: &K,
         value: V,
         indexer: &Indexer<S>,
     ) -> &'op V
@@ -28,20 +32,21 @@ impl ShardOps {
         S: BuildHasher,
     {
         let entry = shard.entry(
-            key.hash_code.0,
-            |entry| entry.0 == key.key,
+            hash_code.0,
+            |entry| entry.0 == *key,
             |entry| indexer.hash(&entry.0).0,
         );
         match entry {
             Entry::Occupied(occupied) => &occupied.into_mut().1,
-            Entry::Vacant(vacant) => &vacant.insert((key.key.clone(), value)).into_mut().1,
+            Entry::Vacant(vacant) => &vacant.insert((key.clone(), value)).into_mut().1,
         }
     }
 
     #[inline]
     pub fn get_or_insert_with<'op, K, V, S>(
         shard: &'op mut Shard<K, V>,
-        key: &TxKey<K>,
+        hash_code: HashCode,
+        key: &K,
         value_gen: impl FnOnce(&K) -> V,
         indexer: &Indexer<S>,
     ) -> &'op V
@@ -50,15 +55,15 @@ impl ShardOps {
         S: BuildHasher,
     {
         let entry = shard.entry(
-            key.hash_code.0,
-            |entry| entry.0 == key.key,
+            hash_code.0,
+            |entry| entry.0 == *key,
             |entry| indexer.hash(&entry.0).0,
         );
         match entry {
             Entry::Occupied(occupied) => &occupied.into_mut().1,
             Entry::Vacant(vacant) => {
-                let value = value_gen(&key.key);
-                &vacant.insert((key.key.clone(), value)).into_mut().1
+                let value = value_gen(key);
+                &vacant.insert((key.clone(), value)).into_mut().1
             }
         }
     }
@@ -66,17 +71,18 @@ impl ShardOps {
     #[inline]
     pub fn insert<K, V, S>(
         shard: &mut Shard<K, V>,
-        key: &TxKey<K>,
+        hash_code: HashCode,
+        key: K,
         value: V,
         indexer: &Indexer<S>,
     ) -> Option<V>
     where
-        K: Clone + Hash + Eq,
+        K: Hash + Eq,
         S: BuildHasher,
     {
         let entry = shard.entry(
-            key.hash_code.0,
-            |entry| entry.0 == key.key,
+            hash_code.0,
+            |entry| entry.0 == key,
             |entry| indexer.hash(&entry.0).0,
         );
         match entry {
@@ -89,7 +95,7 @@ impl ShardOps {
                 old_value
             }
             Entry::Vacant(vacant) => {
-                vacant.insert((key.key.clone(), value));
+                vacant.insert((key, value));
                 None
             }
         }
@@ -98,23 +104,25 @@ impl ShardOps {
     #[inline]
     pub fn insert_if_absent<K, V, S>(
         shard: &mut Shard<K, V>,
-        key: &TxKey<K>,
-        value_gen: impl FnOnce() -> V,
+        hash_code: HashCode,
+        key: K,
+        value_gen: impl FnOnce(&K) -> V,
         indexer: &Indexer<S>,
     ) -> bool
     where
-        K: Clone + Hash + Eq,
+        K: Hash + Eq,
         S: BuildHasher,
     {
         let entry = shard.entry(
-            key.hash_code.0,
-            |entry| entry.0 == key.key,
+            hash_code.0,
+            |entry| entry.0 == key,
             |entry| indexer.hash(&entry.0).0,
         );
         match entry {
             Entry::Occupied(_) => false,
             Entry::Vacant(vacant) => {
-                vacant.insert((key.key.clone(), value_gen()));
+                let value = value_gen(&key);
+                vacant.insert((key, value));
                 true
             }
         }
@@ -123,7 +131,8 @@ impl ShardOps {
     #[inline]
     pub fn insert_with_duplicate_key<K, V, S>(
         shard: &mut Shard<K, V>,
-        key: &TxKey<K>,
+        hash_code: HashCode,
+        key: &K,
         duplicate_key: K,
         value: V,
         indexer: &Indexer<S>,
@@ -133,8 +142,8 @@ impl ShardOps {
     {
         shard
             .entry(
-                key.hash_code.0,
-                |entry| entry.0 == key.key,
+                hash_code.0,
+                |entry| entry.0 == *key,
                 |entry| indexer.hash(&entry.0).0,
             )
             .insert((duplicate_key, value));
@@ -143,13 +152,14 @@ impl ShardOps {
     #[inline]
     pub fn modify<K, V>(
         shard: &mut Shard<K, V>,
-        key: &TxKey<K>,
+        hash_code: HashCode,
+        key: &K,
         mutate: impl FnOnce(&K, &mut V),
     ) -> bool
     where
         K: Hash + Eq,
     {
-        if let Some(mut_entry) = shard.find_mut(key.hash_code.0, |entry| entry.0 == key.key) {
+        if let Some(mut_entry) = shard.find_mut(hash_code.0, |entry| entry.0 == *key) {
             mutate(&mut_entry.0, &mut mut_entry.1);
             true
         } else {
@@ -158,34 +168,32 @@ impl ShardOps {
     }
 
     #[inline]
-    pub fn remove_entry<K, V>(shard: &mut Shard<K, V>, key: &TxKey<K>) -> Option<(K, V)>
+    pub fn remove_entry<K, V>(
+        shard: &mut Shard<K, V>,
+        hash_code: HashCode,
+        key: &K,
+    ) -> Option<(K, V)>
     where
         K: Hash + Eq,
     {
         shard
-            .find_entry(key.hash_code.0, |entry| entry.0 == key.key)
+            .find_entry(hash_code.0, |entry| entry.0 == *key)
             .ok()
             .map(|entry| entry.remove().0)
     }
 
     #[inline]
-    pub fn remove_if<K, V, S>(
+    pub fn remove_if<K, V>(
         shard: &mut Shard<K, V>,
-        key: &TxKey<K>,
+        hash_code: HashCode,
+        key: &K,
         condition: impl FnOnce(&K, &V) -> bool,
-        indexer: &Indexer<S>,
     ) -> Option<V>
     where
         K: Hash + Eq,
-        S: BuildHasher,
     {
-        let entry = shard.entry(
-            key.hash_code.0,
-            |entry| entry.0 == key.key,
-            |entry| indexer.hash(&entry.0).0,
-        );
-        match entry {
-            Entry::Occupied(occupied) => {
+        match shard.find_entry(hash_code.0, |entry| entry.0 == *key) {
+            Ok(occupied) => {
                 let (found_key, found_value) = occupied.get();
                 if condition(found_key, found_value) {
                     Some(occupied.remove().0.1)
@@ -193,23 +201,24 @@ impl ShardOps {
                     None
                 }
             }
-            Entry::Vacant(_) => None,
+            Err(_) => None,
         }
     }
 
     #[inline]
     pub fn update<K, V, S>(
         shard: &mut Shard<K, V>,
-        key: &TxKey<K>,
+        hash_code: HashCode,
+        key: K,
         transform: impl FnOnce(&K, Option<&V>) -> Option<V>,
         indexer: &Indexer<S>,
     ) where
-        K: Clone + Hash + Eq,
+        K: Hash + Eq,
         S: BuildHasher,
     {
         let entry = shard.entry(
-            key.hash_code.0,
-            |entry| entry.0 == key.key,
+            hash_code.0,
+            |entry| entry.0 == key,
             |entry| indexer.hash(&entry.0).0,
         );
         match entry {
@@ -225,8 +234,8 @@ impl ShardOps {
                 }
             }
             Entry::Vacant(vacant) => {
-                if let Some(new_value) = transform(&key.key, None) {
-                    vacant.insert((key.key.clone(), new_value));
+                if let Some(new_value) = transform(&key, None) {
+                    vacant.insert((key, new_value));
                 }
             }
         }

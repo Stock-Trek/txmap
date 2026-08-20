@@ -40,7 +40,7 @@ where
         } else {
             lock_guards.read_guard(&key).deref()
         };
-        let value_ref = ShardOps::value_ref(shard, &key);
+        let value_ref = ShardOps::value_ref(shard, key.hash_code, &key.key);
         (condition)(&key.key, value_ref, state)
     }
 }
