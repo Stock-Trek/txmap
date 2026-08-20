@@ -343,9 +343,21 @@ where
         let mut ops = self.ops;
         for op in &mut ops {
             match op {
-                PreparedOp::InsertWith { key_selector, take_key, .. }
-                | PreparedOp::InsertWithIfAbsent { key_selector, take_key, .. }
-                | PreparedOp::Update { key_selector, take_key, .. } => {
+                PreparedOp::InsertWith {
+                    key_selector,
+                    take_key,
+                    ..
+                }
+                | PreparedOp::InsertWithIfAbsent {
+                    key_selector,
+                    take_key,
+                    ..
+                }
+                | PreparedOp::Update {
+                    key_selector,
+                    take_key,
+                    ..
+                } => {
                     *take_key = usage.get(key_selector.key_id()) == Some(&1);
                 }
                 _ => {}

@@ -74,7 +74,13 @@ where
             }
         }
         for op in self.ops.iter() {
-            op.apply::<L, S>(&mut lock_guards, &mut keys, &params, self.indexer, &mut state);
+            op.apply::<L, S>(
+                &mut lock_guards,
+                &mut keys,
+                &params,
+                self.indexer,
+                &mut state,
+            );
         }
         TxResult::Completed { state }
     }
