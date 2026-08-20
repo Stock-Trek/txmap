@@ -60,7 +60,7 @@ where
         let guard = Guard {
             name: name.as_ref().into(),
             key: self.indexer.indexed_key(self.custodian.shard_count, key),
-            condition: Box::new(condition),
+            condition: Some(Box::new(condition)),
             _phantom: PhantomData,
         };
         self.guards.push(guard);
