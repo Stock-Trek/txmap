@@ -19,6 +19,8 @@ where
 {
     /// The shard custodian, used to acquire read guards lazily.
     pub(crate) custodian: &'a Custodian<K, V, L>,
+    /// Read guards keeping every shard locked (and alive) for `'a`.
+    pub(crate) _guards: Vec<L::ReadGuard<'a, Shard<K, V>>>,
     /// One `hashbrown` iterator per shard, aligned with shard indices.
     pub(crate) shard_iters: Vec<ShardIter<'a, (K, V)>>,
     pub(crate) shard_index: usize,
@@ -35,6 +37,7 @@ where
     pub(crate) fn new(custodian: &'a Custodian<K, V, L>) -> Self {
         Self {
             custodian,
+            _guards: Vec::with_capacity(custodian.shard_count.0 as usize),
             shard_iters: Vec::with_capacity(custodian.shard_count.0 as usize),
             shard_index: 0,
             remaining: 0,
@@ -68,7 +71,7 @@ where
                 // is stored alongside the iterators in this struct, so the
                 // iterators can never outlive the data they reference.
                 let iter: ShardIter<'a, (K, V)> = unsafe { std::mem::transmute(guard.iter()) };
-                self._guards.insert(self.shard_index as u8, guard);
+                self._guards.insert(self.shard_index, guard);
                 self.shard_iters.push(iter);
             }
             let shard = &mut self.shard_iters[self.shard_index];
