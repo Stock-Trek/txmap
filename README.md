@@ -61,9 +61,9 @@ let map = TxMapBuilder::default()
 
 ### Key type requirements
 
-The key type `K` must implement `Clone`, `Hash` and `Eq`.
+The key type `K` should implement `Hash` and `Eq` for it to be useful outside of iteration. There are also a few additional functions that require `K: Clone`.
 
-The value type `V` has no required trait bounds.
+The value type `V` has no required trait bounds apart from a few specific cases such as when cloning the map or a value that require `V: Clone`.
 
 ### Immediate Transactions
 
