@@ -15,10 +15,8 @@ use std::hash::{BuildHasher, Hash};
 /// to lock and which operations to apply) is determined at build time.
 pub struct PreparedTransaction<'tx, K, V, L, S, KEYS, PARAMS, STATE>
 where
-    K: Clone + Hash + Eq,
     L: LockPolicy,
     S: BuildHasher,
-    STATE: Default,
 {
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) indexer: &'tx Indexer<S>,

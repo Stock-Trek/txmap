@@ -15,10 +15,8 @@ use std::hash::{BuildHasher, Hash};
 /// then releases locks and returns the final state.
 pub struct ImmediateTransaction<'tx, K, V, L, S, STATE>
 where
-    K: Clone + Hash + Eq,
     L: LockPolicy,
     S: BuildHasher,
-    STATE: Default,
 {
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) indexer: &'tx Indexer<S>,

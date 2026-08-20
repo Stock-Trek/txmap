@@ -23,11 +23,11 @@ pub struct ImmediateBuildablePhase;
 /// [`execute`](ImmediateTxBuilder::execute).
 pub struct ImmediateTxBuilder<'tx, K, V, L, S, STATE, PHASE = ImmediateBuilderPhase>
 where
-    K: Clone + Hash + Eq + 'tx,
+    K: 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
     S: BuildHasher + 'tx,
-    STATE: Default + 'tx,
+    STATE: 'tx,
 {
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) indexer: &'tx Indexer<S>,
@@ -39,11 +39,11 @@ where
 
 impl<'tx, K, V, L, S, STATE> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuilderPhase>
 where
-    K: Clone + Hash + Eq + 'tx,
+    K: Hash + 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
     S: BuildHasher + 'tx,
-    STATE: Default + 'tx,
+    STATE: 'tx,
 {
     /// Adds a guard precondition.
     ///
@@ -76,11 +76,11 @@ where
 
 impl<'tx, K, V, L, S, STATE, PHASE> ImmediateTxBuilder<'tx, K, V, L, S, STATE, PHASE>
 where
-    K: Clone + Hash + Eq + 'tx,
+    K: Hash + 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
     S: BuildHasher + 'tx,
-    STATE: Default + 'tx,
+    STATE: 'tx,
 {
     /// Reads a value and passes it (or `None`) to the callback.
     ///

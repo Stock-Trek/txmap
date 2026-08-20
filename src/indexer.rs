@@ -29,7 +29,7 @@ impl<S: BuildHasher> Indexer<S> {
 
     pub fn indexed_key<K>(&self, shard_count: ShardCount, key: K) -> TxKey<K>
     where
-        K: Hash + Eq,
+        K: Hash,
     {
         let hash_code = self.hash(&key);
         let shard_index = Self::shard_index(shard_count, hash_code);

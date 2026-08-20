@@ -3,7 +3,6 @@ use crate::{
     result::MISSING_LOCK_GUARD_ERROR, shard::Shard, tx_map::TxMap,
 };
 use hashbrown::hash_table::{Drain as ShardDrain, Iter as ShardIter};
-use std::hash::Hash;
 
 /// An iterator over all key-value pairs in a [`TxMap`].
 ///
@@ -13,7 +12,7 @@ use std::hash::Hash;
 /// of the iterator.
 pub struct Iter<'a, K, V, L>
 where
-    K: Clone + Hash + Eq + 'a,
+    K: 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
@@ -30,7 +29,7 @@ where
 
 impl<'a, K, V, L> Iter<'a, K, V, L>
 where
-    K: Clone + Hash + Eq + 'a,
+    K: 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
@@ -47,7 +46,7 @@ where
 
 impl<'a, K, V, L> Iterator for Iter<'a, K, V, L>
 where
-    K: Clone + Hash + Eq + 'a,
+    K: 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
@@ -91,7 +90,7 @@ where
 
 impl<'a, K, V, L> IntoIterator for &'a TxMap<K, V, L>
 where
-    K: Clone + Hash + Eq + 'a,
+    K: 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
@@ -99,13 +98,13 @@ where
     type IntoIter = Iter<'a, K, V, L>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.iter()
+        Iter::new(&self.custodian)
     }
 }
 
 impl<'a, K, V, L> IntoIterator for &'a mut TxMap<K, V, L>
 where
-    K: Clone + Hash + Eq + 'a,
+    K: 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
@@ -113,7 +112,7 @@ where
     type IntoIter = Iter<'a, K, V, L>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.iter()
+        Iter::new(&self.custodian)
     }
 }
 
@@ -123,13 +122,13 @@ where
 /// time, holding them until the iterator is dropped.
 pub struct Keys<'a, K, V, L>(pub(crate) Iter<'a, K, V, L>)
 where
-    K: Clone + Hash + Eq + 'a,
+    K: 'a,
     V: 'a,
     L: LockPolicy + 'a;
 
 impl<'a, K, V, L> Iterator for Keys<'a, K, V, L>
 where
-    K: Clone + Hash + Eq + 'a,
+    K: 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
@@ -150,13 +149,13 @@ where
 /// time, holding them until the iterator is dropped.
 pub struct Values<'a, K, V, L>(pub(crate) Iter<'a, K, V, L>)
 where
-    K: Clone + Hash + Eq + 'a,
+    K: 'a,
     V: 'a,
     L: LockPolicy + 'a;
 
 impl<'a, K, V, L> Iterator for Values<'a, K, V, L>
 where
-    K: Clone + Hash + Eq + 'a,
+    K: 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
@@ -179,7 +178,7 @@ where
 /// removes all remaining entries.
 pub struct Drain<'a, K, V, L>
 where
-    K: Clone + Hash + Eq + 'a,
+    K: 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
@@ -197,7 +196,7 @@ where
 
 impl<'a, K, V, L> Drain<'a, K, V, L>
 where
-    K: Clone + Hash + Eq + 'a,
+    K: 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
@@ -228,7 +227,7 @@ where
 
 impl<'a, K, V, L> Iterator for Drain<'a, K, V, L>
 where
-    K: Clone + Hash + Eq + 'a,
+    K: 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {

@@ -117,7 +117,6 @@ impl MultiShardOps {
         key: &TxKey<K>,
     ) -> &'ex mut Shard<K, V>
     where
-        K: Hash + Eq,
         L: LockPolicy,
     {
         write_guards[key.shard_index.0 as usize]
