@@ -4,6 +4,7 @@ use crate::{
     new_types::{BitMask, ShardCount, ShardIndex},
     shard::Shard,
 };
+use crossbeam_utils::CachePadded;
 use hashbrown::HashTable;
 use intmap::IntMap;
 
@@ -12,7 +13,7 @@ where
     L: LockPolicy,
 {
     pub(crate) shard_count: ShardCount,
-    pub(crate) shards: Vec<L::Lock<Shard<K, V>>>,
+    pub(crate) shards: Vec<CachePadded<L::Lock<Shard<K, V>>>>,
 }
 
 impl<K, V, L> Custodian<K, V, L>
@@ -23,7 +24,9 @@ where
         let mut shards = Vec::with_capacity(shard_count.0 as usize);
         let capacity_per_shard = capacity.div_ceil(shard_count.0 as usize);
         for _ in 0..shard_count.0 {
-            shards.push(L::new(HashTable::with_capacity(capacity_per_shard)));
+            shards.push(CachePadded::new(L::new(HashTable::with_capacity(
+                capacity_per_shard,
+            ))));
         }
         Self {
             shard_count,
