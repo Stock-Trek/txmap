@@ -103,12 +103,12 @@ where
                     } else {
                         lock_guards.read_guard(&key).deref()
                     };
-                let value_ref = ShardOps::value_ref(shard, &key);
+                let value_ref = ShardOps::value_ref(shard, key.hash_code.0, &key.key);
                 (get)(&key.key, value_ref, state)
             }
             Self::GetOrInsert { key, value, get } => {
                 let shard = lock_guards.write_guard(&key);
-                let value_ref = ShardOps::get_or_insert::<K, V, S>(shard, &key, value, indexer);
+                let value_ref = ShardOps::get_or_insert::<K, V, S>(shard, key.hash_code.0, &key.key, value, indexer);
                 (get)(&key.key, value_ref, state)
             }
             Self::GetOrInsertWith {
@@ -119,7 +119,8 @@ where
                 let shard = lock_guards.write_guard(&key);
                 let value_ref = ShardOps::get_or_insert_with(
                     shard,
-                    &key,
+                    key.hash_code.0,
+                    &key.key,
                     |k| (value_generator)(k, state),
                     indexer,
                 );
@@ -131,7 +132,7 @@ where
             } => {
                 let new_value = (value_generator)(&key.key, state);
                 let write_guard = lock_guards.write_guard(&key);
-                ShardOps::insert::<K, V, S>(write_guard, &key, new_value, indexer);
+                ShardOps::insert::<K, V, S>(write_guard, key.hash_code.0, key.key, new_value, indexer);
             }
             Self::InsertWithIfAbsent {
                 key,
@@ -140,14 +141,15 @@ where
                 let write_guard = lock_guards.write_guard(&key);
                 ShardOps::insert_if_absent::<K, V, S>(
                     write_guard,
-                    &key,
-                    || (value_generator)(&key.key, state),
+                    key.hash_code.0,
+                    key.key,
+                    |k| (value_generator)(k, state),
                     indexer,
                 );
             }
             Self::Modify { key, mutate } => {
                 let shard = lock_guards.write_guard(&key);
-                ShardOps::modify(shard, &key, |k, v| mutate(k, v, state));
+                ShardOps::modify(shard, key.hash_code.0, &key.key, |k, v| mutate(k, v, state));
             }
             Self::MoveValue { key_from, key_to } => {
                 MultiShardOps::move_value::<K, V, L, S>(
@@ -159,11 +161,11 @@ where
             }
             Self::Remove { key } => {
                 let shard = lock_guards.write_guard(&key);
-                ShardOps::remove_entry::<K, V>(shard, &key);
+                ShardOps::remove_entry::<K, V>(shard, key.hash_code.0, &key.key);
             }
             Self::RemoveIf { key, condition } => {
                 let shard = lock_guards.write_guard(&key);
-                ShardOps::remove_if(shard, &key, |k, v| condition(k, v, state), indexer);
+                ShardOps::remove_if(shard, key.hash_code.0, &key.key, |k, v| condition(k, v, state));
             }
             Self::SwapValue { key_a, key_b } => {
                 MultiShardOps::swap_value::<K, V, L, S>(
@@ -175,7 +177,7 @@ where
             }
             Self::Update { key, transform } => {
                 let shard = lock_guards.write_guard(&key);
-                ShardOps::update(shard, &key, |k, v_opt| transform(k, v_opt, state), indexer);
+                ShardOps::update(shard, key.hash_code.0, key.key, |k, v_opt| transform(k, v_opt, state), indexer);
             }
         }
     }
