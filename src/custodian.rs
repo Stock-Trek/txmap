@@ -6,7 +6,6 @@ use crate::{
 };
 use crossbeam_utils::CachePadded;
 use hashbrown::HashTable;
-use intmap::IntMap;
 
 pub(crate) struct Custodian<K, V, L>
 where
@@ -33,33 +32,40 @@ where
             shards,
         }
     }
-    pub fn all_read_guards(&self) -> IntMap<u8, L::ReadGuard<'_, Shard<K, V>>> {
-        self.lock_guards(self.all_bitmask(), BitMask::ZERO).read
+    pub fn all_read_guards(&self) -> Vec<L::ReadGuard<'_, Shard<K, V>>> {
+        let mut guards = Vec::with_capacity(self.shard_count.0 as usize);
+        for shard in &self.shards {
+            guards.push(L::read(shard));
+        }
+        guards
     }
-    pub fn all_write_guards(&self) -> IntMap<u8, L::WriteGuard<'_, Shard<K, V>>> {
-        self.lock_guards(BitMask::ZERO, self.all_bitmask()).write
-    }
-    fn all_bitmask(&self) -> BitMask {
-        let bitmask = if self.shard_count.0 == 128 {
-            !0u128
-        } else {
-            (1 << self.shard_count.0) - 1
-        };
-        BitMask(bitmask)
+    pub fn all_write_guards(&self) -> Vec<L::WriteGuard<'_, Shard<K, V>>> {
+        let mut guards = Vec::with_capacity(self.shard_count.0 as usize);
+        for shard in &self.shards {
+            guards.push(L::write(shard));
+        }
+        guards
     }
     pub fn lock_guards(&self, read: BitMask, write: BitMask) -> LockGuards<'_, K, V, L> {
-        let mut read_guards = IntMap::new();
-        let mut write_guards = IntMap::new();
-        for i in 0..self.shard_count.0 {
-            let bitmask = ShardIndex(i).bitmask();
-            let shard_lock = &self.shards[i as usize];
-            if (write & bitmask) != BitMask::ZERO {
-                let write_guard = L::write(shard_lock);
-                write_guards.insert(i, write_guard);
-            } else if (read & bitmask) != BitMask::ZERO {
-                let read_guard = L::read(shard_lock);
-                read_guards.insert(i, read_guard);
-            };
+        let shard_count = self.shard_count.0 as usize;
+        let mut read_guards: Vec<Option<L::ReadGuard<'_, Shard<K, V>>>> =
+            Vec::with_capacity(shard_count);
+        read_guards.resize_with(shard_count, || None);
+        let mut write_guards: Vec<Option<L::WriteGuard<'_, Shard<K, V>>>> =
+            Vec::with_capacity(shard_count);
+        write_guards.resize_with(shard_count, || None);
+
+        let mut bits = (read | write).0;
+        while bits != 0 {
+            let i = bits.trailing_zeros() as usize;
+            bits &= bits - 1;
+            let shard_lock = &self.shards[i];
+            let bit = BitMask(1u128 << i);
+            if (write & bit) != BitMask::ZERO {
+                write_guards[i] = Some(L::write(shard_lock));
+            } else {
+                read_guards[i] = Some(L::read(shard_lock));
+            }
         }
         LockGuards {
             read: read_guards,
@@ -67,15 +73,18 @@ where
             write_bitmask: write,
         }
     }
-    pub fn write_guards(&self, write: BitMask) -> IntMap<u8, L::WriteGuard<'_, Shard<K, V>>> {
-        let mut write_guards = IntMap::new();
-        for i in 0..self.shard_count.0 {
-            let bitmask = ShardIndex(i).bitmask();
-            if (write & bitmask) != BitMask::ZERO {
-                let shard_lock = &self.shards[i as usize];
-                let write_guard = L::write(shard_lock);
-                write_guards.insert(i, write_guard);
-            };
+    pub fn write_guards(&self, write: BitMask) -> Vec<Option<L::WriteGuard<'_, Shard<K, V>>>> {
+        let shard_count = self.shard_count.0 as usize;
+        let mut write_guards: Vec<Option<L::WriteGuard<'_, Shard<K, V>>>> =
+            Vec::with_capacity(shard_count);
+        write_guards.resize_with(shard_count, || None);
+
+        let mut bits = write.0;
+        while bits != 0 {
+            let i = bits.trailing_zeros() as usize;
+            bits &= bits - 1;
+            let shard_lock = &self.shards[i];
+            write_guards[i] = Some(L::write(shard_lock));
         }
         write_guards
     }

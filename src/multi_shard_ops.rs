@@ -2,7 +2,6 @@ use crate::{
     indexer::Indexer, key::TxKey, lock_policies::lock_policy::LockPolicy,
     result::MISSING_LOCK_GUARD_ERROR, shard::Shard, shard_ops::ShardOps,
 };
-use intmap::IntMap;
 use std::hash::{BuildHasher, Hash};
 
 pub(crate) struct MultiShardOps;
@@ -10,7 +9,7 @@ pub(crate) struct MultiShardOps;
 impl MultiShardOps {
     #[inline]
     pub fn move_value<K, V, L, S>(
-        write_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>,
+        write_guards: &mut [Option<L::WriteGuard<'_, Shard<K, V>>>],
         key_from: &TxKey<K>,
         key_to: &TxKey<K>,
         indexer: &Indexer<S>,
@@ -23,8 +22,8 @@ impl MultiShardOps {
             let shard = Self::shard::<K, V, L>(write_guards, key_from);
             ShardOps::remove_entry::<K, V>(shard, key_from.hash_code.0, &key_from.key)
         };
-        let shard_to = write_guards
-            .get_mut(key_to.shard_index.0)
+        let shard_to = write_guards[key_to.shard_index.0 as usize]
+            .as_mut()
             .expect(MISSING_LOCK_GUARD_ERROR);
         if let Some(entry) = removed {
             ShardOps::insert::<K, V, S>(
@@ -41,7 +40,7 @@ impl MultiShardOps {
 
     #[inline]
     pub fn swap_value<K, V, L, S>(
-        write_guards: &mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>,
+        write_guards: &mut [Option<L::WriteGuard<'_, Shard<K, V>>>],
         key_a: &TxKey<K>,
         key_b: &TxKey<K>,
         indexer: &Indexer<S>,
@@ -114,15 +113,15 @@ impl MultiShardOps {
 
     #[inline]
     fn shard<'ex, K, V, L>(
-        write_guards: &'ex mut IntMap<u8, L::WriteGuard<'_, Shard<K, V>>>,
+        write_guards: &'ex mut [Option<L::WriteGuard<'_, Shard<K, V>>>],
         key: &TxKey<K>,
     ) -> &'ex mut Shard<K, V>
     where
         K: Hash + Eq,
         L: LockPolicy,
     {
-        write_guards
-            .get_mut(key.shard_index.0)
+        write_guards[key.shard_index.0 as usize]
+            .as_mut()
             .expect(MISSING_LOCK_GUARD_ERROR)
     }
 }

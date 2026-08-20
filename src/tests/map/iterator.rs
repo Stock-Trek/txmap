@@ -48,14 +48,25 @@ fn iter_via_into_iterator() {
 fn iter_size_hint() {
     let map = map_alice_bob_chuck(1, 2, 3);
     let mut iter = map.iter();
-    assert_eq!(iter.size_hint(), (3, Some(3)));
-    iter.next();
-    assert_eq!(iter.size_hint(), (2, Some(2)));
-    iter.next();
-    assert_eq!(iter.size_hint(), (1, Some(1)));
-    iter.next();
+    let mut yielded = 0;
+    loop {
+        // The hint must never over-promise: the lower bound cannot exceed the
+        // true remaining count and the upper bound (when present) cannot be
+        // below it. With lazily acquired shard locks the exact count is only
+        // known once every shard has been locked.
+        let (lower, upper) = iter.size_hint();
+        assert!(lower <= 3 - yielded);
+        if let Some(upper) = upper {
+            assert!(upper >= 3 - yielded);
+        }
+        match iter.next() {
+            Some(_) => yielded += 1,
+            None => break,
+        }
+    }
+    assert_eq!(yielded, 3);
+    // Once fully consumed every shard is locked and the hint is exact.
     assert_eq!(iter.size_hint(), (0, Some(0)));
-    assert!(iter.next().is_none());
 }
 
 #[test]

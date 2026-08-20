@@ -84,9 +84,12 @@ impl ShardOps {
         );
         match entry {
             Entry::Occupied(occupied) => {
-                let ((old_key, old_value), vacant) = occupied.remove();
-                vacant.insert((old_key, value));
-                Some(old_value)
+                let mut old_value = None;
+                occupied.replace_entry_with(|entry| {
+                    old_value = Some(entry.1);
+                    Some((entry.0, value))
+                });
+                old_value
             }
             Entry::Vacant(vacant) => {
                 vacant.insert((key, value));
