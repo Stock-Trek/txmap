@@ -12,7 +12,7 @@ impl ShardOps {
         key: &K,
     ) -> Option<&'op V>
     where
-        K: PartialEq,
+        K: Eq,
     {
         shard
             .find(hash_code.0, |entry| entry.0 == *key)
@@ -28,7 +28,7 @@ impl ShardOps {
         indexer: &Indexer<S>,
     ) -> &'op V
     where
-        K: Clone + Hash + PartialEq,
+        K: Clone + Hash + Eq,
         S: BuildHasher,
     {
         let entry = shard.entry(
@@ -51,7 +51,7 @@ impl ShardOps {
         indexer: &Indexer<S>,
     ) -> &'op V
     where
-        K: Clone + Hash + PartialEq,
+        K: Clone + Hash + Eq,
         S: BuildHasher,
     {
         let entry = shard.entry(
@@ -77,7 +77,7 @@ impl ShardOps {
         indexer: &Indexer<S>,
     ) -> Option<V>
     where
-        K: Hash + PartialEq,
+        K: Hash + Eq,
         S: BuildHasher,
     {
         let entry = shard.entry(
@@ -110,7 +110,7 @@ impl ShardOps {
         indexer: &Indexer<S>,
     ) -> bool
     where
-        K: Hash + PartialEq,
+        K: Hash + Eq,
         S: BuildHasher,
     {
         let entry = shard.entry(
@@ -137,7 +137,7 @@ impl ShardOps {
         value: V,
         indexer: &Indexer<S>,
     ) where
-        K: Hash + PartialEq,
+        K: Hash + Eq,
         S: BuildHasher,
     {
         shard
@@ -157,7 +157,7 @@ impl ShardOps {
         mutate: impl FnOnce(&K, &mut V),
     ) -> bool
     where
-        K: PartialEq,
+        K: Eq,
     {
         if let Some(mut_entry) = shard.find_mut(hash_code.0, |entry| entry.0 == *key) {
             mutate(&mut_entry.0, &mut mut_entry.1);
@@ -174,7 +174,7 @@ impl ShardOps {
         key: &K,
     ) -> Option<(K, V)>
     where
-        K: PartialEq,
+        K: Eq,
     {
         shard
             .find_entry(hash_code.0, |entry| entry.0 == *key)
@@ -190,7 +190,7 @@ impl ShardOps {
         condition: impl FnOnce(&K, &V) -> bool,
     ) -> Option<V>
     where
-        K: PartialEq,
+        K: Eq,
     {
         match shard.find_entry(hash_code.0, |entry| entry.0 == *key) {
             Ok(occupied) => {
@@ -213,7 +213,7 @@ impl ShardOps {
         transform: impl FnOnce(&K, Option<&V>) -> Option<V>,
         indexer: &Indexer<S>,
     ) where
-        K: Hash + PartialEq,
+        K: Hash + Eq,
         S: BuildHasher,
     {
         let entry = shard.entry(

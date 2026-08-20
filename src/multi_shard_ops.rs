@@ -14,7 +14,7 @@ impl MultiShardOps {
         key_to: &TxKey<K>,
         indexer: &Indexer<S>,
     ) where
-        K: Clone + Hash + PartialEq,
+        K: Clone + Hash + Eq,
         L: LockPolicy,
         S: BuildHasher,
     {
@@ -45,7 +45,7 @@ impl MultiShardOps {
         key_b: &TxKey<K>,
         indexer: &Indexer<S>,
     ) where
-        K: Clone + Hash + PartialEq,
+        K: Clone + Hash + Eq,
         L: LockPolicy,
         S: BuildHasher,
     {

@@ -23,7 +23,7 @@ impl<'tx, K, V, STATE> Guard<'tx, K, V, STATE> {
 
 impl<'tx, K, V, STATE> Guard<'tx, K, V, STATE>
 where
-    K: PartialEq,
+    K: Eq,
 {
     pub fn condition_is_met<L>(
         &mut self,

@@ -312,7 +312,7 @@ where
 
 impl<'tx, K, V, L, S, STATE> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase>
 where
-    K: Clone + Hash + PartialEq + 'tx,
+    K: Clone + Hash + Eq + 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
     S: BuildHasher + 'tx,

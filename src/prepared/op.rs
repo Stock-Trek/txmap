@@ -126,7 +126,7 @@ impl<'tx, K, V, KEYS, PARAMS, STATE> PreparedOp<'tx, K, V, KEYS, PARAMS, STATE> 
 
 impl<'tx, K, V, KEYS, PARAMS, STATE> PreparedOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
-    K: Clone + Hash + PartialEq,
+    K: Clone + Hash + Eq,
 {
     pub fn apply<L, S>(
         &self,

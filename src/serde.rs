@@ -108,7 +108,7 @@ struct TxMapVisitor<K, V, L> {
 
 impl<'de, K, V, L> Visitor<'de> for TxMapVisitor<K, V, L>
 where
-    K: Hash + PartialEq + Deserialize<'de>,
+    K: Hash + Eq + Deserialize<'de>,
     V: Deserialize<'de>,
     L: LockPolicy,
 {
@@ -139,7 +139,7 @@ where
 
 impl<'de, K, V, L> Deserialize<'de> for TxMap<K, V, L>
 where
-    K: Hash + PartialEq + Deserialize<'de>,
+    K: Hash + Eq + Deserialize<'de>,
     V: Deserialize<'de>,
     L: LockPolicy,
 {

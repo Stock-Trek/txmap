@@ -27,7 +27,7 @@ where
 
 impl<'tx, K, V, L, S, KEYS, PARAMS, STATE> PreparedTransaction<'tx, K, V, L, S, KEYS, PARAMS, STATE>
 where
-    K: Clone + Hash + PartialEq,
+    K: Clone + Hash + Eq,
     L: LockPolicy,
     S: BuildHasher,
     STATE: Default,

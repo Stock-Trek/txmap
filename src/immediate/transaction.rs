@@ -27,7 +27,7 @@ where
 
 impl<'tx, K, V, L, S, STATE> ImmediateTransaction<'tx, K, V, L, S, STATE>
 where
-    K: Clone + Hash + PartialEq,
+    K: Clone + Hash + Eq,
     L: LockPolicy,
     S: BuildHasher,
     STATE: Default,

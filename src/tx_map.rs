@@ -60,7 +60,7 @@ impl<K, V> Default for TxMap<K, V, MutexPolicy, DefaultBuildHasher> {
 
 impl<K, V, L, S> TxMap<K, V, L, S>
 where
-    K: Clone + Hash + PartialEq,
+    K: Clone + Hash + Eq,
     L: LockPolicy,
     S: BuildHasher,
 {
@@ -139,7 +139,7 @@ where
 
 impl<K, V, L, S> TxMap<K, V, L, S>
 where
-    K: Hash + PartialEq,
+    K: Hash + Eq,
     L: LockPolicy,
     S: BuildHasher,
 {
@@ -513,7 +513,7 @@ where
 
 impl<K, V, L, S> TxMap<K, V, L, S>
 where
-    K: Hash + PartialEq,
+    K: Hash + Eq,
     V: Copy,
     L: LockPolicy,
     S: BuildHasher,
@@ -527,7 +527,7 @@ where
 
 impl<K, V, L, S> TxMap<K, V, L, S>
 where
-    K: Hash + PartialEq,
+    K: Hash + Eq,
     V: Clone,
     L: LockPolicy,
     S: BuildHasher,
@@ -567,7 +567,7 @@ where
 
 impl<K, V, L, S> PartialEq for TxMap<K, V, L, S>
 where
-    K: Hash + PartialEq,
+    K: Hash + Eq,
     V: PartialEq,
     L: LockPolicy,
     S: BuildHasher,
@@ -587,7 +587,7 @@ where
 
 impl<K, V, L, S> Eq for TxMap<K, V, L, S>
 where
-    K: Hash + PartialEq,
+    K: Hash + Eq,
     V: Eq,
     L: LockPolicy,
     S: BuildHasher,
@@ -608,7 +608,7 @@ where
 
 impl<K, V, L, S> Extend<(K, V)> for TxMap<K, V, L, S>
 where
-    K: Hash + PartialEq,
+    K: Hash + Eq,
     L: LockPolicy,
     S: BuildHasher,
 {
@@ -621,7 +621,7 @@ where
 
 impl<'a, K, V, L, S> Extend<(&'a K, &'a V)> for TxMap<K, V, L, S>
 where
-    K: Clone + Hash + PartialEq + 'a,
+    K: Clone + Hash + Eq + 'a,
     V: Clone + 'a,
     L: LockPolicy,
     S: BuildHasher,
@@ -635,7 +635,7 @@ where
 
 impl<K, V, L, S> FromIterator<(K, V)> for TxMap<K, V, L, S>
 where
-    K: Hash + PartialEq,
+    K: Hash + Eq,
     L: LockPolicy,
     S: BuildHasher + Default,
 {
@@ -651,7 +651,7 @@ where
 
 impl<K, V, L, S, const N: usize> From<[(K, V); N]> for TxMap<K, V, L, S>
 where
-    K: Hash + PartialEq,
+    K: Hash + Eq,
     L: LockPolicy,
     S: BuildHasher + Default,
 {

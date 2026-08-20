@@ -84,7 +84,7 @@ impl<'tx, K, V, STATE> ImmediateOp<'tx, K, V, STATE> {
 
 impl<'tx, K, V, STATE> ImmediateOp<'tx, K, V, STATE>
 where
-    K: Clone + Hash + PartialEq,
+    K: Clone + Hash + Eq,
 {
     pub fn apply<L, S>(
         self,
