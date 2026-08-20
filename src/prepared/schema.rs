@@ -40,9 +40,10 @@ where
     fn get<'keys>(&self, keys: &'keys KEYS) -> &'keys K;
     /// Returns a stable identifier for the selected key handle.
     ///
-    /// Used at transaction build time to detect whether a key handle is used
-    /// more than once across guards and operations. A handle used exactly once
-    /// is "provably last-used", so its key can be moved instead of cloned.
+    /// Used at transaction build time to detect whether a key handle is seen
+    /// by a later operation. When the final op to reference a handle is a
+    /// consuming operation, the handle is "provably last-used", so its key
+    /// can be moved instead of cloned.
     fn key_id(&self) -> &'static str;
     /// Takes the selected key out of the keys container.
     ///

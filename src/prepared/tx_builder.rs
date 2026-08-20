@@ -7,6 +7,7 @@ use crate::{
         guard::Guard, op::PreparedOp, schema::TxKeySelector, transaction::PreparedTransaction,
     },
 };
+use hashbrown::HashSet;
 use std::{
     hash::{BuildHasher, Hash},
     marker::PhantomData,
@@ -324,24 +325,14 @@ where
     #[must_use]
     /// Consumes the builder and returns a [`PreparedTransaction`].
     pub fn into_transaction(self) -> PreparedTransaction<'tx, K, V, L, S, KEYS, PARAMS, STATE> {
-        // Count how many times each key handle is referenced across guards and
-        // operations. A handle used exactly once is "provably last-used", so
-        // consuming operations can move the key out of the per-execution keys
-        // container instead of cloning it on every execution.
-        let mut usage: std::collections::HashMap<&'static str, usize> =
-            std::collections::HashMap::new();
-        for guard in &self.guards {
-            *usage.entry(guard.key_id()).or_default() += 1;
-        }
-        let mut key_ids = Vec::new();
-        for op in &self.ops {
-            op.push_key_ids(&mut key_ids);
-        }
-        for id in key_ids {
-            *usage.entry(id).or_default() += 1;
-        }
+        // Ops apply in order, so a consuming op may move its key out of the
+        // per-execution keys container instead of cloning it only when no
+        // later op references the same key handle. Iterating backwards and
+        // keeping the handles already seen by later ops, the final op to see
+        // a key always takes it; earlier uses fall back to cloning.
+        let mut taken: HashSet<&'static str> = HashSet::new();
         let mut ops = self.ops;
-        for op in &mut ops {
+        for op in ops.iter_mut().rev() {
             match op {
                 PreparedOp::InsertWith {
                     key_selector,
@@ -358,10 +349,11 @@ where
                     take_key,
                     ..
                 } => {
-                    *take_key = usage.get(key_selector.key_id()) == Some(&1);
+                    *take_key = taken.insert(key_selector.key_id());
                 }
                 _ => {}
             }
+            op.insert_key_ids(&mut taken);
         }
         PreparedTransaction {
             custodian: self.custodian,

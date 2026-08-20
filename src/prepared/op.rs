@@ -3,6 +3,7 @@ use crate::{
     multi_shard_ops::MultiShardOps, new_types::BitMask, prepared::schema::TxKeySelector,
     shard_ops::ShardOps,
 };
+use hashbrown::HashSet;
 use std::{
     hash::{BuildHasher, Hash},
     ops::{Deref, DerefMut},
@@ -98,8 +99,8 @@ where
             ),
         }
     }
-    /// Pushes the stable identifiers of all key handles referenced by this op.
-    pub fn push_key_ids(&self, ids: &mut Vec<&'static str>) {
+    /// Insert the stable identifiers of all key handles referenced by this op.
+    pub fn insert_key_ids(&self, ids: &mut HashSet<&'static str>) {
         match self {
             Self::Get { key_selector, .. }
             | Self::GetOrInsertWith { key_selector, .. }
@@ -108,22 +109,24 @@ where
             | Self::Modify { key_selector, .. }
             | Self::Remove { key_selector, .. }
             | Self::RemoveIf { key_selector, .. }
-            | Self::Update { key_selector, .. } => ids.push(key_selector.key_id()),
+            | Self::Update { key_selector, .. } => {
+                ids.insert(key_selector.key_id());
+            }
             Self::MoveValue {
                 key_selector_from,
                 key_selector_to,
                 ..
             } => {
-                ids.push(key_selector_from.key_id());
-                ids.push(key_selector_to.key_id());
+                ids.insert(key_selector_from.key_id());
+                ids.insert(key_selector_to.key_id());
             }
             Self::SwapValue {
                 key_selector_a,
                 key_selector_b,
                 ..
             } => {
-                ids.push(key_selector_a.key_id());
-                ids.push(key_selector_b.key_id());
+                ids.insert(key_selector_a.key_id());
+                ids.insert(key_selector_b.key_id());
             }
         }
     }
