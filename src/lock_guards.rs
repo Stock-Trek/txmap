@@ -1,5 +1,5 @@
 use crate::{
-    key::TxKey, lock_policies::lock_policy::LockPolicy, new_types::BitMask,
+    key::TxKey, lock_policies::lock_policy::LockPolicy, new_types::BitMask, new_types::MAX_SHARDS,
     result::MISSING_LOCK_GUARD_ERROR, shard::Shard,
 };
 use std::hash::Hash;
@@ -10,8 +10,8 @@ where
     V: 'ex,
     L: LockPolicy + 'ex,
 {
-    pub read: Vec<Option<L::ReadGuard<'ex, Shard<K, V>>>>,
-    pub write: Vec<Option<L::WriteGuard<'ex, Shard<K, V>>>>,
+    pub read: [Option<L::ReadGuard<'ex, Shard<K, V>>>; MAX_SHARDS],
+    pub write: [Option<L::WriteGuard<'ex, Shard<K, V>>>; MAX_SHARDS],
     pub write_bitmask: BitMask,
 }
 
