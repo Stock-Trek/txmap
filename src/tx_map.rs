@@ -291,9 +291,16 @@ where
     }
 
     /// Removes all entries from the map.
+    ///
+    /// Acquires each shard's write lock lazily, one at a time, and holds all
+    /// acquired locks until every shard has been cleared so the operation is
+    /// a consistent snapshot.
     pub fn clear(&self) {
-        for mut write_guard in self.custodian.all_write_guards() {
+        let mut guards = Vec::new();
+        for shard_index in 0..self.shard_count.0 {
+            let mut write_guard = self.custodian.write_guard_at(ShardIndex(shard_index));
             write_guard.clear();
+            guards.push(write_guard);
         }
     }
 
@@ -359,8 +366,13 @@ where
     /// The additional capacity is distributed evenly across all shards.
     pub fn reserve(&self, additional: usize) {
         let per_shard = additional.div_ceil(self.shard_count.0 as usize);
-        for mut guard in self.custodian.all_write_guards() {
+        // Acquire each shard's write lock lazily, one at a time, and hold all
+        // acquired locks until every shard has been resized.
+        let mut guards = Vec::new();
+        for shard_index in 0..self.shard_count.0 {
+            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index));
             guard.reserve(per_shard, |entry| self.indexer.hash(&entry.0).0);
+            guards.push(guard);
         }
     }
 
@@ -369,7 +381,12 @@ where
     /// The additional capacity is distributed evenly across all shards.
     pub fn try_reserve(&self, additional: usize) -> Result<(), crate::result::TryReserveError> {
         let per_shard = additional.div_ceil(self.shard_count.0 as usize);
-        for mut guard in self.custodian.all_write_guards() {
+        // Acquire each shard's write lock lazily, one at a time, and hold all
+        // acquired locks until every shard has been resized. If a shard fails
+        // to reserve, the already-acquired locks are released on return.
+        let mut guards = Vec::new();
+        for shard_index in 0..self.shard_count.0 {
+            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index));
             guard
                 .try_reserve(per_shard, |entry| self.indexer.hash(&entry.0).0)
                 .map_err(|error| match error {
@@ -380,14 +397,20 @@ where
                         crate::result::TryReserveError::AllocError { layout }
                     }
                 })?;
+            guards.push(guard);
         }
         Ok(())
     }
 
     /// Shrinks the capacity of all shards as much as possible.
     pub fn shrink_to_fit(&self) {
-        for mut guard in self.custodian.all_write_guards() {
+        // Acquire each shard's write lock lazily, one at a time, and hold all
+        // acquired locks until every shard has been shrunk.
+        let mut guards = Vec::new();
+        for shard_index in 0..self.shard_count.0 {
+            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index));
             guard.shrink_to_fit(|entry| self.indexer.hash(&entry.0).0);
+            guards.push(guard);
         }
     }
 
@@ -396,8 +419,13 @@ where
     /// The lower bound is distributed evenly across all shards.
     pub fn shrink_to(&self, min_capacity: usize) {
         let per_shard = min_capacity.div_ceil(self.shard_count.0 as usize);
-        for mut guard in self.custodian.all_write_guards() {
+        // Acquire each shard's write lock lazily, one at a time, and hold all
+        // acquired locks until every shard has been shrunk.
+        let mut guards = Vec::new();
+        for shard_index in 0..self.shard_count.0 {
+            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index));
             guard.shrink_to(per_shard, |entry| self.indexer.hash(&entry.0).0);
+            guards.push(guard);
         }
     }
 
@@ -459,10 +487,10 @@ where
     ///
     /// Entries are removed as the iterator is consumed; dropping the
     /// iterator without fully consuming it removes all remaining entries.
-    /// Acquires write locks on all shards for the duration of iteration.
+    /// Acquires write locks lazily, one shard at a time, as iteration
+    /// progresses. Acquired locks are held until the iterator is dropped.
     pub fn drain(&self) -> Drain<'_, K, V, L> {
-        let guards = self.custodian.all_write_guards();
-        Drain::new(guards, self.shard_count.0)
+        Drain::new(&self.custodian)
     }
 
     /// Consumes the map and returns an iterator over its keys.
@@ -485,11 +513,15 @@ where
 
     /// Retains only entries satisfying `condition`.
     ///
-    /// Removes all entries for which `condition` returns `false`.
+    /// Removes all entries for which `condition` returns `false`. Acquires
+    /// each shard's write lock lazily, one at a time, and holds all acquired
+    /// locks until every shard has been processed.
     pub fn retain(&self, condition: impl Fn(&K, &V) -> bool) {
-        let shards = self.custodian.all_write_guards();
-        for mut shard in shards {
-            shard.retain(|entry| condition(&entry.0, &entry.1))
+        let mut guards = Vec::new();
+        for shard_index in 0..self.shard_count.0 {
+            let mut shard = self.custodian.write_guard_at(ShardIndex(shard_index));
+            shard.retain(|entry| condition(&entry.0, &entry.1));
+            guards.push(shard);
         }
     }
 }
@@ -532,9 +564,14 @@ where
     fn clone(&self) -> Self {
         let shard_count = self.shard_count;
         let mut shards = Vec::with_capacity(shard_count.0 as usize);
-        for shard in self.custodian.all_read_guards() {
+        // Acquire each shard's read lock lazily, one at a time, and hold all
+        // acquired locks until every shard has been cloned.
+        let mut guards = Vec::new();
+        for shard_index in 0..self.shard_count.0 {
+            let shard = self.custodian.read_guard_at(ShardIndex(shard_index));
             let cloned_shard = shard.clone();
             shards.push(CachePadded::new(L::new(cloned_shard)));
+            guards.push(shard);
         }
         let custodian = Custodian {
             shard_count,

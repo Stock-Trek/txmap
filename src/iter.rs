@@ -1,6 +1,6 @@
 use crate::{
     custodian::Custodian, lock_policies::lock_policy::LockPolicy, new_types::ShardIndex,
-    result::MISSING_LOCK_GUARD_ERROR, shard::Shard, tx_map::TxMap,
+    shard::Shard, tx_map::TxMap,
 };
 use hashbrown::hash_table::{Drain as ShardDrain, Iter as ShardIter};
 use std::hash::Hash;
@@ -174,24 +174,28 @@ where
 /// An owning iterator over all key-value pairs in a [`TxMap`], removing
 /// each entry as it is yielded.
 ///
-/// Created by [`TxMap::drain`]. Holds write guards on all shards for the
-/// duration of iteration. Dropping the iterator without fully consuming it
-/// removes all remaining entries.
+/// Created by [`TxMap::drain`]. Write guards are acquired lazily, one shard
+/// at a time, as iteration progresses and held until the iterator is
+/// dropped. Dropping the iterator without fully consuming it removes all
+/// remaining entries.
 pub struct Drain<'a, K, V, L>
 where
     K: Clone + Hash + Eq + 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
-    /// One `hashbrown` drain per shard, aligned with shard indices.
+    /// The shard custodian, used to acquire write guards lazily.
+    pub(crate) custodian: &'a Custodian<K, V, L>,
+    /// One `hashbrown` drain per visited shard, aligned with shard indices.
     ///
     /// Declared before `_guards` so it is dropped first: on drop each
     /// drain clears its table while the corresponding write lock is still
     /// held.
     pub(crate) shard_drains: Vec<ShardDrain<'a, (K, V)>>,
-    /// Write guards keeping every shard locked (and alive) for `'a`.
+    /// Write guards keeping every visited shard locked (and alive) for `'a`.
     pub(crate) _guards: Vec<L::WriteGuard<'a, Shard<K, V>>>,
     pub(crate) shard_index: usize,
+    /// Entries remaining in shards visited so far (an exact lower bound).
     pub(crate) remaining: usize,
 }
 
@@ -201,27 +205,13 @@ where
     V: 'a,
     L: LockPolicy + 'a,
 {
-    pub(crate) fn new(mut guards: Vec<L::WriteGuard<'a, Shard<K, V>>>, shard_count: u8) -> Self {
-        let remaining: usize = guards.iter().map(|guard| guard.len()).sum();
-        let mut shard_drains = Vec::with_capacity(shard_count as usize);
-        for shard_index in 0..shard_count {
-            let guard = guards
-                .get_mut(shard_index as usize)
-                .expect(MISSING_LOCK_GUARD_ERROR);
-            // SAFETY: `hashbrown`'s `Drain` stores only raw pointers into the
-            // shard's heap-allocated buckets plus a `PhantomData` marker; the
-            // lifetime is not tracked at runtime. The write guard keeps the
-            // shard data alive and exclusively locked for `'a`, and is stored
-            // alongside the drains in this struct (and dropped after them),
-            // so the drains can never outlive the data they reference.
-            let drain: ShardDrain<'a, (K, V)> = unsafe { std::mem::transmute(guard.drain()) };
-            shard_drains.push(drain);
-        }
+    pub(crate) fn new(custodian: &'a Custodian<K, V, L>) -> Self {
         Self {
-            shard_drains,
-            _guards: guards,
+            custodian,
+            shard_drains: Vec::with_capacity(custodian.shard_count.0 as usize),
+            _guards: Vec::with_capacity(custodian.shard_count.0 as usize),
             shard_index: 0,
-            remaining,
+            remaining: 0,
         }
     }
 }
@@ -235,7 +225,28 @@ where
     type Item = (K, V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.shard_index < self.shard_drains.len() {
+        loop {
+            // Lazily acquire the write guard and drain for the next shard on
+            // first visit.
+            if self.shard_index == self.shard_drains.len() {
+                if self.shard_index >= self.custodian.shard_count.0 as usize {
+                    return None;
+                }
+                let mut guard = self
+                    .custodian
+                    .write_guard_at(ShardIndex(self.shard_index as u8));
+                self.remaining += guard.len();
+                // SAFETY: `hashbrown`'s `Drain` stores only raw pointers into
+                // the shard's heap-allocated buckets plus a `PhantomData`
+                // marker; the lifetime is not tracked at runtime. The write
+                // guard keeps the shard data alive and exclusively locked for
+                // `'a`, and is stored alongside the drains in this struct
+                // (and dropped after them), so the drains can never outlive
+                // the data they reference.
+                let drain: ShardDrain<'a, (K, V)> = unsafe { std::mem::transmute(guard.drain()) };
+                self._guards.push(guard);
+                self.shard_drains.push(drain);
+            }
             let shard = &mut self.shard_drains[self.shard_index];
             if let Some(entry) = shard.next() {
                 self.remaining -= 1;
@@ -243,10 +254,32 @@ where
             }
             self.shard_index += 1;
         }
-        None
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.remaining, Some(self.remaining))
+        let exact = self.shard_index >= self.custodian.shard_count.0 as usize;
+        (self.remaining, exact.then_some(self.remaining))
+    }
+}
+
+impl<'a, K, V, L> Drop for Drain<'a, K, V, L>
+where
+    K: Clone + Hash + Eq + 'a,
+    V: 'a,
+    L: LockPolicy + 'a,
+{
+    fn drop(&mut self) {
+        // Shards already visited are cleared when their `ShardDrain` fields
+        // are dropped (fields drop after this method, drains before guards).
+        // Shards not yet visited are cleared here so that dropping the
+        // iterator removes every remaining entry. Only shards beyond the ones
+        // already locked are touched; the visited shards' write guards are
+        // still held and must not be re-acquired.
+        let mut shard_index = self.shard_drains.len();
+        while shard_index < self.custodian.shard_count.0 as usize {
+            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index as u8));
+            guard.clear();
+            shard_index += 1;
+        }
     }
 }

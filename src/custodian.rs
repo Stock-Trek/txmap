@@ -32,20 +32,6 @@ where
             shards,
         }
     }
-    pub fn all_read_guards(&self) -> Vec<L::ReadGuard<'_, Shard<K, V>>> {
-        let mut guards = Vec::with_capacity(self.shard_count.0 as usize);
-        for shard in &self.shards {
-            guards.push(L::read(shard));
-        }
-        guards
-    }
-    pub fn all_write_guards(&self) -> Vec<L::WriteGuard<'_, Shard<K, V>>> {
-        let mut guards = Vec::with_capacity(self.shard_count.0 as usize);
-        for shard in &self.shards {
-            guards.push(L::write(shard));
-        }
-        guards
-    }
     pub fn lock_guards(&self, read: BitMask, write: BitMask) -> LockGuards<'_, K, V, L> {
         let mut read_guards = std::array::from_fn(|_| None);
         let mut write_guards = std::array::from_fn(|_| None);
