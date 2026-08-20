@@ -3,7 +3,7 @@
 //! Simulates realistic concurrent access patterns — read-heavy caches,
 //! write-heavy ingestion, counter-style read-modify-write, and atomic
 //! two-key transfers — under two contention profiles (partitioned keys
-//! and a shared hot-key set) and thread counts from 1 to 16.
+//! and a shared hot-key set) and thread counts from 1 to 6.
 //!
 //! Each workload is compared against `RwLock<HashMap>` and
 //! `Mutex<HashMap>` baselines to show how `TxMap`'s shard-level locking
@@ -25,7 +25,7 @@ const PARTITION_KEYS: u64 = 1_024;
 /// collide on the same shard, exercising lock contention).
 const HOT_KEYS: u64 = 64;
 /// Thread counts swept for every workload.
-const THREAD_COUNTS: [usize; 5] = [1, 2, 4, 8, 16];
+const THREAD_COUNTS: [usize; 6] = [1, 2, 3, 4, 5, 6];
 
 #[derive(Clone, Copy)]
 enum Workload {

@@ -14,6 +14,7 @@ use crate::{
     shard_ops::ShardOps,
     tx_map_builder::TxMapBuilder,
 };
+use crossbeam_utils::CachePadded;
 use std::hash::{BuildHasher, Hash};
 
 /// A concurrent transactional hash map.
@@ -487,7 +488,7 @@ where
         let mut shards = Vec::with_capacity(shard_count.0 as usize);
         for (_, shard) in self.custodian.all_read_guards() {
             let cloned_shard = shard.clone();
-            shards.push(L::new(cloned_shard));
+            shards.push(CachePadded::new(L::new(cloned_shard)));
         }
         let custodian = Custodian {
             shard_count,
