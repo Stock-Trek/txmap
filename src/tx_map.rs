@@ -89,7 +89,8 @@ where
         let hash_code = self.indexer.hash(key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
         let mut shard = self.custodian.write_guard_at(shard_index);
-        let value = ShardOps::get_or_insert::<K, V, S>(&mut shard, hash_code.0, key, value, &self.indexer);
+        let value =
+            ShardOps::get_or_insert::<K, V, S>(&mut shard, hash_code.0, key, value, &self.indexer);
         transform(value)
     }
 

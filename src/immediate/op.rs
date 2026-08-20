@@ -108,7 +108,13 @@ where
             }
             Self::GetOrInsert { key, value, get } => {
                 let shard = lock_guards.write_guard(&key);
-                let value_ref = ShardOps::get_or_insert::<K, V, S>(shard, key.hash_code.0, &key.key, value, indexer);
+                let value_ref = ShardOps::get_or_insert::<K, V, S>(
+                    shard,
+                    key.hash_code.0,
+                    &key.key,
+                    value,
+                    indexer,
+                );
                 (get)(&key.key, value_ref, state)
             }
             Self::GetOrInsertWith {
@@ -132,7 +138,13 @@ where
             } => {
                 let new_value = (value_generator)(&key.key, state);
                 let write_guard = lock_guards.write_guard(&key);
-                ShardOps::insert::<K, V, S>(write_guard, key.hash_code.0, key.key, new_value, indexer);
+                ShardOps::insert::<K, V, S>(
+                    write_guard,
+                    key.hash_code.0,
+                    key.key,
+                    new_value,
+                    indexer,
+                );
             }
             Self::InsertWithIfAbsent {
                 key,
@@ -165,7 +177,9 @@ where
             }
             Self::RemoveIf { key, condition } => {
                 let shard = lock_guards.write_guard(&key);
-                ShardOps::remove_if(shard, key.hash_code.0, &key.key, |k, v| condition(k, v, state));
+                ShardOps::remove_if(shard, key.hash_code.0, &key.key, |k, v| {
+                    condition(k, v, state)
+                });
             }
             Self::SwapValue { key_a, key_b } => {
                 MultiShardOps::swap_value::<K, V, L, S>(
@@ -177,7 +191,13 @@ where
             }
             Self::Update { key, transform } => {
                 let shard = lock_guards.write_guard(&key);
-                ShardOps::update(shard, key.hash_code.0, key.key, |k, v_opt| transform(k, v_opt, state), indexer);
+                ShardOps::update(
+                    shard,
+                    key.hash_code.0,
+                    key.key,
+                    |k, v_opt| transform(k, v_opt, state),
+                    indexer,
+                );
             }
         }
     }

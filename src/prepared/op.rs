@@ -141,7 +141,13 @@ where
                 let key = key_selector.get(keys);
                 let new_value = (value_generator)(&key.key, params, state);
                 let write_guard = lock_guards.write_guard(key);
-                ShardOps::insert::<K, V, S>(write_guard, key.hash_code.0, key.key.clone(), new_value, indexer);
+                ShardOps::insert::<K, V, S>(
+                    write_guard,
+                    key.hash_code.0,
+                    key.key.clone(),
+                    new_value,
+                    indexer,
+                );
             }
             Self::InsertWithIfAbsent {
                 key_selector,
@@ -163,7 +169,9 @@ where
             } => {
                 let key = key_selector.get(keys);
                 let shard = lock_guards.write_guard(key);
-                ShardOps::modify(shard, key.hash_code.0, &key.key, |k, v| mutate(k, v, params, state));
+                ShardOps::modify(shard, key.hash_code.0, &key.key, |k, v| {
+                    mutate(k, v, params, state)
+                });
             }
             Self::MoveValue {
                 key_selector_from,
@@ -189,7 +197,9 @@ where
             } => {
                 let key = key_selector.get(keys);
                 let shard = lock_guards.write_guard(key);
-                ShardOps::remove_if(shard, key.hash_code.0, &key.key, |k, v| condition(k, v, params, state));
+                ShardOps::remove_if(shard, key.hash_code.0, &key.key, |k, v| {
+                    condition(k, v, params, state)
+                });
             }
             Self::SwapValue {
                 key_selector_a,
