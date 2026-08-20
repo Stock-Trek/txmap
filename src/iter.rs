@@ -263,7 +263,7 @@ where
 
 impl<'a, K, V, L> Drop for Drain<'a, K, V, L>
 where
-    K: Clone + Hash + Eq + 'a,
+    K: 'a,
     V: 'a,
     L: LockPolicy + 'a,
 {
