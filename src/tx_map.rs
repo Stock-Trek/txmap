@@ -314,9 +314,22 @@ where
     }
 
     /// Returns `true` if the map contains no entries.
+    ///
+    /// Shards are checked one at a time and the scan short-circuits at the
+    /// first non-empty shard, so an occupied map only locks as many shards
+    /// as needed instead of locking all of them.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        for shard_index in 0..self.shard_count.0 {
+            if !self
+                .custodian
+                .read_guard_at(ShardIndex(shard_index))
+                .is_empty()
+            {
+                return false;
+            }
+        }
+        true
     }
 
     /// Returns the total capacity of all shards.
