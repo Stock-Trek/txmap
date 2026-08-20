@@ -8,10 +8,7 @@ use crate::{
     },
 };
 use hashbrown::HashSet;
-use std::{
-    hash::{BuildHasher, Hash},
-    marker::PhantomData,
-};
+use std::{hash::BuildHasher, marker::PhantomData};
 
 /// Phase marker: transaction is still accepting guard requirements.
 pub struct PreparedBuilderPhase;
@@ -27,13 +24,13 @@ pub struct PreparedBuildablePhase;
 /// obtain a [`PreparedTransaction`] that can be executed repeatedly.
 pub struct PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PHASE = PreparedBuilderPhase>
 where
-    K: Clone + Hash + Eq + 'tx,
+    K: 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
     S: BuildHasher + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,
-    STATE: Default + 'tx,
+    STATE: 'tx,
 {
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) indexer: &'tx Indexer<S>,
@@ -46,13 +43,13 @@ where
 impl<'tx, K, V, L, S, KEYS, PARAMS, STATE>
     PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuilderPhase>
 where
-    K: Clone + Hash + Eq + 'tx,
+    K: 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
     S: BuildHasher + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,
-    STATE: Default + 'tx,
+    STATE: 'tx,
 {
     /// Adds a guard precondition using a key selector.
     pub fn require(
@@ -81,13 +78,13 @@ where
 impl<'tx, K, V, L, S, KEYS, PARAMS, STATE, PHASE>
     PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PHASE>
 where
-    K: Clone + Hash + Eq + 'tx,
+    K: 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
     S: BuildHasher + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,
-    STATE: Default + 'tx,
+    STATE: 'tx,
 {
     /// Reads a value and passes it (or `None`) to the callback.
     pub fn get(
@@ -314,13 +311,13 @@ where
 impl<'tx, K, V, L, S, KEYS, PARAMS, STATE>
     PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuildablePhase>
 where
-    K: Clone + Hash + Eq + 'tx,
+    K: 'tx,
     V: 'tx,
     L: LockPolicy + 'tx,
     S: BuildHasher + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,
-    STATE: Default + 'tx,
+    STATE: 'tx,
 {
     #[must_use]
     /// Consumes the builder and returns a [`PreparedTransaction`].

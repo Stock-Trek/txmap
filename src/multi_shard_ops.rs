@@ -14,7 +14,7 @@ impl MultiShardOps {
         key_to: &TxKey<K>,
         indexer: &Indexer<S>,
     ) where
-        K: Clone + Hash + Eq,
+        K: Clone + Hash + PartialEq,
         L: LockPolicy,
         S: BuildHasher,
     {
@@ -45,7 +45,7 @@ impl MultiShardOps {
         key_b: &TxKey<K>,
         indexer: &Indexer<S>,
     ) where
-        K: Clone + Hash + Eq,
+        K: Clone + Hash + PartialEq,
         L: LockPolicy,
         S: BuildHasher,
     {
@@ -117,7 +117,6 @@ impl MultiShardOps {
         key: &TxKey<K>,
     ) -> &'ex mut Shard<K, V>
     where
-        K: Hash + Eq,
         L: LockPolicy,
     {
         write_guards[key.shard_index.0 as usize]

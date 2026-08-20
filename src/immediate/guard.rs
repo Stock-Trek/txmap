@@ -3,15 +3,11 @@ use crate::{
     new_types::BitMask, shard_ops::ShardOps,
 };
 use std::{
-    hash::Hash,
     marker::PhantomData,
     ops::{Deref, DerefMut},
 };
 
-pub(crate) struct Guard<'tx, K, V, STATE>
-where
-    K: Clone + Hash + Eq,
-{
+pub(crate) struct Guard<'tx, K, V, STATE> {
     pub name: String,
     pub key: TxKey<K>,
     #[allow(clippy::type_complexity)]
@@ -19,13 +15,16 @@ where
     pub _phantom: PhantomData<STATE>,
 }
 
-impl<'tx, K, V, STATE> Guard<'tx, K, V, STATE>
-where
-    K: Clone + Hash + Eq,
-{
+impl<'tx, K, V, STATE> Guard<'tx, K, V, STATE> {
     pub fn read_bitmask(&self) -> BitMask {
         self.key.shard_index.bitmask()
     }
+}
+
+impl<'tx, K, V, STATE> Guard<'tx, K, V, STATE>
+where
+    K: PartialEq,
+{
     pub fn condition_is_met<L>(
         &mut self,
         lock_guards: &mut LockGuards<'_, K, V, L>,

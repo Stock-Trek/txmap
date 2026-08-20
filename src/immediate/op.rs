@@ -8,10 +8,7 @@ use std::{
 };
 
 #[allow(clippy::type_complexity)]
-pub(crate) enum ImmediateOp<'tx, K, V, STATE>
-where
-    K: Hash + Eq,
-{
+pub(crate) enum ImmediateOp<'tx, K, V, STATE> {
     Get {
         key: TxKey<K>,
         get: Box<dyn FnOnce(&K, Option<&V>, &mut STATE) + 'tx>,
@@ -59,10 +56,7 @@ where
     },
 }
 
-impl<'tx, K, V, STATE> ImmediateOp<'tx, K, V, STATE>
-where
-    K: Clone + Hash + Eq,
-{
+impl<'tx, K, V, STATE> ImmediateOp<'tx, K, V, STATE> {
     pub fn read_write_bitmasks(&self) -> (BitMask, BitMask) {
         match self {
             Self::Get { key, .. } => (key.shard_index.bitmask(), BitMask::ZERO),
@@ -86,6 +80,12 @@ where
             ),
         }
     }
+}
+
+impl<'tx, K, V, STATE> ImmediateOp<'tx, K, V, STATE>
+where
+    K: Clone + Hash + PartialEq,
+{
     pub fn apply<L, S>(
         self,
         lock_guards: &mut LockGuards<'_, K, V, L>,
