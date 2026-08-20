@@ -48,7 +48,7 @@ where
     ///
     /// Only safe to call when the handle is provably last-used within the
     /// transaction (see [`key_id`](TxKeySelector::key_id)).
-    fn take<'keys>(&self, keys: &'keys mut KEYS) -> K;
+    fn take(&self, keys: &mut KEYS) -> K;
 }
 
 #[macro_export]
@@ -143,7 +143,7 @@ macro_rules! tx_schema {
                         fn key_id(&self) -> &'static str {
                             stringify!($key)
                         }
-                        fn take<'keys>(&self, keys: &'keys mut [<$name IndexedKeys>]<K>) -> $crate::prelude::TxKey<K> {
+                        fn take(&self, keys: &mut [<$name IndexedKeys>]<K>) -> $crate::prelude::TxKey<K> {
                             keys.$key.take().expect("key handle already consumed")
                         }
                     }
