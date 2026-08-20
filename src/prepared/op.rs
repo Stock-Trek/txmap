@@ -10,11 +10,7 @@ use std::{
 };
 
 #[allow(clippy::type_complexity)]
-pub(crate) enum PreparedOp<'tx, K, V, KEYS, PARAMS, STATE>
-where
-    K: Clone + Hash + Eq,
-    STATE: Default,
-{
+pub(crate) enum PreparedOp<'tx, K, V, KEYS, PARAMS, STATE> {
     Get {
         key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
         get: Box<dyn Fn(&K, Option<&V>, &PARAMS, &mut STATE) + 'tx>,
@@ -60,11 +56,7 @@ where
     },
 }
 
-impl<'tx, K, V, KEYS, PARAMS, STATE> PreparedOp<'tx, K, V, KEYS, PARAMS, STATE>
-where
-    K: Clone + Hash + Eq,
-    STATE: Default,
-{
+impl<'tx, K, V, KEYS, PARAMS, STATE> PreparedOp<'tx, K, V, KEYS, PARAMS, STATE> {
     pub fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask) {
         match self {
             Self::Get { key_selector, .. } => {
@@ -130,6 +122,12 @@ where
             }
         }
     }
+}
+
+impl<'tx, K, V, KEYS, PARAMS, STATE> PreparedOp<'tx, K, V, KEYS, PARAMS, STATE>
+where
+    K: Clone + Hash + Eq,
+{
     pub fn apply<L, S>(
         &self,
         lock_guards: &mut LockGuards<'_, K, V, L>,

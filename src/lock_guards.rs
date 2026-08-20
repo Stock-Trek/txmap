@@ -2,7 +2,6 @@ use crate::{
     key::TxKey, lock_policies::lock_policy::LockPolicy, new_types::BitMask, new_types::MAX_SHARDS,
     result::MISSING_LOCK_GUARD_ERROR, shard::Shard,
 };
-use std::hash::Hash;
 
 pub(crate) struct LockGuards<'ex, K, V, L>
 where
@@ -17,7 +16,7 @@ where
 
 impl<'ex, K, V, L> LockGuards<'ex, K, V, L>
 where
-    K: Clone + Hash + Eq + 'ex,
+    K: 'ex,
     V: 'ex,
     L: LockPolicy + 'ex,
 {

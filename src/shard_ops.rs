@@ -12,7 +12,7 @@ impl ShardOps {
         key: &K,
     ) -> Option<&'op V>
     where
-        K: Hash + Eq,
+        K: Eq,
     {
         shard
             .find(hash_code.0, |entry| entry.0 == *key)
@@ -157,7 +157,7 @@ impl ShardOps {
         mutate: impl FnOnce(&K, &mut V),
     ) -> bool
     where
-        K: Hash + Eq,
+        K: Eq,
     {
         if let Some(mut_entry) = shard.find_mut(hash_code.0, |entry| entry.0 == *key) {
             mutate(&mut_entry.0, &mut mut_entry.1);
@@ -174,7 +174,7 @@ impl ShardOps {
         key: &K,
     ) -> Option<(K, V)>
     where
-        K: Hash + Eq,
+        K: Eq,
     {
         shard
             .find_entry(hash_code.0, |entry| entry.0 == *key)
@@ -190,7 +190,7 @@ impl ShardOps {
         condition: impl FnOnce(&K, &V) -> bool,
     ) -> Option<V>
     where
-        K: Hash + Eq,
+        K: Eq,
     {
         match shard.find_entry(hash_code.0, |entry| entry.0 == *key) {
             Ok(occupied) => {

@@ -80,7 +80,7 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for TxResult<T> {
 
 impl<K, V, L, S> Serialize for TxMap<K, V, L, S>
 where
-    K: Clone + Hash + Eq + Serialize,
+    K: Serialize,
     V: Serialize,
     L: LockPolicy,
     S: BuildHasher,
@@ -108,7 +108,7 @@ struct TxMapVisitor<K, V, L> {
 
 impl<'de, K, V, L> Visitor<'de> for TxMapVisitor<K, V, L>
 where
-    K: Clone + Hash + Eq + Deserialize<'de>,
+    K: Hash + Eq + Deserialize<'de>,
     V: Deserialize<'de>,
     L: LockPolicy,
 {
@@ -139,7 +139,7 @@ where
 
 impl<'de, K, V, L> Deserialize<'de> for TxMap<K, V, L>
 where
-    K: Clone + Hash + Eq + Deserialize<'de>,
+    K: Hash + Eq + Deserialize<'de>,
     V: Deserialize<'de>,
     L: LockPolicy,
 {

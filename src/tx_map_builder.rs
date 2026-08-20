@@ -7,10 +7,7 @@ use crate::{
     shards::Shards,
     tx_map::TxMap,
 };
-use std::{
-    hash::{BuildHasher, Hash},
-    marker::PhantomData,
-};
+use std::{hash::BuildHasher, marker::PhantomData};
 
 /// Builder for configuring and constructing a [`TxMap`].
 ///
@@ -88,10 +85,7 @@ where
 
     #[must_use]
     /// Consumes the builder and returns a [`TxMap`].
-    pub fn build<K, V>(self) -> TxMap<K, V, L, S>
-    where
-        K: Clone + Hash + Eq,
-    {
+    pub fn build<K, V>(self) -> TxMap<K, V, L, S> {
         let shard_count: ShardCount = self.shards.into();
         TxMap {
             shard_count,
