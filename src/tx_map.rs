@@ -91,7 +91,7 @@ where
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
         let mut shard = self.custodian.write_guard_at(shard_index);
         let value =
-            ShardOps::get_or_insert::<K, V, S>(&mut shard, hash_code.0, key, value, &self.indexer);
+            ShardOps::get_or_insert::<K, V, S>(&mut shard, hash_code, key, value, &self.indexer);
         transform(value)
     }
 
@@ -114,7 +114,7 @@ where
         let mut shard = self.custodian.write_guard_at(shard_index);
         let value = ShardOps::get_or_insert_with::<K, V, S>(
             &mut shard,
-            hash_code.0,
+            hash_code,
             key,
             |k| value_generator(k),
             &self.indexer,
@@ -129,7 +129,7 @@ where
         let hash_code = self.indexer.hash(&key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
         let mut shard = self.custodian.write_guard_at(shard_index);
-        ShardOps::insert::<K, V, S>(&mut shard, hash_code.0, key, value, &self.indexer)
+        ShardOps::insert::<K, V, S>(&mut shard, hash_code, key, value, &self.indexer)
     }
 
     /// Inserts a value only if the key is absent.
@@ -142,7 +142,7 @@ where
         let mut shard = self.custodian.write_guard_at(shard_index);
         ShardOps::insert_if_absent::<K, V, S>(
             &mut shard,
-            hash_code.0,
+            hash_code,
             key,
             |_key| value_generator(),
             &self.indexer,
@@ -157,7 +157,7 @@ where
         let hash_code = self.indexer.hash(key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
         let mut shard = self.custodian.write_guard_at(shard_index);
-        ShardOps::modify::<K, V>(&mut shard, hash_code.0, key, mutate)
+        ShardOps::modify::<K, V>(&mut shard, hash_code, key, mutate)
     }
 
     /// Moves a value from one key to another atomically.
@@ -185,7 +185,7 @@ where
         let hash_code = self.indexer.hash(key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
         let mut shard = self.custodian.write_guard_at(shard_index);
-        ShardOps::remove_entry::<K, V>(&mut shard, hash_code.0, key).map(|removed| removed.1)
+        ShardOps::remove_entry::<K, V>(&mut shard, hash_code, key).map(|removed| removed.1)
     }
 
     /// Removes a key only if `condition` is satisfied.
@@ -195,7 +195,7 @@ where
         let hash_code = self.indexer.hash(key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
         let mut shard = self.custodian.write_guard_at(shard_index);
-        ShardOps::remove_if::<K, V>(&mut shard, hash_code.0, key, condition)
+        ShardOps::remove_if::<K, V>(&mut shard, hash_code, key, condition)
     }
 
     /// Returns `true` if the map contains the given key.
@@ -215,7 +215,7 @@ where
         let hash_code = self.indexer.hash(key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
         let mut shard = self.custodian.write_guard_at(shard_index);
-        ShardOps::remove_entry::<K, V>(&mut shard, hash_code.0, key)
+        ShardOps::remove_entry::<K, V>(&mut shard, hash_code, key)
     }
 
     /// Swaps the values of two keys atomically.
@@ -238,7 +238,7 @@ where
         let hash_code = self.indexer.hash(&key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
         let mut shard = self.custodian.write_guard_at(shard_index);
-        ShardOps::update::<K, V, S>(&mut shard, hash_code.0, key, transform, &self.indexer)
+        ShardOps::update::<K, V, S>(&mut shard, hash_code, key, transform, &self.indexer)
     }
 
     #[must_use]

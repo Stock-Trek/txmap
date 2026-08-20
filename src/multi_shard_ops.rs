@@ -20,7 +20,7 @@ impl MultiShardOps {
     {
         let removed = {
             let shard = Self::shard::<K, V, L>(write_guards, key_from);
-            ShardOps::remove_entry::<K, V>(shard, key_from.hash_code.0, &key_from.key)
+            ShardOps::remove_entry::<K, V>(shard, key_from.hash_code, &key_from.key)
         };
         let shard_to = write_guards[key_to.shard_index.0 as usize]
             .as_mut()
@@ -28,13 +28,13 @@ impl MultiShardOps {
         if let Some(entry) = removed {
             ShardOps::insert::<K, V, S>(
                 shard_to,
-                key_to.hash_code.0,
+                key_to.hash_code,
                 key_to.key.clone(),
                 entry.1,
                 indexer,
             );
         } else {
-            ShardOps::remove_entry(shard_to, key_to.hash_code.0, &key_to.key);
+            ShardOps::remove_entry(shard_to, key_to.hash_code, &key_to.key);
         }
     }
 
@@ -51,11 +51,11 @@ impl MultiShardOps {
     {
         let a = {
             let shard = Self::shard::<K, V, L>(write_guards, key_a);
-            ShardOps::remove_entry::<K, V>(shard, key_a.hash_code.0, &key_a.key)
+            ShardOps::remove_entry::<K, V>(shard, key_a.hash_code, &key_a.key)
         };
         let b = {
             let shard = Self::shard::<K, V, L>(write_guards, key_b);
-            ShardOps::remove_entry::<K, V>(shard, key_b.hash_code.0, &key_b.key)
+            ShardOps::remove_entry::<K, V>(shard, key_b.hash_code, &key_b.key)
         };
         match a {
             Some((a_key, a_value)) => match b {
@@ -64,7 +64,7 @@ impl MultiShardOps {
                         let shard = Self::shard::<K, V, L>(write_guards, key_a);
                         ShardOps::insert_with_duplicate_key(
                             shard,
-                            key_a.hash_code.0,
+                            key_a.hash_code,
                             &key_a.key,
                             a_key,
                             b_value,
@@ -75,7 +75,7 @@ impl MultiShardOps {
                         let shard = Self::shard::<K, V, L>(write_guards, key_b);
                         ShardOps::insert_with_duplicate_key(
                             shard,
-                            key_b.hash_code.0,
+                            key_b.hash_code,
                             &key_b.key,
                             b_key,
                             a_value,
@@ -87,7 +87,7 @@ impl MultiShardOps {
                     let shard = Self::shard::<K, V, L>(write_guards, key_b);
                     ShardOps::insert::<K, V, S>(
                         shard,
-                        key_b.hash_code.0,
+                        key_b.hash_code,
                         key_b.key.clone(),
                         a_value,
                         indexer,
@@ -100,7 +100,7 @@ impl MultiShardOps {
                         let shard = Self::shard::<K, V, L>(write_guards, key_a);
                         ShardOps::insert::<K, V, S>(
                             shard,
-                            key_a.hash_code.0,
+                            key_a.hash_code,
                             key_a.key.clone(),
                             b_value,
                             indexer,
