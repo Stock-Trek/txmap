@@ -172,6 +172,7 @@ where
         self.ops.push(PreparedOp::InsertWith {
             key_selector: Box::new(key_selector),
             value_generator: Box::new(value_generator),
+            take_key: false,
         });
         PreparedTxBuilder {
             custodian: self.custodian,
@@ -190,6 +191,7 @@ where
         self.ops.push(PreparedOp::InsertWithIfAbsent {
             key_selector: Box::new(key_selector),
             value_generator: Box::new(value_generator),
+            take_key: false,
         });
         PreparedTxBuilder {
             custodian: self.custodian,
@@ -296,6 +298,7 @@ where
         self.ops.push(PreparedOp::Update {
             key_selector: Box::new(key_selector),
             transform: Box::new(transform),
+            take_key: false,
         });
         PreparedTxBuilder {
             custodian: self.custodian,
@@ -321,11 +324,38 @@ where
     #[must_use]
     /// Consumes the builder and returns a [`PreparedTransaction`].
     pub fn into_transaction(self) -> PreparedTransaction<'tx, K, V, L, S, KEYS, PARAMS, STATE> {
+        // Count how many times each key handle is referenced across guards and
+        // operations. A handle used exactly once is "provably last-used", so
+        // consuming operations can move the key out of the per-execution keys
+        // container instead of cloning it on every execution.
+        let mut usage: std::collections::HashMap<&'static str, usize> =
+            std::collections::HashMap::new();
+        for guard in &self.guards {
+            *usage.entry(guard.key_id()).or_default() += 1;
+        }
+        let mut key_ids = Vec::new();
+        for op in &self.ops {
+            op.push_key_ids(&mut key_ids);
+        }
+        for id in key_ids {
+            *usage.entry(id).or_default() += 1;
+        }
+        let mut ops = self.ops;
+        for op in &mut ops {
+            match op {
+                PreparedOp::InsertWith { key_selector, take_key, .. }
+                | PreparedOp::InsertWithIfAbsent { key_selector, take_key, .. }
+                | PreparedOp::Update { key_selector, take_key, .. } => {
+                    *take_key = usage.get(key_selector.key_id()) == Some(&1);
+                }
+                _ => {}
+            }
+        }
         PreparedTransaction {
             custodian: self.custodian,
             indexer: self.indexer,
             guards: self.guards,
-            ops: self.ops,
+            ops,
         }
     }
 }

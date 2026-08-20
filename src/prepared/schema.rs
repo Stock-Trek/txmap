@@ -38,6 +38,17 @@ where
 {
     /// Returns a reference to the selected key.
     fn get<'keys>(&self, keys: &'keys KEYS) -> &'keys K;
+    /// Returns a stable identifier for the selected key handle.
+    ///
+    /// Used at transaction build time to detect whether a key handle is used
+    /// more than once across guards and operations. A handle used exactly once
+    /// is "provably last-used", so its key can be moved instead of cloned.
+    fn key_id(&self) -> &'static str;
+    /// Takes the selected key out of the keys container.
+    ///
+    /// Only safe to call when the handle is provably last-used within the
+    /// transaction (see [`key_id`](TxKeySelector::key_id)).
+    fn take<'keys>(&self, keys: &'keys mut KEYS) -> K;
 }
 
 #[macro_export]
@@ -110,7 +121,7 @@ macro_rules! tx_schema {
                 where
                     K: std::hash::Hash + Eq,
                 {
-                    $(pub $key: $crate::prelude::TxKey<K>,)*
+                    $(pub $key: std::option::Option<$crate::prelude::TxKey<K>>,)*
                 }
                 $(
                     #[allow(non_camel_case_types)]
@@ -127,7 +138,13 @@ macro_rules! tx_schema {
                         K: std::hash::Hash + Eq,
                     {
                         fn get<'keys>(&self, keys: &'keys [<$name IndexedKeys>]<K>) -> &'keys $crate::prelude::TxKey<K> {
-                            &keys.$key
+                            keys.$key.as_ref().expect("key handle already consumed")
+                        }
+                        fn key_id(&self) -> &'static str {
+                            stringify!($key)
+                        }
+                        fn take<'keys>(&self, keys: &'keys mut [<$name IndexedKeys>]<K>) -> $crate::prelude::TxKey<K> {
+                            keys.$key.take().expect("key handle already consumed")
                         }
                     }
                 )*
@@ -139,7 +156,7 @@ macro_rules! tx_schema {
                     fn into_indexed(self, shard_count: $crate::prelude::ShardCount, indexer: &$crate::indexer::Indexer<S>) -> [<$name IndexedKeys>]<K> {
                         [<$name IndexedKeys>] {
                             $(
-                                $key: indexer.indexed_key(shard_count, self.$key),
+                                $key: std::option::Option::Some(indexer.indexed_key(shard_count, self.$key)),
                             )*
                         }
                     }

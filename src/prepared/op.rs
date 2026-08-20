@@ -26,10 +26,12 @@ where
     InsertWith {
         key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
         value_generator: Box<dyn Fn(&K, &PARAMS, &mut STATE) -> V + 'tx>,
+        take_key: bool,
     },
     InsertWithIfAbsent {
         key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
         value_generator: Box<dyn Fn(&K, &PARAMS, &mut STATE) -> V + 'tx>,
+        take_key: bool,
     },
     Modify {
         key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
@@ -53,6 +55,7 @@ where
     Update {
         key_selector: Box<dyn TxKeySelector<TxKey<K>, KEYS> + 'tx>,
         transform: Box<dyn Fn(&K, Option<&V>, &PARAMS, &mut STATE) -> Option<V> + 'tx>,
+        take_key: bool,
     },
 }
 
@@ -95,10 +98,39 @@ where
             ),
         }
     }
+    /// Pushes the stable identifiers of all key handles referenced by this op.
+    pub fn push_key_ids(&self, ids: &mut Vec<&'static str>) {
+        match self {
+            Self::Get { key_selector, .. }
+            | Self::GetOrInsertWith { key_selector, .. }
+            | Self::InsertWith { key_selector, .. }
+            | Self::InsertWithIfAbsent { key_selector, .. }
+            | Self::Modify { key_selector, .. }
+            | Self::Remove { key_selector, .. }
+            | Self::RemoveIf { key_selector, .. }
+            | Self::Update { key_selector, .. } => ids.push(key_selector.key_id()),
+            Self::MoveValue {
+                key_selector_from,
+                key_selector_to,
+                ..
+            } => {
+                ids.push(key_selector_from.key_id());
+                ids.push(key_selector_to.key_id());
+            }
+            Self::SwapValue {
+                key_selector_a,
+                key_selector_b,
+                ..
+            } => {
+                ids.push(key_selector_a.key_id());
+                ids.push(key_selector_b.key_id());
+            }
+        }
+    }
     pub fn apply<L, S>(
         &self,
         lock_guards: &mut LockGuards<'_, K, V, L>,
-        keys: &KEYS,
+        keys: &mut KEYS,
         params: &PARAMS,
         indexer: &Indexer<S>,
         state: &mut STATE,
@@ -137,14 +169,19 @@ where
             Self::InsertWith {
                 key_selector,
                 value_generator,
+                take_key,
             } => {
-                let key = key_selector.get(keys);
+                let key = if *take_key {
+                    key_selector.take(keys)
+                } else {
+                    key_selector.get(keys).clone()
+                };
                 let new_value = (value_generator)(&key.key, params, state);
-                let write_guard = lock_guards.write_guard(key);
+                let write_guard = lock_guards.write_guard(&key);
                 ShardOps::insert::<K, V, S>(
                     write_guard,
                     key.hash_code,
-                    key.key.clone(),
+                    key.key,
                     new_value,
                     indexer,
                 );
@@ -152,13 +189,18 @@ where
             Self::InsertWithIfAbsent {
                 key_selector,
                 value_generator,
+                take_key,
             } => {
-                let key = key_selector.get(keys);
-                let write_guard = lock_guards.write_guard(key);
+                let key = if *take_key {
+                    key_selector.take(keys)
+                } else {
+                    key_selector.get(keys).clone()
+                };
+                let write_guard = lock_guards.write_guard(&key);
                 ShardOps::insert_if_absent::<K, V, S>(
                     write_guard,
                     key.hash_code,
-                    key.key.clone(),
+                    key.key,
                     |k| (value_generator)(k, params, state),
                     indexer,
                 );
@@ -217,13 +259,18 @@ where
             Self::Update {
                 key_selector,
                 transform,
+                take_key,
             } => {
-                let key = key_selector.get(keys);
-                let shard = lock_guards.write_guard(key);
+                let key = if *take_key {
+                    key_selector.take(keys)
+                } else {
+                    key_selector.get(keys).clone()
+                };
+                let shard = lock_guards.write_guard(&key);
                 ShardOps::update(
                     shard,
                     key.hash_code,
-                    key.key.clone(),
+                    key.key,
                     |k, v_opt| transform(k, v_opt, params, state),
                     indexer,
                 );

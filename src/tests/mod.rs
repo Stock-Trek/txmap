@@ -11,6 +11,7 @@ pub mod prepared {
     pub mod guards;
     pub mod insert_with_if_absent_op;
     pub mod insert_with_op;
+    pub mod last_used_key;
     pub mod modify_op;
     pub mod move_value_op;
     pub mod remove_if_op;
