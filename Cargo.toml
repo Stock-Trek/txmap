@@ -1,6 +1,6 @@
 [package]
 name = "txmap"
-version = "3.4.0"
+version = "3.5.0"
 edition = "2024"
 description = "A concurrent transactional hash map for Rust with fine-grained locking, internal mutability and composable transactions"
 authors = ["stock-trek.com <stock-trek@proton.me>"]

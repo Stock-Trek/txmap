@@ -663,7 +663,7 @@ dependencies = [
 
 [[package]]
 name = "txmap"
-version = "3.4.0"
+version = "3.5.0"
 dependencies = [
  "criterion",
  "crossbeam-utils",
