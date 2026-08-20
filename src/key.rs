@@ -5,7 +5,7 @@ use std::hash::Hash;
 ///
 /// Created internally by [`Indexer::indexed_key`](crate::indexer::Indexer::indexed_key). Used throughout
 /// the transaction system to avoid re-hashing.
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct TxKey<K>
 where
     K: Hash + Eq,

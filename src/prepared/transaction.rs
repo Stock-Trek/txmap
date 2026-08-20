@@ -44,7 +44,7 @@ where
     where
         RAW: TxKeys<K, KEYS, S>,
     {
-        let keys = keys.into_indexed(self.custodian.shard_count, self.indexer);
+        let mut keys = keys.into_indexed(self.custodian.shard_count, self.indexer);
         let mut total_read_bitmask = BitMask::ZERO;
         let mut total_write_bitmask = BitMask::ZERO;
 
@@ -74,7 +74,13 @@ where
             }
         }
         for op in self.ops.iter() {
-            op.apply::<L, S>(&mut lock_guards, &keys, &params, self.indexer, &mut state);
+            op.apply::<L, S>(
+                &mut lock_guards,
+                &mut keys,
+                &params,
+                self.indexer,
+                &mut state,
+            );
         }
         TxResult::Completed { state }
     }
