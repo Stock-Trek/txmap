@@ -320,14 +320,13 @@ where
     /// as needed instead of locking all of them.
     #[must_use]
     pub fn is_empty(&self) -> bool {
+        let mut guards = Vec::new();
         for shard_index in 0..self.shard_count.0 {
-            if !self
-                .custodian
-                .read_guard_at(ShardIndex(shard_index))
-                .is_empty()
-            {
+            let guard = self.custodian.read_guard_at(ShardIndex(shard_index));
+            if !guard.is_empty() {
                 return false;
             }
+            guards.push(guard);
         }
         true
     }
@@ -339,11 +338,14 @@ where
     /// the number of entries the map can hold without reallocating.
     #[must_use]
     pub fn capacity(&self) -> usize {
-        self.custodian
-            .all_read_guards()
-            .iter()
-            .map(|guard| guard.capacity())
-            .sum()
+        let mut total_capacity = 0;
+        let mut guards = Vec::new();
+        for shard_index in 0..self.shard_count.0 {
+            let guard = self.custodian.read_guard_at(ShardIndex(shard_index));
+            total_capacity += guard.capacity();
+            guards.push(guard);
+        }
+        total_capacity
     }
 
     /// Returns the hasher builder used by this map.
