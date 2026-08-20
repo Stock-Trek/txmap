@@ -27,9 +27,6 @@ where
         let key = self.key_selector.get(keys);
         key.shard_index.bitmask()
     }
-    pub fn key_id(&self) -> &'static str {
-        self.key_selector.key_id()
-    }
     pub fn is_condition_met<L>(
         &self,
         lock_guards: &mut LockGuards<'_, K, V, L>,
