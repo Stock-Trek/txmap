@@ -1,7 +1,7 @@
 use crate::{
     lock_guards::LockGuards,
     lock_policies::lock_policy::LockPolicy,
-    new_types::{BitMask, ShardCount, ShardIndex},
+    new_types::{BitMask, MAX_SHARDS, ShardCount, ShardIndex},
     shard::Shard,
 };
 use crossbeam_utils::CachePadded;
@@ -47,13 +47,8 @@ where
         guards
     }
     pub fn lock_guards(&self, read: BitMask, write: BitMask) -> LockGuards<'_, K, V, L> {
-        let shard_count = self.shard_count.0 as usize;
-        let mut read_guards: Vec<Option<L::ReadGuard<'_, Shard<K, V>>>> =
-            Vec::with_capacity(shard_count);
-        read_guards.resize_with(shard_count, || None);
-        let mut write_guards: Vec<Option<L::WriteGuard<'_, Shard<K, V>>>> =
-            Vec::with_capacity(shard_count);
-        write_guards.resize_with(shard_count, || None);
+        let mut read_guards = std::array::from_fn(|_| None);
+        let mut write_guards = std::array::from_fn(|_| None);
 
         let mut bits = (read | write).0;
         while bits != 0 {
@@ -73,11 +68,11 @@ where
             write_bitmask: write,
         }
     }
-    pub fn write_guards(&self, write: BitMask) -> Vec<Option<L::WriteGuard<'_, Shard<K, V>>>> {
-        let shard_count = self.shard_count.0 as usize;
-        let mut write_guards: Vec<Option<L::WriteGuard<'_, Shard<K, V>>>> =
-            Vec::with_capacity(shard_count);
-        write_guards.resize_with(shard_count, || None);
+    pub fn write_guards(
+        &self,
+        write: BitMask,
+    ) -> [Option<L::WriteGuard<'_, Shard<K, V>>>; MAX_SHARDS] {
+        let mut write_guards = std::array::from_fn(|_| None);
 
         let mut bits = write.0;
         while bits != 0 {

@@ -29,6 +29,14 @@ pub struct ShardIndex(pub(crate) u8);
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub(crate) struct BitMask(pub u128);
 
+/// Maximum number of shards supported by a [`TxMap`](crate::TxMap).
+///
+/// Bounded by the width of [`BitMask`] (128 bits) and the largest
+/// variant of [`Shards`](crate::Shards). Lock guard storage uses
+/// fixed-size stack arrays of this length, so no heap allocation is
+/// required when locking a subset of shards during a transaction.
+pub(crate) const MAX_SHARDS: usize = 128;
+
 impl ShardIndex {
     pub(crate) fn bitmask(&self) -> BitMask {
         BitMask(1 << self.0)
