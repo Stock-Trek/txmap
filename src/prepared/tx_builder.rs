@@ -329,8 +329,7 @@ where
         // later op references the same key handle. Iterating backwards and
         // keeping the handles already seen by later ops, the final op to see
         // a key always takes it; earlier uses fall back to cloning.
-        let mut taken: std::collections::HashSet<&'static str> =
-            std::collections::HashSet::new();
+        let mut taken: std::collections::HashSet<&'static str> = std::collections::HashSet::new();
         let mut ops = self.ops;
         for op in ops.iter_mut().rev() {
             match op {
