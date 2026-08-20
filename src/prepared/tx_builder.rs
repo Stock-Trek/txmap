@@ -7,6 +7,7 @@ use crate::{
         guard::Guard, op::PreparedOp, schema::TxKeySelector, transaction::PreparedTransaction,
     },
 };
+use hashbrown::HashSet;
 use std::{
     hash::{BuildHasher, Hash},
     marker::PhantomData,
@@ -329,7 +330,7 @@ where
         // later op references the same key handle. Iterating backwards and
         // keeping the handles already seen by later ops, the final op to see
         // a key always takes it; earlier uses fall back to cloning.
-        let mut taken: std::collections::HashSet<&'static str> = std::collections::HashSet::new();
+        let mut taken: HashSet<&'static str> = HashSet::new();
         let mut ops = self.ops;
         for op in ops.iter_mut().rev() {
             match op {
@@ -352,9 +353,7 @@ where
                 }
                 _ => {}
             }
-            let mut key_ids = Vec::new();
-            op.push_key_ids(&mut key_ids);
-            taken.extend(key_ids);
+            op.insert_key_ids(&mut taken);
         }
         PreparedTransaction {
             custodian: self.custodian,
