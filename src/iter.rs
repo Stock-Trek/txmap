@@ -1,10 +1,6 @@
 use crate::{
-    custodian::Custodian,
-    lock_policies::lock_policy::LockPolicy,
-    new_types::ShardIndex,
-    result::MISSING_LOCK_GUARD_ERROR,
-    shard::Shard,
-    tx_map::TxMap,
+    custodian::Custodian, lock_policies::lock_policy::LockPolicy, new_types::ShardIndex,
+    result::MISSING_LOCK_GUARD_ERROR, shard::Shard, tx_map::TxMap,
 };
 use hashbrown::hash_table::{Drain as ShardDrain, Iter as ShardIter};
 use intmap::IntMap;
@@ -65,7 +61,9 @@ where
                 if self.shard_index >= self.custodian.shard_count.0 as usize {
                     return None;
                 }
-                let guard = self.custodian.read_guard_at(ShardIndex(self.shard_index as u8));
+                let guard = self
+                    .custodian
+                    .read_guard_at(ShardIndex(self.shard_index as u8));
                 self.remaining += guard.len();
                 // SAFETY: `hashbrown`'s `Iter` stores only raw pointers into
                 // the shard's heap-allocated buckets plus a `PhantomData`
