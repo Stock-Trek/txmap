@@ -12,10 +12,8 @@
 //! Run with: `cargo bench --bench workload`
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use hashbrown::HashMap;
-use parking_lot::{Mutex, RwLock};
 use std::{hint::black_box, thread, time::Duration};
-use txmap::prelude::*;
+use txmap::*;
 
 /// Operations executed per thread per measured iteration.
 const OPS_PER_THREAD: usize = 2_000;
@@ -180,70 +178,6 @@ fn run_txmap(map: &TxMap<u64, u64>, ops: &[Op]) {
     }
 }
 
-/// Executes a trace against a `parking_lot::RwLock<HashMap>` baseline.
-fn run_rwlock(map: &RwLock<HashMap<u64, u64>>, ops: &[Op]) {
-    for op in ops {
-        match *op {
-            Op::Get(k) => {
-                black_box(map.read().get(&k).copied());
-            }
-            Op::Insert(k, v) => {
-                black_box(map.write().insert(k, v));
-            }
-            Op::Remove(k) => {
-                black_box(map.write().remove(&k));
-            }
-            Op::Update(k) => {
-                let mut guard = map.write();
-                if let Some(v) = guard.get_mut(&k) {
-                    *v = v.wrapping_add(1);
-                }
-            }
-            Op::Transfer(a, b) => {
-                let mut guard = map.write();
-                if let Some(v) = guard.get_mut(&a) {
-                    *v = v.wrapping_add(1);
-                }
-                if let Some(v) = guard.get_mut(&b) {
-                    *v = v.wrapping_sub(1);
-                }
-            }
-        }
-    }
-}
-
-/// Executes a trace against a `parking_lot::Mutex<HashMap>` baseline.
-fn run_mutex(map: &Mutex<HashMap<u64, u64>>, ops: &[Op]) {
-    for op in ops {
-        match *op {
-            Op::Get(k) => {
-                black_box(map.lock().get(&k).copied());
-            }
-            Op::Insert(k, v) => {
-                black_box(map.lock().insert(k, v));
-            }
-            Op::Remove(k) => {
-                black_box(map.lock().remove(&k));
-            }
-            Op::Update(k) => {
-                let mut guard = map.lock();
-                if let Some(v) = guard.get_mut(&k) {
-                    *v = v.wrapping_add(1);
-                }
-            }
-            Op::Transfer(a, b) => {
-                let mut guard = map.lock();
-                if let Some(v) = guard.get_mut(&a) {
-                    *v = v.wrapping_add(1);
-                }
-                if let Some(v) = guard.get_mut(&b) {
-                    *v = v.wrapping_sub(1);
-                }
-            }
-        }
-    }
-}
-
 /// Spawns one thread per trace and joins them all.
 fn run_concurrent<M, F>(map: &M, traces: &[Vec<Op>], run: F)
 where
@@ -259,9 +193,9 @@ where
 
 fn workloads(c: &mut Criterion) {
     let mut group = c.benchmark_group("workload");
-    group.warm_up_time(Duration::from_secs(1));
-    group.measurement_time(Duration::from_secs(2));
-    group.sample_size(50);
+    group.warm_up_time(Duration::from_secs(5));
+    group.measurement_time(Duration::from_secs(10));
+    group.sample_size(100);
 
     for workload in Workload::ALL {
         for mode in KeyMode::ALL {
@@ -285,21 +219,6 @@ fn workloads(c: &mut Criterion) {
                 group.throughput(throughput());
                 group.bench_function(format!("{}txmap/threads_{}", prefix, threads), |b| {
                     b.iter(|| run_concurrent(&map, &traces, run_txmap))
-                });
-
-                // RwLock<HashMap> baseline.
-                let map =
-                    RwLock::<HashMap<u64, u64>>::new((0..key_count).map(|k| (k, 0)).collect());
-                group.throughput(throughput());
-                group.bench_function(format!("{}rwlock/threads_{}", prefix, threads), |b| {
-                    b.iter(|| run_concurrent(&map, &traces, run_rwlock))
-                });
-
-                // Mutex<HashMap> baseline.
-                let map = Mutex::<HashMap<u64, u64>>::new((0..key_count).map(|k| (k, 0)).collect());
-                group.throughput(throughput());
-                group.bench_function(format!("{}mutex/threads_{}", prefix, threads), |b| {
-                    b.iter(|| run_concurrent(&map, &traces, run_mutex))
                 });
             }
         }

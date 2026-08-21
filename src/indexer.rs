@@ -40,16 +40,16 @@ impl<S: BuildHasher> Indexer<S> {
         }
     }
 
+    /// Uses the top `shard_count.trailing_zeros()` bits of the hash.
+    ///
+    /// Hashbrown stores a 7-bit control byte/tag in the low bits of the hash
+    /// (`hash & 0x7F`). If sharding consumed those bits, all keys in the same
+    /// shard would share the same control byte, hurting SwissTable's ability to
+    /// reject non-matching entries quickly. Taking the high bits instead leaves
+    /// the control byte intact, so per-shard tables retain full tag entropy.
     pub(crate) fn shard_index(shard_count: ShardCount, hash_code: HashCode) -> ShardIndex {
-        // Select the shard from the middle bits of the hash (skipping the low
-        // 7 bits) rather than the low bits. hashbrown's per-shard table uses
-        // the low bits for the initial probe position (`h1(hash) & bucket_mask`)
-        // and the top 7 bits for the control tag (`h2(hash)`). Selecting the
-        // shard from the low bits would make every entry in a shard share
-        // identical low bits, collapsing probe positions and clustering the
-        // swiss table; middle bits keep full entropy in both the probe bits
-        // and the tag bits.
-        ShardIndex(((hash_code.0 >> 7) & (shard_count.0 as u64 - 1)) as u8)
+        let shift = 64 - shard_count.trailing_zeros();
+        ShardIndex((hash_code.0 >> shift) as u8)
     }
 
     pub(crate) fn hash<K>(&self, key: &K) -> HashCode
