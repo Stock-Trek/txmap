@@ -15,6 +15,7 @@ A concurrent transactional hash map for Rust with fine-grained user-defined lock
 - [**Guards/conditions**](#transaction-with-guards-preconditions) Declarative preconditions that must hold before a transaction runs
 - [**Fluent API**](#transaction-operations) Chain operations to build or execute transactions with a fluent interface
 - **Optional serde support** Use the `serde` feature to enable it
+- **Optional rayon support** Use the `rayon` feature for parallel iterators (`par_iter`, `par_keys`, `par_values`)
 - **Rapidhash hasher by default** The `rapidhash` feature (enabled by default) uses the [rapidhash](https://crates.io/crates/rapidhash) hasher for improved performance. Disable default features and opt out with `default-features = false` in your `Cargo.toml` to fall back to the standard library's `RandomState` (SipHash).
 
 ## License

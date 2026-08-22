@@ -672,6 +672,7 @@ dependencies = [
  "pastey",
  "rand",
  "rapidhash",
+ "rayon",
  "serde",
  "serde_json",
 ]

@@ -2,6 +2,8 @@ pub mod creators;
 pub mod data;
 pub mod types;
 
+#[cfg(feature = "rayon")]
+pub mod rayon;
 #[cfg(feature = "serde")]
 pub mod serde;
 
