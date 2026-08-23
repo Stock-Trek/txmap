@@ -1,6 +1,6 @@
 use crate::{
     hasher::DefaultBuildHasher, indexer::Indexer, lock_policies::lock_policy::LockPolicy,
-    new_types::ShardCount, prepared::tx_builder::PreparedBuilderPhase, tx_map::TxMap,
+    new_types::ShardCount, tx_map::TxMap,
 };
 use std::hash::{BuildHasher, Hash};
 
@@ -115,6 +115,11 @@ pub trait TxKeySelector<K, KEYS> {
     /// transaction (see [`key_id`](TxKeySelector::key_id)).
     fn take(&self, keys: &mut KEYS) -> K;
 }
+
+/// Phase marker: transaction is still accepting guard requirements.
+pub struct PreparedBuilderPhase;
+/// Phase marker: transaction has at least one operation and can be built.
+pub struct PreparedBuildablePhase;
 
 #[macro_export]
 macro_rules! tx_schema {

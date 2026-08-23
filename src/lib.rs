@@ -36,9 +36,8 @@ pub use lock_policies::{
     lock_policy::LockPolicy, mutex_policy::MutexPolicy, rwlock_policy::RwLockPolicy,
 };
 pub use new_types::{HashCode, ShardCount, ShardIndex};
-pub use prepared::{
-    schema::{TxKeySelector, TxKeys, TxSchema},
-    tx_builder::{PreparedBuildablePhase, PreparedBuilderPhase},
+pub use prepared::schema::{
+    PreparedBuildablePhase, PreparedBuilderPhase, TxKeySelector, TxKeys, TxSchema,
 };
 pub use result::{TryReserveError, TxResult};
 pub use shards::Shards;
