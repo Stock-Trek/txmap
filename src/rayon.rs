@@ -139,7 +139,7 @@ where
     V: 'a,
     L: LockPolicy + 'a,
 {
-    inner: ParIter<'a, K, V, L>,
+    par_iter: ParIter<'a, K, V, L>,
 }
 
 impl<'a, K, V, L> ParallelIterator for ParKeys<'a, K, V, L>
@@ -155,7 +155,7 @@ where
     where
         C: UnindexedConsumer<Self::Item>,
     {
-        self.inner.map(|(key, _)| key).drive_unindexed(consumer)
+        self.par_iter.map(|(key, _)| key).drive_unindexed(consumer)
     }
 }
 
@@ -169,7 +169,7 @@ where
     V: 'a,
     L: LockPolicy + 'a,
 {
-    inner: ParIter<'a, K, V, L>,
+    par_iter: ParIter<'a, K, V, L>,
 }
 
 impl<'a, K, V, L> ParallelIterator for ParValues<'a, K, V, L>
@@ -185,7 +185,9 @@ where
     where
         C: UnindexedConsumer<Self::Item>,
     {
-        self.inner.map(|(_, value)| value).drive_unindexed(consumer)
+        self.par_iter
+            .map(|(_, value)| value)
+            .drive_unindexed(consumer)
     }
 }
 
@@ -218,7 +220,7 @@ where
     #[must_use]
     pub fn par_keys(&self) -> ParKeys<'_, K, V, L> {
         ParKeys {
-            inner: self.par_iter(),
+            par_iter: self.par_iter(),
         }
     }
 
@@ -228,7 +230,7 @@ where
     #[must_use]
     pub fn par_values(&self) -> ParValues<'_, K, V, L> {
         ParValues {
-            inner: self.par_iter(),
+            par_iter: self.par_iter(),
         }
     }
 }
@@ -263,9 +265,8 @@ where
     type Iter = ParIter<'a, K, V, L>;
 
     fn into_par_iter(self) -> Self::Iter {
-        let map: &'a TxMap<K, V, L, S> = self;
         ParIter {
-            custodian: &map.custodian,
+            custodian: &self.custodian,
         }
     }
 }
