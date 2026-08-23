@@ -201,6 +201,37 @@ let transfer_tx = db
     );
 ```
 
+In addition to the 4 types above, `tx_schema!` also generates specialised
+prepared transaction types and an entry function that bake the schema in, so
+prepared transactions are easy to store for later use:
+
+```rust
+// 5. TransferPreparedTransaction: a specialised PreparedTransaction that only
+//    needs the map's key type as a generic parameter when stored.
+// 6. TransferPreparedTxBuilder: a specialised PreparedTxBuilder (the lock
+//    policy and hasher default to MutexPolicy / DefaultBuildHasher).
+// 7. transfer_prepared_tx: a specialised prepared_tx function that infers
+//    every type from the map, so no generic parameters need to be written.
+
+struct App<'tx> {
+    transfer: TransferPreparedTransaction<'tx, String>, // one generic parameter
+}
+
+let app = App {
+    transfer: transfer_prepared_tx(&db) // zero generic parameters
+        .modify(Transfer::from, |_name, balance, params, _state| {
+            *balance -= params.amount;
+        })
+        .modify(Transfer::to, |_name, balance, params, _state| {
+            *balance += params.amount;
+        })
+        .into_transaction(),
+};
+```
+
+The generic `PreparedTransaction` is also storable with a single schema
+generic: `PreparedTransaction<'tx, Transfer<String>>`.
+
 ### Transaction with guards (preconditions)
 
 Perhaps Alice doesn't have enough funds to make a transfer and you need to prevent a transfer if it would cause a negative balance.

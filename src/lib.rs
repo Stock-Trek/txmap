@@ -48,11 +48,11 @@ pub use tx_map_builder::TxMapBuilder;
 
 pub mod prelude {
     pub use crate::{
-        HashCode, ImmediateBuildablePhase, ImmediateBuilderPhase, ImmediateTransaction,
-        ImmediateTxBuilder, LockPolicy, MutexPolicy, PreparedBuildablePhase, PreparedBuilderPhase,
-        PreparedTransaction, PreparedTxBuilder, RwLockPolicy, ShardCount, ShardIndex, Shards,
-        TryReserveError, TxKey, TxKeySelector, TxKeys, TxMap, TxMapBuilder, TxResult, TxSchema,
-        tx_schema,
+        DefaultBuildHasher, HashCode, ImmediateBuildablePhase, ImmediateBuilderPhase,
+        ImmediateTransaction, ImmediateTxBuilder, LockPolicy, MutexPolicy, PreparedBuildablePhase,
+        PreparedBuilderPhase, PreparedTransaction, PreparedTxBuilder, RwLockPolicy, ShardCount,
+        ShardIndex, Shards, TryReserveError, TxKey, TxKeySelector, TxKeys, TxMap, TxMapBuilder,
+        TxResult, TxSchema, tx_schema,
     };
 }
 pub use pastey::paste as _paste;

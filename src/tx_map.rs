@@ -9,7 +9,7 @@ use crate::{
     new_types::ShardCount,
     new_types::ShardIndex,
     prepared::{
-        schema::{TxKeys, TxSchema},
+        schema::TxSchema,
         tx_builder::{PreparedBuilderPhase, PreparedTxBuilder},
     },
     shard_ops::ShardOps,
@@ -343,19 +343,20 @@ where
     /// `_schema` is a schema constant created via the [`tx_schema`](macro@crate::tx_schema) macro.
     /// The returned builder can be turned into a [`PreparedTransaction`](crate::prepared::transaction::PreparedTransaction)
     /// that can be executed many times with different keys/parameters.
-    pub fn prepared_tx<'tx, SCHEMA, RAW, KEYS, PARAMS, STATE>(
+    ///
+    /// The [`tx_schema`](macro@crate::tx_schema) macro also generates a specialised
+    /// `prepared_tx` function for each schema (e.g. `transfer_prepared_tx`) that
+    /// infers the schema from the map, so the schema argument is optional.
+    pub fn prepared_tx<'tx, SCHEMA>(
         &'tx self,
         _schema: &SCHEMA,
-    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuilderPhase>
+    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuilderPhase>
     where
+        SCHEMA: TxSchema<Key = K> + 'tx,
         K: 'tx,
         V: 'tx,
+        L: 'tx,
         S: 'tx,
-        SCHEMA: TxSchema<K, Keys = RAW, IndexedKeys = KEYS, Params = PARAMS, State = STATE> + 'tx,
-        RAW: TxKeys<K, KEYS, S> + 'tx,
-        KEYS: 'tx,
-        PARAMS: 'tx,
-        STATE: 'tx,
     {
         PreparedTxBuilder {
             custodian: &self.custodian,

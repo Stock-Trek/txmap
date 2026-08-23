@@ -3,11 +3,26 @@ use std::hash::BuildHasher;
 
 /// Schema trait for a prepared transaction.
 ///
-/// Associates keys, parameters, and state types with a transaction.
-/// Implemented by the [`tx_schema`] macro.
-pub trait TxSchema<K> {
+/// Associates the transaction's structural types (key, keys, params, state)
+/// with the schema type. Implemented by the [`tx_schema`] macro.
+///
+/// The map's value type, lock policy and hasher are deliberately *not* part
+/// of the schema: they are carried by the
+/// [`PreparedTransaction`](crate::prepared::transaction::PreparedTransaction)
+/// itself (with the lock policy and hasher defaulting to `MutexPolicy` and
+/// `DefaultBuildHasher`) and are inferred from the map when the transaction
+/// is built via [`TxMap::prepared_tx`](crate::tx_map::TxMap::prepared_tx).
+/// This keeps the [`tx_schema`] invocation free of any type that describes
+/// the map: only the transaction's own keys, params and state are written.
+pub trait TxSchema {
+    /// The key type of the map the transaction operates on.
+    type Key;
     /// The raw (un-indexed) keys type.
-    type Keys: TxKeys<K, Self::IndexedKeys>;
+    ///
+    /// Whether it can be hashed into [`IndexedKeys`](Self::IndexedKeys) with
+    /// a given hasher is checked when the transaction is executed, since the
+    /// hasher belongs to the map rather than the schema.
+    type Keys;
     /// The indexed keys type after hashing.
     type IndexedKeys;
     /// The parameters passed on each execution.
@@ -59,16 +74,33 @@ macro_rules! tx_schema {
             pub use [<__private $name>] :: [<$name Keys>];
             pub use [<__private $name>] :: [<$name Params>];
             pub use [<__private $name>] :: [<$name State>];
+            // Specialised prepared transaction types and entry function.
+            pub use [<__private $name>] :: [<$name PreparedTxBuilder>];
+            pub use [<__private $name>] :: [<$name PreparedTransaction>];
+            pub use [<__private $name>] :: [<$name:snake _prepared_tx>];
             #[allow(non_snake_case)]
             mod [<__private $name>] {
+                // Bring the types referenced by the macro invocation (params,
+                // state) and the crate prelude into scope of this private
+                // module.
+                #[allow(unused_imports)]
+                use super::*;
+                #[allow(unused_imports)]
+                use $crate::prelude::*;
+
                 // schema
+                //
+                // The schema is generic over the key type only; the value
+                // type, lock policy and hasher belong to the map and are
+                // carried by the prepared transaction instead.
                 pub struct $name<K> {
                     _phantom: std::marker::PhantomData<K>,
                 }
-                impl<K> $crate::prelude::TxSchema<K> for $name<K>
+                impl<K> $crate::prelude::TxSchema for $name<K>
                 where
                     K: std::hash::Hash,
                 {
+                    type Key = K;
                     type Keys =   [<$name Keys>]<K>;
                     type IndexedKeys = [<$name IndexedKeys>]<K>;
                     type Params = [<$name Params>];
@@ -137,6 +169,46 @@ macro_rules! tx_schema {
                             )*
                         }
                     }
+                }
+
+                // Specialised prepared transaction builder.
+                //
+                // The schema is baked in, so the only generics that must be
+                // written are the map's key and value types; the lock policy
+                // and hasher default to `MutexPolicy` and `DefaultBuildHasher`
+                // and the phase defaults to `PreparedBuilderPhase`.
+                pub type [<$name PreparedTxBuilder>]<
+                    'tx,
+                    K,
+                    V,
+                    L = $crate::prelude::MutexPolicy,
+                    S = $crate::prelude::DefaultBuildHasher,
+                    PHASE = $crate::prelude::PreparedBuilderPhase,
+                > = $crate::prelude::PreparedTxBuilder<'tx, $name<K>, V, L, S, PHASE>;
+
+                // Specialised prepared transaction.
+                //
+                // The schema is baked in and the map's value type, lock
+                // policy and hasher are erased, so the only generic that must
+                // be written when storing the transaction is the key type.
+                pub type [<$name PreparedTransaction>]<'tx, K> =
+                    $crate::prelude::PreparedTransaction<'tx, $name<K>>;
+
+                // Specialised `prepared_tx` entry function.
+                //
+                // Starts building a prepared transaction for this schema on
+                // the given map. Every type is inferred from the map, so no
+                // generic parameters need to be written.
+                pub fn [<$name:snake _prepared_tx>]<'tx, K, V, L, S>(
+                    map: &'tx $crate::prelude::TxMap<K, V, L, S>,
+                ) -> [<$name PreparedTxBuilder>]<'tx, K, V, L, S>
+                where
+                    K: std::hash::Hash + 'tx,
+                    V: 'tx,
+                    L: $crate::prelude::LockPolicy + 'tx,
+                    S: std::hash::BuildHasher + 'tx,
+                {
+                    map.prepared_tx(&$name::SCHEMA)
                 }
             }
         }
