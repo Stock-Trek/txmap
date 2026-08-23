@@ -6,7 +6,7 @@ use crate::{
 /// A prepared transaction is easy to store: the public type only carries the
 /// schema generic (and the lifetime), not the 7 concrete generics.
 struct App<'tx> {
-    increment: PreparedTransaction<'tx, GetOne<String>>,
+    increment: PreparedTransaction<'tx, GetOne<String>, u64>,
 }
 
 impl<'tx> App<'tx> {
@@ -253,4 +253,95 @@ fn param_transaction_basic() {
             state: GetOneParamU64State { result: Some(80) }
         }
     );
+}
+
+/// A simple `BuildHasher` used to check that the schema's hasher generic is
+/// inferred from the map rather than being fixed by the `tx_schema!` macro.
+#[derive(Clone, Default)]
+struct TestHasherBuilder;
+
+impl std::hash::BuildHasher for TestHasherBuilder {
+    type Hasher = std::collections::hash_map::DefaultHasher;
+
+    fn build_hasher(&self) -> Self::Hasher {
+        std::collections::hash_map::DefaultHasher::new()
+    }
+}
+
+#[test]
+fn value_inferred_from_map() {
+    // The schema macro does not mention the value type; it is inferred from
+    // the map the transaction is built on.
+    let map = empty_map();
+    map.insert(ALICE.into(), 0);
+    let tx = map
+        .prepared_tx(&GetOne::SCHEMA)
+        .modify(GetOne::key, |_k, v, _p, _s| *v = 7)
+        .into_transaction();
+    assert_eq!(
+        tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
+        TxResult::Completed {
+            state: GetOneState { result: None }
+        }
+    );
+    assert_eq!(map.get_with(&ALICE.into(), |v| *v), Some(7));
+}
+
+#[test]
+fn lock_policy_inferred_from_map() {
+    // The same schema works on a map with a different lock policy; the lock
+    // policy generic is inferred from the map.
+    let map: TxMap<String, u64, RwLockPolicy> = TxMapBuilder::default()
+        .with_lock_policy::<RwLockPolicy>()
+        .with_shards(Shards::_8)
+        .build();
+    let tx = map
+        .prepared_tx(&GetOne::SCHEMA)
+        .modify(GetOne::key, |_k, v, _p, _s| *v += 1)
+        .into_transaction();
+    map.insert(ALICE.into(), 1);
+    let _ = tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {});
+    assert_eq!(map.get_with(&ALICE.into(), |v| *v), Some(2));
+}
+
+#[test]
+fn hasher_inferred_from_map() {
+    // The same schema works on a map with a custom hasher; the hasher
+    // generic is inferred from the map.
+    let map: TxMap<String, u64, MutexPolicy, TestHasherBuilder> = TxMapBuilder::default()
+        .with_hasher(TestHasherBuilder)
+        .with_shards(Shards::_8)
+        .build();
+    let tx = map
+        .prepared_tx(&GetOne::SCHEMA)
+        .modify(GetOne::key, |_k, v, _p, _s| *v += 1)
+        .into_transaction();
+    map.insert(ALICE.into(), 10);
+    let _ = tx.execute(GetOneKeys { key: ALICE.into() }, GetOneParams {});
+    assert_eq!(map.get_with(&ALICE.into(), |v| *v), Some(11));
+}
+
+#[test]
+fn fully_specified_schema_is_storable() {
+    // The value, lock policy and hasher can also be written explicitly when
+    // storing the transaction.
+    struct App<'tx> {
+        tx: PreparedTransaction<'tx, GetOne<String>, u64, RwLockPolicy, TestHasherBuilder>,
+    }
+    let map: TxMap<String, u64, RwLockPolicy, TestHasherBuilder> = TxMapBuilder::default()
+        .with_lock_policy::<RwLockPolicy>()
+        .with_hasher(TestHasherBuilder)
+        .with_shards(Shards::_8)
+        .build();
+    let app = App {
+        tx: map
+            .prepared_tx(&GetOne::SCHEMA)
+            .modify(GetOne::key, |_k, v, _p, _s| *v += 1)
+            .into_transaction(),
+    };
+    map.insert(ALICE.into(), 5);
+    let _ = app
+        .tx
+        .execute(GetOneKeys { key: ALICE.into() }, GetOneParams {});
+    assert_eq!(map.get_with(&ALICE.into(), |v| *v), Some(6));
 }

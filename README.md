@@ -115,6 +115,11 @@ use txmap::prelude::*;
 // 2. TransferKeys: Used to pass in the actual keys for each execution
 // 3. TransferParams: Used to pass in the real parameters for each execution
 // 4. TransferState: Used by the transaction to store state and is returned as part of the final result
+//
+// The schema only describes the transaction's own keys, params and state.
+// The map's key type is the schema's generic parameter and the map's value
+// type, lock policy and hasher are carried by the built transaction — none
+// of them need to be written here, they are inferred from the map.
 
 tx_schema! {
     Transfer,               // transaction name
@@ -128,7 +133,6 @@ tx_schema! {
         total_received: u64,
         commission_paid: u64,
     },
-    value: u64,             // the value type of the map the transaction operates on
 }
 
 let db: TxMap<String, u64> = TxMap::new();

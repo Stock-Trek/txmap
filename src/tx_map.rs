@@ -344,18 +344,19 @@ where
     /// The returned builder can be turned into a [`PreparedTransaction`](crate::prepared::transaction::PreparedTransaction)
     /// that can be executed many times with different keys/parameters.
     ///
-    /// The schema's associated key, value, lock policy and hasher types must
-    /// match this map, so the transaction plan can be stored with only the
-    /// schema as a generic parameter.
+    /// The schema's key type must match this map's key type. The map's value
+    /// type, lock policy and hasher are carried by the built transaction, so
+    /// they are not written in the [`tx_schema`](macro@crate::tx_schema)
+    /// invocation.
     pub fn prepared_tx<'tx, SCHEMA>(
         &'tx self,
         _schema: &SCHEMA,
-    ) -> PreparedTxBuilder<'tx, SCHEMA, PreparedBuilderPhase>
+    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuilderPhase>
     where
         K: 'tx,
         V: 'tx,
         S: 'tx,
-        SCHEMA: TxSchema<Key = K, Value = V, LockPolicy = L, Hasher = S> + 'tx,
+        SCHEMA: TxSchema<Key = K> + 'tx,
         SCHEMA::IndexedKeys: 'tx,
         SCHEMA::Params: 'tx,
         SCHEMA::State: 'tx,

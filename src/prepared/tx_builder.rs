@@ -1,14 +1,19 @@
 use crate::{
     custodian::Custodian,
+    hasher::DefaultBuildHasher,
     indexer::Indexer,
     key::TxKey,
+    lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
     prepared::{
         guard::Guard, op::PreparedOp, schema::TxKeySelector, schema::TxSchema,
         transaction::PreparedTransaction,
     },
 };
 use hashbrown::HashSet;
-use std::{hash::Hash, marker::PhantomData};
+use std::{
+    hash::{BuildHasher, Hash},
+    marker::PhantomData,
+};
 
 /// Phase marker: transaction is still accepting guard requirements.
 pub struct PreparedBuilderPhase;
@@ -23,50 +28,47 @@ pub struct PreparedBuildablePhase;
 /// [`into_transaction`](PreparedTxBuilder::into_transaction) to
 /// obtain a [`PreparedTransaction`] that can be executed repeatedly.
 ///
-/// The only generic parameter is the transaction's [`TxSchema`]; all other
-/// types (key, value, keys, params, state, lock policy, hasher) are
+/// The value type, lock policy and hasher are inferred from the map the
+/// builder was created from; the keys, params and state types are
 /// associated types of the schema.
-pub struct PreparedTxBuilder<'tx, SCHEMA, PHASE = PreparedBuilderPhase>
-where
+pub struct PreparedTxBuilder<
+    'tx,
+    SCHEMA,
+    V,
+    L = MutexPolicy,
+    S = DefaultBuildHasher,
+    PHASE = PreparedBuilderPhase,
+> where
     SCHEMA: TxSchema + 'tx,
+    V: 'tx,
+    L: LockPolicy,
+    S: BuildHasher,
 {
-    pub(crate) custodian: &'tx Custodian<SCHEMA::Key, SCHEMA::Value, SCHEMA::LockPolicy>,
-    pub(crate) indexer: &'tx Indexer<SCHEMA::Hasher>,
+    pub(crate) custodian: &'tx Custodian<SCHEMA::Key, V, L>,
+    pub(crate) indexer: &'tx Indexer<S>,
     #[allow(clippy::type_complexity)]
-    pub(crate) guards: Vec<
-        Guard<'tx, SCHEMA::Key, SCHEMA::Value, SCHEMA::IndexedKeys, SCHEMA::Params, SCHEMA::State>,
-    >,
+    pub(crate) guards:
+        Vec<Guard<'tx, SCHEMA::Key, V, SCHEMA::IndexedKeys, SCHEMA::Params, SCHEMA::State>>,
     #[allow(clippy::type_complexity)]
-    pub(crate) ops: Vec<
-        PreparedOp<
-            'tx,
-            SCHEMA::Key,
-            SCHEMA::Value,
-            SCHEMA::IndexedKeys,
-            SCHEMA::Params,
-            SCHEMA::State,
-        >,
-    >,
+    pub(crate) ops:
+        Vec<PreparedOp<'tx, SCHEMA::Key, V, SCHEMA::IndexedKeys, SCHEMA::Params, SCHEMA::State>>,
     pub(crate) _phase: PhantomData<PHASE>,
 }
 
-impl<'tx, SCHEMA> PreparedTxBuilder<'tx, SCHEMA, PreparedBuilderPhase>
+impl<'tx, SCHEMA, V, L, S> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuilderPhase>
 where
     SCHEMA: TxSchema + 'tx,
+    V: 'tx,
+    L: LockPolicy,
+    S: BuildHasher,
 {
     /// Adds a guard precondition using a key selector.
     pub fn require(
         mut self,
         name: impl AsRef<str>,
         key_selector: impl TxKeySelector<TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-        condition: impl Fn(
-            &SCHEMA::Key,
-            Option<&SCHEMA::Value>,
-            &SCHEMA::Params,
-            &mut SCHEMA::State,
-        ) -> bool
-        + 'tx,
-    ) -> PreparedTxBuilder<'tx, SCHEMA, PreparedBuilderPhase> {
+        condition: impl Fn(&SCHEMA::Key, Option<&V>, &SCHEMA::Params, &mut SCHEMA::State) -> bool + 'tx,
+    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuilderPhase> {
         let guard = Guard {
             name: name.as_ref().into(),
             key_selector: Box::new(key_selector),
@@ -84,16 +86,19 @@ where
     }
 }
 
-impl<'tx, SCHEMA, PHASE> PreparedTxBuilder<'tx, SCHEMA, PHASE>
+impl<'tx, SCHEMA, V, L, S, PHASE> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PHASE>
 where
     SCHEMA: TxSchema + 'tx,
+    V: 'tx,
+    L: LockPolicy,
+    S: BuildHasher,
 {
     /// Reads a value and passes it (or `None`) to the callback.
     pub fn get(
         mut self,
         key_selector: impl TxKeySelector<TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-        get: impl Fn(&SCHEMA::Key, Option<&SCHEMA::Value>, &SCHEMA::Params, &mut SCHEMA::State) + 'tx,
-    ) -> PreparedTxBuilder<'tx, SCHEMA, PreparedBuildablePhase> {
+        get: impl Fn(&SCHEMA::Key, Option<&V>, &SCHEMA::Params, &mut SCHEMA::State) + 'tx,
+    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuildablePhase> {
         self.ops.push(PreparedOp::Get {
             key_selector: Box::new(key_selector),
             get: Box::new(get),
@@ -116,11 +121,11 @@ where
     pub fn get_or_insert(
         mut self,
         key_selector: impl TxKeySelector<TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-        value: SCHEMA::Value,
-        get: impl Fn(&SCHEMA::Key, &SCHEMA::Value, &SCHEMA::Params, &mut SCHEMA::State) + 'tx,
-    ) -> PreparedTxBuilder<'tx, SCHEMA, PreparedBuildablePhase>
+        value: V,
+        get: impl Fn(&SCHEMA::Key, &V, &SCHEMA::Params, &mut SCHEMA::State) + 'tx,
+    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuildablePhase>
     where
-        SCHEMA::Value: Clone,
+        V: Clone,
     {
         self.ops.push(PreparedOp::GetOrInsertWith {
             key_selector: Box::new(key_selector),
@@ -146,10 +151,9 @@ where
     pub fn get_or_insert_with(
         mut self,
         key_selector: impl TxKeySelector<TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-        value_generator: impl Fn(&SCHEMA::Key, &SCHEMA::Params, &mut SCHEMA::State) -> SCHEMA::Value
-        + 'tx,
-        get: impl Fn(&SCHEMA::Key, &SCHEMA::Value, &SCHEMA::Params, &mut SCHEMA::State) + 'tx,
-    ) -> PreparedTxBuilder<'tx, SCHEMA, PreparedBuildablePhase> {
+        value_generator: impl Fn(&SCHEMA::Key, &SCHEMA::Params, &mut SCHEMA::State) -> V + 'tx,
+        get: impl Fn(&SCHEMA::Key, &V, &SCHEMA::Params, &mut SCHEMA::State) + 'tx,
+    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuildablePhase> {
         self.ops.push(PreparedOp::GetOrInsertWith {
             key_selector: Box::new(key_selector),
             value_generator: Box::new(value_generator),
@@ -168,9 +172,8 @@ where
     pub fn insert_with(
         mut self,
         key_selector: impl TxKeySelector<TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-        value_generator: impl Fn(&SCHEMA::Key, &SCHEMA::Params, &mut SCHEMA::State) -> SCHEMA::Value
-        + 'tx,
-    ) -> PreparedTxBuilder<'tx, SCHEMA, PreparedBuildablePhase> {
+        value_generator: impl Fn(&SCHEMA::Key, &SCHEMA::Params, &mut SCHEMA::State) -> V + 'tx,
+    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuildablePhase> {
         self.ops.push(PreparedOp::InsertWith {
             key_selector: Box::new(key_selector),
             value_generator: Box::new(value_generator),
@@ -188,9 +191,8 @@ where
     pub fn insert_with_if_absent(
         mut self,
         key_selector: impl TxKeySelector<TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-        value_generator: impl Fn(&SCHEMA::Key, &SCHEMA::Params, &mut SCHEMA::State) -> SCHEMA::Value
-        + 'tx,
-    ) -> PreparedTxBuilder<'tx, SCHEMA, PreparedBuildablePhase> {
+        value_generator: impl Fn(&SCHEMA::Key, &SCHEMA::Params, &mut SCHEMA::State) -> V + 'tx,
+    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuildablePhase> {
         self.ops.push(PreparedOp::InsertWithIfAbsent {
             key_selector: Box::new(key_selector),
             value_generator: Box::new(value_generator),
@@ -208,8 +210,8 @@ where
     pub fn modify(
         mut self,
         key_selector: impl TxKeySelector<TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-        mutate: impl Fn(&SCHEMA::Key, &mut SCHEMA::Value, &SCHEMA::Params, &mut SCHEMA::State) + 'tx,
-    ) -> PreparedTxBuilder<'tx, SCHEMA, PreparedBuildablePhase> {
+        mutate: impl Fn(&SCHEMA::Key, &mut V, &SCHEMA::Params, &mut SCHEMA::State) + 'tx,
+    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuildablePhase> {
         self.ops.push(PreparedOp::Modify {
             key_selector: Box::new(key_selector),
             mutate: Box::new(mutate),
@@ -227,7 +229,7 @@ where
         mut self,
         key_selector_from: impl TxKeySelector<TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
         key_selector_to: impl TxKeySelector<TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-    ) -> PreparedTxBuilder<'tx, SCHEMA, PreparedBuildablePhase> {
+    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuildablePhase> {
         self.ops.push(PreparedOp::MoveValue {
             key_selector_from: Box::new(key_selector_from),
             key_selector_to: Box::new(key_selector_to),
@@ -244,7 +246,7 @@ where
     pub fn remove(
         mut self,
         key_selector: impl TxKeySelector<TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-    ) -> PreparedTxBuilder<'tx, SCHEMA, PreparedBuildablePhase> {
+    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuildablePhase> {
         self.ops.push(PreparedOp::Remove {
             key_selector: Box::new(key_selector),
         });
@@ -260,9 +262,8 @@ where
     pub fn remove_if(
         mut self,
         key_selector: impl TxKeySelector<TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-        condition: impl Fn(&SCHEMA::Key, &SCHEMA::Value, &SCHEMA::Params, &mut SCHEMA::State) -> bool
-        + 'tx,
-    ) -> PreparedTxBuilder<'tx, SCHEMA, PreparedBuildablePhase> {
+        condition: impl Fn(&SCHEMA::Key, &V, &SCHEMA::Params, &mut SCHEMA::State) -> bool + 'tx,
+    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuildablePhase> {
         self.ops.push(PreparedOp::RemoveIf {
             key_selector: Box::new(key_selector),
             condition: Box::new(condition),
@@ -280,7 +281,7 @@ where
         mut self,
         key_selector_a: impl TxKeySelector<TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
         key_selector_b: impl TxKeySelector<TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-    ) -> PreparedTxBuilder<'tx, SCHEMA, PreparedBuildablePhase> {
+    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuildablePhase> {
         self.ops.push(PreparedOp::SwapValue {
             key_selector_a: Box::new(key_selector_a),
             key_selector_b: Box::new(key_selector_b),
@@ -297,14 +298,9 @@ where
     pub fn update(
         mut self,
         key_selector: impl TxKeySelector<TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-        transform: impl Fn(
-            &SCHEMA::Key,
-            Option<&SCHEMA::Value>,
-            &SCHEMA::Params,
-            &mut SCHEMA::State,
-        ) -> Option<SCHEMA::Value>
+        transform: impl Fn(&SCHEMA::Key, Option<&V>, &SCHEMA::Params, &mut SCHEMA::State) -> Option<V>
         + 'tx,
-    ) -> PreparedTxBuilder<'tx, SCHEMA, PreparedBuildablePhase> {
+    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuildablePhase> {
         self.ops.push(PreparedOp::Update {
             key_selector: Box::new(key_selector),
             transform: Box::new(transform),
@@ -320,19 +316,21 @@ where
     }
 }
 
-impl<'tx, SCHEMA> PreparedTxBuilder<'tx, SCHEMA, PreparedBuildablePhase>
+impl<'tx, SCHEMA, V, L, S> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuildablePhase>
 where
     SCHEMA: TxSchema + 'tx,
+    V: 'tx,
+    L: LockPolicy,
+    S: BuildHasher,
     SCHEMA::Key: Clone + Hash + Eq + 'tx,
 {
     #[must_use]
     /// Consumes the builder and returns a [`PreparedTransaction`].
     ///
-    /// The transaction is erased to a single [`TxSchema`] generic, so all
-    /// other types (value, lock policy, hasher, keys, params, state) are
-    /// associated types of the schema and do not appear in the returned
-    /// type.
-    pub fn into_transaction(self) -> PreparedTransaction<'tx, SCHEMA> {
+    /// The keys, params and state types are associated types of the schema;
+    /// the value type, lock policy and hasher are carried by the transaction
+    /// and are inferred from the map the builder was created from.
+    pub fn into_transaction(self) -> PreparedTransaction<'tx, SCHEMA, V, L, S> {
         // Ops apply in order, so a consuming op may move its key out of the
         // per-execution keys container instead of cloning it only when no
         // later op references the same key handle. Iterating backwards and
