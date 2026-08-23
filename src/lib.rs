@@ -38,8 +38,7 @@ pub use lock_policies::{
 pub use new_types::{HashCode, ShardCount, ShardIndex};
 pub use prepared::{
     schema::{TxKeySelector, TxKeys, TxSchema},
-    transaction::PreparedTransaction,
-    tx_builder::{PreparedBuildablePhase, PreparedBuilderPhase, PreparedTxBuilder},
+    tx_builder::{PreparedBuildablePhase, PreparedBuilderPhase},
 };
 pub use result::{TryReserveError, TxResult};
 pub use shards::Shards;
@@ -50,9 +49,8 @@ pub mod prelude {
     pub use crate::{
         DefaultBuildHasher, HashCode, ImmediateBuildablePhase, ImmediateBuilderPhase,
         ImmediateTransaction, ImmediateTxBuilder, LockPolicy, MutexPolicy, PreparedBuildablePhase,
-        PreparedBuilderPhase, PreparedTransaction, PreparedTxBuilder, RwLockPolicy, ShardCount,
-        ShardIndex, Shards, TryReserveError, TxKey, TxKeySelector, TxKeys, TxMap, TxMapBuilder,
-        TxResult, TxSchema, tx_schema,
+        PreparedBuilderPhase, RwLockPolicy, ShardCount, ShardIndex, Shards, TryReserveError, TxKey,
+        TxKeySelector, TxKeys, TxMap, TxMapBuilder, TxResult, TxSchema, tx_schema,
     };
 }
 pub use pastey::paste as _paste;
