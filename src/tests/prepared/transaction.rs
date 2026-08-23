@@ -3,6 +3,44 @@ use crate::{
     tests::{creators::*, data::*, types::*},
 };
 
+/// A prepared transaction is easy to store: the public type only carries the
+/// schema generic (and the lifetime), not the 7 concrete generics.
+struct App<'tx> {
+    increment: PreparedTransaction<'tx, GetOne<String>>,
+}
+
+impl<'tx> App<'tx> {
+    fn new(map: &'tx TxMap<String, u64>) -> Self {
+        let increment = map
+            .prepared_tx(&GetOne::SCHEMA)
+            .modify(GetOne::key, |_k, v, _p, _s| *v += 1)
+            .into_transaction();
+        App { increment }
+    }
+}
+
+#[test]
+fn prepared_transaction_is_storable() {
+    let map = empty_map();
+    map.insert(ALICE.into(), 40);
+    let app = App::new(&map);
+    assert_eq!(
+        app.increment
+            .execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
+        TxResult::Completed {
+            state: GetOneState { result: None }
+        }
+    );
+    assert_eq!(
+        app.increment
+            .execute(GetOneKeys { key: ALICE.into() }, GetOneParams {}),
+        TxResult::Completed {
+            state: GetOneState { result: None }
+        }
+    );
+    assert_eq!(map.get_with(&ALICE.into(), |v| *v), Some(42));
+}
+
 #[test]
 fn empty_key_works() {
     let map = empty_map();

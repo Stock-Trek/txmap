@@ -3,11 +3,13 @@ use std::hash::BuildHasher;
 
 /// Schema trait for a prepared transaction.
 ///
-/// Associates keys, parameters, and state types with a transaction.
-/// Implemented by the [`tx_schema`] macro.
-pub trait TxSchema<K> {
+/// Associates the key type, keys, parameters, and state types with a
+/// transaction. Implemented by the [`tx_schema`] macro.
+pub trait TxSchema {
+    /// The key type of the map the transaction operates on.
+    type Key;
     /// The raw (un-indexed) keys type.
-    type Keys: TxKeys<K, Self::IndexedKeys>;
+    type Keys: TxKeys<Self::Key, Self::IndexedKeys>;
     /// The indexed keys type after hashing.
     type IndexedKeys;
     /// The parameters passed on each execution.
@@ -65,10 +67,11 @@ macro_rules! tx_schema {
                 pub struct $name<K> {
                     _phantom: std::marker::PhantomData<K>,
                 }
-                impl<K> $crate::prelude::TxSchema<K> for $name<K>
+                impl<K> $crate::prelude::TxSchema for $name<K>
                 where
                     K: std::hash::Hash,
                 {
+                    type Key = K;
                     type Keys =   [<$name Keys>]<K>;
                     type IndexedKeys = [<$name IndexedKeys>]<K>;
                     type Params = [<$name Params>];

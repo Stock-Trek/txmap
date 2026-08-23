@@ -343,19 +343,19 @@ where
     /// `_schema` is a schema constant created via the [`tx_schema`](macro@crate::tx_schema) macro.
     /// The returned builder can be turned into a [`PreparedTransaction`](crate::prepared::transaction::PreparedTransaction)
     /// that can be executed many times with different keys/parameters.
-    pub fn prepared_tx<'tx, SCHEMA, RAW, KEYS, PARAMS, STATE>(
+    pub fn prepared_tx<'tx, SCHEMA>(
         &'tx self,
         _schema: &SCHEMA,
-    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuilderPhase>
+    ) -> PreparedTxBuilder<'tx, K, V, L, S, SCHEMA, PreparedBuilderPhase>
     where
         K: 'tx,
         V: 'tx,
         S: 'tx,
-        SCHEMA: TxSchema<K, Keys = RAW, IndexedKeys = KEYS, Params = PARAMS, State = STATE> + 'tx,
-        RAW: TxKeys<K, KEYS, S> + 'tx,
-        KEYS: 'tx,
-        PARAMS: 'tx,
-        STATE: 'tx,
+        SCHEMA: TxSchema<Key = K> + 'tx,
+        SCHEMA::Keys: TxKeys<SCHEMA::Key, SCHEMA::IndexedKeys, S> + 'tx,
+        SCHEMA::IndexedKeys: 'tx,
+        SCHEMA::Params: 'tx,
+        SCHEMA::State: 'tx,
     {
         PreparedTxBuilder {
             custodian: &self.custodian,
