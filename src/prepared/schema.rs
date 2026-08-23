@@ -152,9 +152,12 @@ macro_rules! tx_schema {
             #[allow(non_snake_case)]
             mod [<__private $name>] {
                 // Bring the types referenced by the macro invocation (value,
-                // params, state) into scope of this private module.
+                // params, state, lock_policy, hasher) into scope of this
+                // private module.
                 #[allow(unused_imports)]
                 use super::*;
+                #[allow(unused_imports)]
+                use $crate::prelude::*;
 
                 // schema
                 pub struct $name<K> {

@@ -214,3 +214,44 @@ tx_schema! {
     },
     value: u64,
 }
+
+// Exercises the optional `lock_policy`/`hasher` clauses of `tx_schema!`.
+tx_schema! {
+    RwLockGetOne,
+    keys: [
+        key,
+    ],
+    params: {
+    },
+    state: {
+    },
+    value: u64,
+    lock_policy: RwLockPolicy,
+}
+
+tx_schema! {
+    HashedGetOne,
+    keys: [
+        key,
+    ],
+    params: {
+    },
+    state: {
+    },
+    value: u64,
+    hasher: crate::hasher::DefaultBuildHasher,
+}
+
+tx_schema! {
+    RwLockHashedGetOne,
+    keys: [
+        key,
+    ],
+    params: {
+    },
+    state: {
+    },
+    value: u64,
+    lock_policy: RwLockPolicy,
+    hasher: crate::hasher::DefaultBuildHasher,
+}
