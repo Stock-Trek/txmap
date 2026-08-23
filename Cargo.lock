@@ -663,7 +663,7 @@ dependencies = [
 
 [[package]]
 name = "txmap"
-version = "3.5.1"
+version = "3.6.0"
 dependencies = [
  "criterion",
  "crossbeam-utils",
@@ -672,6 +672,7 @@ dependencies = [
  "pastey",
  "rand",
  "rapidhash",
+ "rayon",
  "serde",
  "serde_json",
 ]

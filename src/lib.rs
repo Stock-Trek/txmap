@@ -12,6 +12,8 @@ pub mod lock_policies;
 pub mod multi_shard_ops;
 pub mod new_types;
 pub mod prepared;
+#[cfg(feature = "rayon")]
+pub mod rayon;
 pub mod result;
 #[cfg(feature = "serde")]
 pub mod serde;
