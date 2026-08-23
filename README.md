@@ -202,23 +202,24 @@ let transfer_tx = db
 ```
 
 In addition to the 4 types above, `tx_schema!` also generates specialised
-prepared transaction types and an entry function that bake the schema in, so
-prepared transactions are easy to store for later use:
+prepared transaction types and a `prepared_tx` method on the schema type that
+bake the schema in, so prepared transactions are easy to store for later use:
 
 ```rust
-// 5. TransferPreparedTransaction: a specialised PreparedTransaction that only
-//    needs the map's key type as a generic parameter when stored.
+// 5. TransferPreparedTransaction: a specialised PreparedTransaction that
+//    bakes the schema in (the lock policy and hasher default to
+//    MutexPolicy / DefaultBuildHasher).
 // 6. TransferPreparedTxBuilder: a specialised PreparedTxBuilder (the lock
 //    policy and hasher default to MutexPolicy / DefaultBuildHasher).
-// 7. transfer_prepared_tx: a specialised prepared_tx function that infers
+// 7. Transfer::prepared_tx: a specialised prepared_tx method that infers
 //    every type from the map, so no generic parameters need to be written.
 
 struct App<'tx> {
-    transfer: TransferPreparedTransaction<'tx, String>, // one generic parameter
+    transfer: TransferPreparedTransaction<'tx, String, u64>,
 }
 
 let app = App {
-    transfer: transfer_prepared_tx(&db) // zero generic parameters
+    transfer: Transfer::prepared_tx(&db) // zero generic parameters
         .modify(Transfer::from, |_name, balance, params, _state| {
             *balance -= params.amount;
         })
@@ -230,7 +231,7 @@ let app = App {
 ```
 
 The generic `PreparedTransaction` is also storable with a single schema
-generic: `PreparedTransaction<'tx, Transfer<String>>`.
+generic: `PreparedTransaction<'tx, Transfer<String, u64>>`.
 
 ### Transaction with guards (preconditions)
 

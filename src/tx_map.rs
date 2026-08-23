@@ -345,14 +345,14 @@ where
     /// that can be executed many times with different keys/parameters.
     ///
     /// The [`tx_schema`](macro@crate::tx_schema) macro also generates a specialised
-    /// `prepared_tx` function for each schema (e.g. `transfer_prepared_tx`) that
+    /// `prepared_tx` method on the schema type (e.g. `Transfer::prepared_tx`) that
     /// infers the schema from the map, so the schema argument is optional.
     pub fn prepared_tx<'tx, SCHEMA>(
         &'tx self,
         _schema: &SCHEMA,
-    ) -> PreparedTxBuilder<'tx, SCHEMA, V, L, S, PreparedBuilderPhase>
+    ) -> PreparedTxBuilder<'tx, SCHEMA, L, S, PreparedBuilderPhase>
     where
-        SCHEMA: TxSchema<Key = K> + 'tx,
+        SCHEMA: TxSchema<Key = K, Value = V> + 'tx,
         K: 'tx,
         V: 'tx,
         L: 'tx,

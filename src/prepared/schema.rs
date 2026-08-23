@@ -17,6 +17,13 @@ use std::hash::BuildHasher;
 pub trait TxSchema {
     /// The key type of the map the transaction operates on.
     type Key;
+    /// The value type of the map the transaction operates on.
+    ///
+    /// Carried by the schema so a [`PreparedTransaction`](crate::prepared::transaction::PreparedTransaction)
+    /// is generic over the schema alone: storing one only requires writing
+    /// the schema with its key and value types, e.g.
+    /// `PreparedTransaction<'tx, Transfer<String, u64>>`.
+    type Value;
     /// The raw (un-indexed) keys type.
     ///
     /// Whether it can be hashed into [`IndexedKeys`](Self::IndexedKeys) with
@@ -74,10 +81,9 @@ macro_rules! tx_schema {
             pub use [<__private $name>] :: [<$name Keys>];
             pub use [<__private $name>] :: [<$name Params>];
             pub use [<__private $name>] :: [<$name State>];
-            // Specialised prepared transaction types and entry function.
+            // Specialised prepared transaction types and entry method.
             pub use [<__private $name>] :: [<$name PreparedTxBuilder>];
             pub use [<__private $name>] :: [<$name PreparedTransaction>];
-            pub use [<__private $name>] :: [<$name:snake _prepared_tx>];
             #[allow(non_snake_case)]
             mod [<__private $name>] {
                 // Bring the types referenced by the macro invocation (params,
@@ -90,26 +96,35 @@ macro_rules! tx_schema {
 
                 // schema
                 //
-                // The schema is generic over the key type only; the value
-                // type, lock policy and hasher belong to the map and are
-                // carried by the prepared transaction instead.
-                pub struct $name<K> {
-                    _phantom: std::marker::PhantomData<K>,
+                // The schema is generic over the map's key and value types.
+                // The value type is part of the schema so the specialised
+                // `PreparedTransaction` is generic over the schema alone and
+                // can be stored with a single generic parameter, e.g.
+                // `PreparedTransaction<'tx, Transfer<String, u64>>`.
+                pub struct $name<K, V> {
+                    _phantom: std::marker::PhantomData<(K, V)>,
                 }
-                impl<K> $crate::prelude::TxSchema for $name<K>
+                impl<K, V> $crate::prelude::TxSchema for $name<K, V>
                 where
                     K: std::hash::Hash,
                 {
                     type Key = K;
+                    type Value = V;
                     type Keys =   [<$name Keys>]<K>;
                     type IndexedKeys = [<$name IndexedKeys>]<K>;
                     type Params = [<$name Params>];
                     type State =  [<$name State>];
                 }
-                impl<K> $name<K> {
-                    pub const SCHEMA: $name<K> = $name {
+                impl<K, V> $name<K, V> {
+                    pub const SCHEMA: $name<K, V> = $name {
                         _phantom: std::marker::PhantomData,
                     };
+                }
+                // Key handles are value-type independent, so they are defined
+                // on the `()` value instantiation of the schema. Writing
+                // `Transfer::from` therefore never requires naming the map's
+                // value type.
+                impl<K> $name<K, ()> {
                     $(
                         #[allow(non_upper_case_globals)]
                         pub const $key: [<$name _ $key>]<K> = [<$name _ $key>] {
@@ -184,31 +199,41 @@ macro_rules! tx_schema {
                     L = $crate::prelude::MutexPolicy,
                     S = $crate::prelude::DefaultBuildHasher,
                     PHASE = $crate::prelude::PreparedBuilderPhase,
-                > = $crate::prelude::PreparedTxBuilder<'tx, $name<K>, V, L, S, PHASE>;
+                > = $crate::prelude::PreparedTxBuilder<'tx, $name<K, V>, L, S, PHASE>;
 
                 // Specialised prepared transaction.
                 //
-                // The schema is baked in and the map's value type, lock
-                // policy and hasher are erased, so the only generic that must
-                // be written when storing the transaction is the key type.
-                pub type [<$name PreparedTransaction>]<'tx, K> =
-                    $crate::prelude::PreparedTransaction<'tx, $name<K>>;
+                // The schema is baked in, so the map's key and value types
+                // must be written when the transaction is stored; the lock
+                // policy and hasher default to `MutexPolicy` and
+                // `DefaultBuildHasher`. The generic `PreparedTransaction` is
+                // storable with a single schema generic instead:
+                // `PreparedTransaction<'tx, Transfer<String, u64>>`.
+                pub type [<$name PreparedTransaction>]<
+                    'tx,
+                    K,
+                    V,
+                    L = $crate::prelude::MutexPolicy,
+                    S = $crate::prelude::DefaultBuildHasher,
+                > = $crate::prelude::PreparedTransaction<'tx, $name<K, V>, L, S>;
 
-                // Specialised `prepared_tx` entry function.
+                // Specialised `prepared_tx` entry method.
                 //
                 // Starts building a prepared transaction for this schema on
                 // the given map. Every type is inferred from the map, so no
                 // generic parameters need to be written.
-                pub fn [<$name:snake _prepared_tx>]<'tx, K, V, L, S>(
-                    map: &'tx $crate::prelude::TxMap<K, V, L, S>,
-                ) -> [<$name PreparedTxBuilder>]<'tx, K, V, L, S>
-                where
-                    K: std::hash::Hash + 'tx,
-                    V: 'tx,
-                    L: $crate::prelude::LockPolicy + 'tx,
-                    S: std::hash::BuildHasher + 'tx,
-                {
-                    map.prepared_tx(&$name::SCHEMA)
+                impl<K, V> $name<K, V> {
+                    pub fn prepared_tx<'tx, L, S>(
+                        map: &'tx $crate::prelude::TxMap<K, V, L, S>,
+                    ) -> [<$name PreparedTxBuilder>]<'tx, K, V, L, S>
+                    where
+                        K: std::hash::Hash + 'tx,
+                        V: 'tx,
+                        L: $crate::prelude::LockPolicy + 'tx,
+                        S: std::hash::BuildHasher + 'tx,
+                    {
+                        map.prepared_tx(&Self::SCHEMA)
+                    }
                 }
             }
         }
