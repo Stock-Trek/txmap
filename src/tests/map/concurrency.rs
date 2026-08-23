@@ -1,6 +1,9 @@
 use crate::tests::{
     creators::*,
-    types::{Increment, IncrementKeys, IncrementParams, Transfer, TransferKeys, TransferParams},
+    types::{
+        ConcurrentTransfer, ConcurrentTransferKeys, ConcurrentTransferParams, Increment,
+        IncrementKeys, IncrementParams,
+    },
 };
 use std::{
     sync::{Arc, Barrier},
@@ -44,11 +47,14 @@ fn concurrent_transactions_dont_deadlock() {
             for _ in 0..LONG_LOOP {
                 let [from, to] = random_names::<RANDOM_NAME_COUNT>();
                 let _ = m
-                    .prepared_tx(&Transfer::SCHEMA)
-                    .modify(Transfer::from, |_k, v, p, _s| *v -= p.amount)
-                    .modify(Transfer::to, |_k, v, p, _s| *v += p.amount)
+                    .prepared_tx(&ConcurrentTransfer::SCHEMA)
+                    .modify(ConcurrentTransfer::from, |_k, v, p, _s| *v -= p.amount)
+                    .modify(ConcurrentTransfer::to, |_k, v, p, _s| *v += p.amount)
                     .into_transaction()
-                    .execute(TransferKeys { from, to }, TransferParams { amount: 1 });
+                    .execute(
+                        ConcurrentTransferKeys { from, to },
+                        ConcurrentTransferParams { amount: 1 },
+                    );
             }
         }));
     }

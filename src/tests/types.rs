@@ -7,13 +7,13 @@ pub(crate) struct User {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub(crate) struct Funds {
+pub struct Funds {
     pub usd_and_cents: u64,
     pub sterling_and_pence: u64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
-pub(crate) struct Counter {
+pub struct Counter {
     pub value: u64,
 }
 
@@ -29,6 +29,21 @@ tx_schema! {
     state: {
         results: Vec<Option<u64>>,
     },
+    value: Funds,
+}
+
+tx_schema! {
+    ConcurrentTransfer,
+    keys: [
+        from,
+        to,
+    ],
+    params: {
+        amount: u64,
+    },
+    state: {
+    },
+    value: u64,
 }
 
 tx_schema! {
@@ -42,6 +57,7 @@ tx_schema! {
     state: {
         user: Vec<Option<String>>,
     },
+    value: u64,
 }
 
 tx_schema! {
@@ -53,6 +69,7 @@ tx_schema! {
     },
     state: {
     },
+    value: u64,
 }
 
 tx_schema! {
@@ -65,6 +82,7 @@ tx_schema! {
     state: {
         result: Option<u64>,
     },
+    value: u64,
 }
 
 tx_schema! {
@@ -78,6 +96,7 @@ tx_schema! {
     state: {
         result: Option<u64>,
     },
+    value: u64,
 }
 
 tx_schema! {
@@ -91,6 +110,7 @@ tx_schema! {
     state: {
         result: Option<String>,
     },
+    value: String,
 }
 
 tx_schema! {
@@ -105,6 +125,7 @@ tx_schema! {
         result_a: Option<u64>,
         result_b: Option<u64>,
     },
+    value: u64,
 }
 
 tx_schema! {
@@ -120,6 +141,7 @@ tx_schema! {
         result_a: Option<u64>,
         result_b: Option<u64>,
     },
+    value: u64,
 }
 
 tx_schema! {
@@ -135,6 +157,7 @@ tx_schema! {
         result_a: Option<u64>,
         result_b: Option<u64>,
     },
+    value: u64,
 }
 
 tx_schema! {
@@ -149,6 +172,7 @@ tx_schema! {
     state: {
         results: Vec<Option<u64>>,
     },
+    value: u64,
 }
 
 tx_schema! {
@@ -163,6 +187,7 @@ tx_schema! {
     state: {
         results: Vec<Option<u64>>,
     },
+    value: u64,
 }
 
 tx_schema! {
@@ -175,6 +200,7 @@ tx_schema! {
     state: {
         result: Option<u64>,
     },
+    value: Counter,
 }
 
 tx_schema! {
@@ -186,4 +212,5 @@ tx_schema! {
     },
     state: {
     },
+    value: u64,
 }

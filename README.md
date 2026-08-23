@@ -127,7 +127,8 @@ tx_schema! {
         total_cost: u64,
         total_received: u64,
         commission_paid: u64,
-    }
+    },
+    value: u64,             // the value type of the map the transaction operates on
 }
 
 let db: TxMap<String, u64> = TxMap::new();

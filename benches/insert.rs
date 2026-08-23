@@ -92,6 +92,7 @@ tx_schema! {
     keys: [a],
     params: {},
     state: {},
+    value: u64,
 }
 
 fn concurrent_insert(c: &mut Criterion) {

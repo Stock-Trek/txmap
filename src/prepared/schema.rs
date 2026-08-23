@@ -3,19 +3,28 @@ use std::hash::BuildHasher;
 
 /// Schema trait for a prepared transaction.
 ///
-/// Associates the key type, keys, parameters, and state types with a
-/// transaction. Implemented by the [`tx_schema`] macro.
+/// Associates every type a prepared transaction needs (key, value, lock
+/// policy, hasher, keys, params, state) with the schema type. Implemented
+/// by the [`tx_schema`] macro. Because all of these types are associated
+/// types, a [`PreparedTransaction`](crate::prepared::transaction::PreparedTransaction)
+/// only needs the schema as a generic parameter.
 pub trait TxSchema {
     /// The key type of the map the transaction operates on.
     type Key;
+    /// The value type of the map the transaction operates on.
+    type Value;
     /// The raw (un-indexed) keys type.
-    type Keys: TxKeys<Self::Key, Self::IndexedKeys>;
+    type Keys: TxKeys<Self::Key, Self::IndexedKeys, Self::Hasher>;
     /// The indexed keys type after hashing.
     type IndexedKeys;
     /// The parameters passed on each execution.
     type Params;
     /// The mutable working state (must be `Default`).
     type State: Default;
+    /// The lock policy of the map the transaction operates on.
+    type LockPolicy: crate::lock_policies::lock_policy::LockPolicy;
+    /// The hasher of the map the transaction operates on.
+    type Hasher: BuildHasher;
 }
 
 /// Raw keys that can be hashed into indexed keys.
@@ -49,12 +58,91 @@ pub trait TxKeySelector<K, KEYS> {
 
 #[macro_export]
 macro_rules! tx_schema {
+    // `value` only: lock policy and hasher default to `MutexPolicy` and
+    // `DefaultBuildHasher`.
     (
         $name:ident,
         keys: [ $($key:ident),* $(,)? ],
         params: { $($param_field:ident: $param_type:ty),* $(,)? },
-        state: { $($state_field:ident: $state_type:ty),* $(,)? }
-        $(,)?
+        state: { $($state_field:ident: $state_type:ty),* $(,)? },
+        value: $value:ty $(,)?
+    ) => {
+        $crate::tx_schema! {
+            @impl $name,
+            keys: [ $($key),* ],
+            params: { $($param_field: $param_type),* },
+            state: { $($state_field: $state_type),* },
+            value: $value,
+            lock_policy: $crate::lock_policies::mutex_policy::MutexPolicy,
+            hasher: $crate::hasher::DefaultBuildHasher,
+        }
+    };
+    // `lock_policy` only.
+    (
+        $name:ident,
+        keys: [ $($key:ident),* $(,)? ],
+        params: { $($param_field:ident: $param_type:ty),* $(,)? },
+        state: { $($state_field:ident: $state_type:ty),* $(,)? },
+        value: $value:ty,
+        lock_policy: $lock_policy:ty $(,)?
+    ) => {
+        $crate::tx_schema! {
+            @impl $name,
+            keys: [ $($key),* ],
+            params: { $($param_field: $param_type),* },
+            state: { $($state_field: $state_type),* },
+            value: $value,
+            lock_policy: $lock_policy,
+            hasher: $crate::hasher::DefaultBuildHasher,
+        }
+    };
+    // `hasher` only.
+    (
+        $name:ident,
+        keys: [ $($key:ident),* $(,)? ],
+        params: { $($param_field:ident: $param_type:ty),* $(,)? },
+        state: { $($state_field:ident: $state_type:ty),* $(,)? },
+        value: $value:ty,
+        hasher: $hasher:ty $(,)?
+    ) => {
+        $crate::tx_schema! {
+            @impl $name,
+            keys: [ $($key),* ],
+            params: { $($param_field: $param_type),* },
+            state: { $($state_field: $state_type),* },
+            value: $value,
+            lock_policy: $crate::lock_policies::mutex_policy::MutexPolicy,
+            hasher: $hasher,
+        }
+    };
+    // Both `lock_policy` and `hasher`.
+    (
+        $name:ident,
+        keys: [ $($key:ident),* $(,)? ],
+        params: { $($param_field:ident: $param_type:ty),* $(,)? },
+        state: { $($state_field:ident: $state_type:ty),* $(,)? },
+        value: $value:ty,
+        lock_policy: $lock_policy:ty,
+        hasher: $hasher:ty $(,)?
+    ) => {
+        $crate::tx_schema! {
+            @impl $name,
+            keys: [ $($key),* ],
+            params: { $($param_field: $param_type),* },
+            state: { $($state_field: $state_type),* },
+            value: $value,
+            lock_policy: $lock_policy,
+            hasher: $hasher,
+        }
+    };
+    (
+        @impl $name:ident,
+        keys: [ $($key:ident),* $(,)? ],
+        params: { $($param_field:ident: $param_type:ty),* $(,)? },
+        state: { $($state_field:ident: $state_type:ty),* $(,)? },
+        value: $value:ty,
+        lock_policy: $lock_policy:ty,
+        hasher: $hasher:ty $(,)?
     ) => {
         $crate::_paste! {
             pub use [<__private $name>] :: $name;
@@ -63,6 +151,11 @@ macro_rules! tx_schema {
             pub use [<__private $name>] :: [<$name State>];
             #[allow(non_snake_case)]
             mod [<__private $name>] {
+                // Bring the types referenced by the macro invocation (value,
+                // params, state) into scope of this private module.
+                #[allow(unused_imports)]
+                use super::*;
+
                 // schema
                 pub struct $name<K> {
                     _phantom: std::marker::PhantomData<K>,
@@ -72,10 +165,13 @@ macro_rules! tx_schema {
                     K: std::hash::Hash,
                 {
                     type Key = K;
+                    type Value = $value;
                     type Keys =   [<$name Keys>]<K>;
                     type IndexedKeys = [<$name IndexedKeys>]<K>;
                     type Params = [<$name Params>];
                     type State =  [<$name State>];
+                    type LockPolicy = $lock_policy;
+                    type Hasher = $hasher;
                 }
                 impl<K> $name<K> {
                     pub const SCHEMA: $name<K> = $name {

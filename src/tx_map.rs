@@ -9,7 +9,7 @@ use crate::{
     new_types::ShardCount,
     new_types::ShardIndex,
     prepared::{
-        schema::{TxKeys, TxSchema},
+        schema::TxSchema,
         tx_builder::{PreparedBuilderPhase, PreparedTxBuilder},
     },
     shard_ops::ShardOps,
@@ -343,16 +343,19 @@ where
     /// `_schema` is a schema constant created via the [`tx_schema`](macro@crate::tx_schema) macro.
     /// The returned builder can be turned into a [`PreparedTransaction`](crate::prepared::transaction::PreparedTransaction)
     /// that can be executed many times with different keys/parameters.
+    ///
+    /// The schema's associated key, value, lock policy and hasher types must
+    /// match this map, so the transaction plan can be stored with only the
+    /// schema as a generic parameter.
     pub fn prepared_tx<'tx, SCHEMA>(
         &'tx self,
         _schema: &SCHEMA,
-    ) -> PreparedTxBuilder<'tx, K, V, L, S, SCHEMA, PreparedBuilderPhase>
+    ) -> PreparedTxBuilder<'tx, SCHEMA, PreparedBuilderPhase>
     where
         K: 'tx,
         V: 'tx,
         S: 'tx,
-        SCHEMA: TxSchema<Key = K> + 'tx,
-        SCHEMA::Keys: TxKeys<SCHEMA::Key, SCHEMA::IndexedKeys, S> + 'tx,
+        SCHEMA: TxSchema<Key = K, Value = V, LockPolicy = L, Hasher = S> + 'tx,
         SCHEMA::IndexedKeys: 'tx,
         SCHEMA::Params: 'tx,
         SCHEMA::State: 'tx,
