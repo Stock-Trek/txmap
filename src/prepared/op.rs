@@ -62,7 +62,8 @@ pub enum PreparedOp<'tx, K, V, KEYS, PARAMS, STATE> {
 }
 
 impl<'tx, K, V, KEYS, PARAMS, STATE> PreparedOp<'tx, K, V, KEYS, PARAMS, STATE> {
-    pub(crate) fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask) {
+    /// Bitmasks of the shards this op reads from and writes to.
+    pub fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask) {
         match self {
             Self::Get { key_selector, .. } => {
                 (key_selector.get(keys).shard_index.bitmask(), BitMask::ZERO)
@@ -133,7 +134,8 @@ impl<'tx, K, V, KEYS, PARAMS, STATE> PreparedOp<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Clone + Hash + Eq,
 {
-    pub(crate) fn apply<L, S>(
+    /// Applies the operation against the locked shards.
+    pub fn apply<L, S>(
         &self,
         lock_guards: &mut LockGuards<'_, K, V, L>,
         keys: &mut KEYS,

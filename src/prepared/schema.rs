@@ -73,7 +73,7 @@ pub trait TxSchema<K> {
     /// map.
     ///
     /// Every type is inferred from the map, so no generic parameters need to
-    /// be written. [`TxMap::builder`](crate::tx_map::TxMap::builder)
+    /// be written. [`TxMap::prepared_tx`](crate::tx_map::TxMap::prepared_tx)
     /// delegates to this method.
     fn builder<'tx, V, L, S>(&self, map: &'tx TxMap<K, V, L, S>) -> Self::Builder<'tx, V, L, S>
     where
@@ -453,14 +453,48 @@ macro_rules! tx_schema {
                     where
                         RAW: $crate::TxKeys<K, [<$name IndexedKeys>]<K>, S>,
                     {
-                        $crate::prepared::transaction::execute(
-                            self.custodian,
-                            self.indexer,
-                            &self.guards,
-                            &self.ops,
-                            keys,
-                            params,
-                        )
+                        let mut keys =
+                            keys.into_indexed(self.custodian.shard_count, self.indexer);
+                        let mut total_read_bitmask = $crate::new_types::BitMask::ZERO;
+                        let mut total_write_bitmask = $crate::new_types::BitMask::ZERO;
+
+                        // get all bitmasks
+                        for guard in self.guards.iter() {
+                            total_read_bitmask |= guard.read_bitmask(&keys);
+                        }
+                        for op in self.ops.iter() {
+                            let (read_bitmask, write_bitmask) = op.read_write_bitmasks(&keys);
+                            total_read_bitmask |= read_bitmask;
+                            total_write_bitmask |= write_bitmask;
+                        }
+                        // ensure locks are either read or write, not both
+                        total_read_bitmask &= !total_write_bitmask;
+
+                        let mut lock_guards = self
+                            .custodian
+                            .lock_guards(total_read_bitmask, total_write_bitmask);
+                        let mut state = [<$name State>]::default();
+                        for (i, guard) in self.guards.iter().enumerate() {
+                            if !guard
+                                .is_condition_met::<L>(&mut lock_guards, &keys, &params, &mut state)
+                            {
+                                return $crate::TxResult::RequirementNotMet {
+                                    index: i,
+                                    requirement: guard.name.clone(),
+                                    state,
+                                };
+                            }
+                        }
+                        for op in self.ops.iter() {
+                            op.apply::<L, S>(
+                                &mut lock_guards,
+                                &mut keys,
+                                &params,
+                                self.indexer,
+                                &mut state,
+                            );
+                        }
+                        $crate::TxResult::Completed { state }
                     }
                 }
             }

@@ -21,7 +21,8 @@ pub struct Guard<'tx, K, V, KEYS, PARAMS, STATE> {
 }
 
 impl<'tx, K, V, KEYS, PARAMS, STATE> Guard<'tx, K, V, KEYS, PARAMS, STATE> {
-    pub(crate) fn read_bitmask(&self, keys: &KEYS) -> BitMask {
+    /// Bitmask of the shard the guard's key lives on.
+    pub fn read_bitmask(&self, keys: &KEYS) -> BitMask {
         let key = self.key_selector.get(keys);
         key.shard_index.bitmask()
     }
@@ -31,7 +32,8 @@ impl<'tx, K, V, KEYS, PARAMS, STATE> Guard<'tx, K, V, KEYS, PARAMS, STATE>
 where
     K: Eq,
 {
-    pub(crate) fn is_condition_met<L>(
+    /// Checks the guard's condition against the locked shards.
+    pub fn is_condition_met<L>(
         &self,
         lock_guards: &mut LockGuards<'_, K, V, L>,
         keys: &KEYS,

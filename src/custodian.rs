@@ -16,7 +16,8 @@ pub struct Custodian<K, V, L>
 where
     L: LockPolicy,
 {
-    pub(crate) shard_count: ShardCount,
+    /// Number of shards in the map.
+    pub shard_count: ShardCount,
     pub(crate) shards: Vec<CachePadded<L::Lock<Shard<K, V>>>>,
 }
 
@@ -37,7 +38,8 @@ where
             shards,
         }
     }
-    pub(crate) fn lock_guards(&self, read: BitMask, write: BitMask) -> LockGuards<'_, K, V, L> {
+    /// Acquires read/write guards for the given shard bitmasks.
+    pub fn lock_guards(&self, read: BitMask, write: BitMask) -> LockGuards<'_, K, V, L> {
         let mut read_guards = std::array::from_fn(|_| None);
         let mut write_guards = std::array::from_fn(|_| None);
 
