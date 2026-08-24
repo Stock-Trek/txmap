@@ -8,8 +8,9 @@ use crate::{
     multi_shard_ops::MultiShardOps,
     new_types::{ShardCount, ShardIndex},
     prepared::{
+        build_phase::PreparedBuilderPhase,
         schema::{TxKeys, TxSchema},
-        tx_builder::{PreparedBuilderPhase, PreparedTxBuilder},
+        tx_builder::PreparedTxBuilder,
     },
     shard_ops::ShardOps,
     tx_map_builder::TxMapBuilder,

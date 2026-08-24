@@ -37,9 +37,10 @@ pub use lock_policies::{
 };
 pub use new_types::{HashCode, ShardCount, ShardIndex};
 pub use prepared::{
+    build_phase::{BuildPhase, PreparedBuildablePhase, PreparedBuilderPhase},
     schema::{TxKeySelector, TxKeys, TxSchema},
     transaction::PreparedTransaction,
-    tx_builder::{PreparedBuildablePhase, PreparedBuilderPhase, PreparedTxBuilder},
+    tx_builder::PreparedTxBuilder,
 };
 pub use result::{TryReserveError, TxResult};
 pub use shards::Shards;

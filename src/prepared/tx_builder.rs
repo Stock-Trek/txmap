@@ -4,16 +4,15 @@ use crate::{
     key::TxKey,
     lock_policies::lock_policy::LockPolicy,
     prepared::{
-        guard::Guard, op::PreparedOp, schema::TxKeySelector, transaction::PreparedTransaction,
+        build_phase::{BuildPhase, PreparedBuildablePhase, PreparedBuilderPhase},
+        guard::Guard,
+        op::PreparedOp,
+        schema::TxKeySelector,
+        transaction::PreparedTransaction,
     },
 };
 use hashbrown::HashSet;
 use std::{hash::BuildHasher, marker::PhantomData};
-
-/// Phase marker: transaction is still accepting guard requirements.
-pub struct PreparedBuilderPhase;
-/// Phase marker: transaction has at least one operation and can be built.
-pub struct PreparedBuildablePhase;
 
 /// Fluent builder for a prepared (re-usable) transaction.
 ///
@@ -31,6 +30,7 @@ where
     KEYS: 'tx,
     PARAMS: 'tx,
     STATE: 'tx,
+    PHASE: BuildPhase,
 {
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) indexer: &'tx Indexer<S>,
@@ -85,6 +85,7 @@ where
     KEYS: 'tx,
     PARAMS: 'tx,
     STATE: 'tx,
+    PHASE: BuildPhase,
 {
     /// Reads a value and passes it (or `None`) to the callback.
     pub fn get(
