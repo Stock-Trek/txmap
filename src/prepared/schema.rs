@@ -445,25 +445,22 @@ macro_rules! tx_schema {
                     /// checked, and operations are applied. Returns the final
                     /// state wrapped in
                     /// [`TxResult`](crate::TxResult).
-                    pub fn execute<RAW>(
+                    pub fn execute(
                         &self,
-                        keys: RAW,
+                        keys: impl $crate::TxKeys<K, [<$name IndexedKeys>]<K>, S>,
                         params: [<$name Params>],
                     ) -> $crate::TxResult<[<$name State>]>
-                    where
-                        RAW: $crate::TxKeys<K, [<$name IndexedKeys>]<K>, S>,
                     {
-                        let mut keys =
-                            keys.into_indexed(self.custodian.shard_count, self.indexer);
+                        let mut indexed_keys = keys.into_indexed(self.custodian.shard_count, self.indexer);
                         let mut total_read_bitmask = $crate::new_types::BitMask::ZERO;
                         let mut total_write_bitmask = $crate::new_types::BitMask::ZERO;
 
                         // get all bitmasks
                         for guard in self.guards.iter() {
-                            total_read_bitmask |= guard.read_bitmask(&keys);
+                            total_read_bitmask |= guard.read_bitmask(&indexed_keys);
                         }
                         for op in self.ops.iter() {
-                            let (read_bitmask, write_bitmask) = op.read_write_bitmasks(&keys);
+                            let (read_bitmask, write_bitmask) = op.read_write_bitmasks(&indexed_keys);
                             total_read_bitmask |= read_bitmask;
                             total_write_bitmask |= write_bitmask;
                         }
@@ -474,12 +471,11 @@ macro_rules! tx_schema {
                             .custodian
                             .lock_guards(total_read_bitmask, total_write_bitmask);
                         let mut state = [<$name State>]::default();
-                        for (i, guard) in self.guards.iter().enumerate() {
-                            if !guard
-                                .is_condition_met::<L>(&mut lock_guards, &keys, &params, &mut state)
+                        for (index, guard) in self.guards.iter().enumerate() {
+                            if !guard.is_condition_met::<L>(&mut lock_guards, &indexed_keys, &params, &mut state)
                             {
                                 return $crate::TxResult::RequirementNotMet {
-                                    index: i,
+                                    index,
                                     requirement: guard.name.clone(),
                                     state,
                                 };
@@ -488,7 +484,7 @@ macro_rules! tx_schema {
                         for op in self.ops.iter() {
                             op.apply::<L, S>(
                                 &mut lock_guards,
-                                &mut keys,
+                                &mut indexed_keys,
                                 &params,
                                 self.indexer,
                                 &mut state,
