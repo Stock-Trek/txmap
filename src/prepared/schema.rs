@@ -613,13 +613,6 @@ macro_rules! tx_schema {
                     }
                 }
 
-                // `into_transaction` is specialised on the concrete schema
-                // type `$name<K, V>` (rather than the opaque `SCHEMA` generic)
-                // so the compiler can normalise `SCHEMA::Key`, `SCHEMA::Value`,
-                // `SCHEMA::IndexedKeys`, `SCHEMA::Params` and `SCHEMA::State`
-                // through the schema's `TxSchema` impl and see that the
-                // builder's guards and ops move unchanged into the
-                // specialised `$name Tx`.
                 impl<'tx, K, V, L, S>
                     [<$name Builder>]<
                         'tx,
