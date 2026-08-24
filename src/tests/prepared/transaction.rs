@@ -270,7 +270,7 @@ fn prepared_transaction_is_storable_with_key_and_value_types() {
 /// `PreparedTransaction` type anymore; every schema gets its own
 /// macro-generated type.
 #[test]
-fn prepared_transaction_is_storable_with_key_and_value_types_2() {
+fn prepared_transaction_is_storable_with_key_and_value_types_via_map_entry() {
     struct App<'tx> {
         increment: IncrementPreparedTransaction<'tx, String, u64>,
     }
