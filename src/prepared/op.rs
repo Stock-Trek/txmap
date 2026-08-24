@@ -98,7 +98,7 @@ impl<'tx, K, V, KEYS, PARAMS, STATE> PreparedOp<'tx, K, V, KEYS, PARAMS, STATE> 
         }
     }
     /// Insert the stable identifiers of all key handles referenced by this op.
-    pub(crate) fn insert_key_ids(&self, ids: &mut HashSet<&'static str>) {
+    pub fn insert_key_ids(&self, ids: &mut HashSet<&'static str>) {
         match self {
             Self::Get { key_selector, .. }
             | Self::GetOrInsertWith { key_selector, .. }

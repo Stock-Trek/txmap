@@ -327,11 +327,17 @@ macro_rules! tx_schema {
                         self,
                         op: $crate::prepared::op::PreparedOp<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>,
                     ) -> Self::Builder {
+                        let [<$name Builder>] {
+                            custodian,
+                            indexer,
+                            guards,
+                        } = self;
+                        let ops = std::vec![op];
                         [<$name Buildable>] {
-                            custodian: self.custodian,
-                            indexer: self.indexer,
-                            guards: std::cell::Cell::new(self.guards),
-                            ops: std::cell::Cell::new(std::vec![op]),
+                            custodian,
+                            indexer,
+                            guards,
+                            ops,
                         }
                     }
                 }
@@ -346,8 +352,8 @@ macro_rules! tx_schema {
                 {
                     pub(crate) custodian: &'tx $crate::custodian::Custodian<K, V, L>,
                     pub(crate) indexer: &'tx $crate::indexer::Indexer<S>,
-                    pub(crate) guards: std::cell::Cell<std::vec::Vec<$crate::prepared::guard::Guard<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>>>,
-                    pub(crate) ops: std::cell::Cell<std::vec::Vec<$crate::prepared::op::PreparedOp<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>>>,
+                    pub(crate) guards: std::vec::Vec<$crate::prepared::guard::Guard<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>>,
+                    pub(crate) ops: std::vec::Vec<$crate::prepared::op::PreparedOp<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>>,
                 }
 
                 impl<'tx, K, V, L, S>
@@ -373,7 +379,7 @@ macro_rules! tx_schema {
                         mut self,
                         op: $crate::prepared::op::PreparedOp<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>,
                     ) -> Self::Builder {
-                        self.ops.get_mut().push(op);
+                        self.ops.push(op);
                         self
                     }
                 }
@@ -397,20 +403,45 @@ macro_rules! tx_schema {
                 {
                     type Tx = [<$name Tx>]<'tx, K, V, L, S>;
 
-                    fn guards(&self) -> std::vec::Vec<$crate::prepared::guard::Guard<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>> {
-                        self.guards.take()
-                    }
-                    fn ops(&self) -> std::vec::Vec<$crate::prepared::op::PreparedOp<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>> {
-                        self.ops.take()
-                    }
-                    fn tx(
-                        self,
-                        guards: std::vec::Vec<$crate::prepared::guard::Guard<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>>,
-                        ops: std::vec::Vec<$crate::prepared::op::PreparedOp<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>>,
-                    ) -> Self::Tx {
+                    fn into_transaction(self) -> Self::Tx {
+                        // Ops apply in order, so a consuming op may move its key out of the
+                        // per-execution keys container instead of cloning it only when no
+                        // later op references the same key handle. Iterating backwards and
+                        // keeping the handles already seen by later ops, the final op to see
+                        // a key always takes it; earlier uses fall back to cloning.
+                        let [<$name Buildable>] {
+                            custodian,
+                            indexer,
+                            guards,
+                            mut ops,
+                        } = self;
+                        let mut taken: hashbrown::HashSet<&'static str> = hashbrown::HashSet::new();
+                        for op in ops.iter_mut().rev() {
+                            match op {
+                                $crate::prepared::op::PreparedOp::InsertWith {
+                                    key_selector,
+                                    take_key,
+                                    ..
+                                }
+                                | $crate::prepared::op::PreparedOp::InsertWithIfAbsent {
+                                    key_selector,
+                                    take_key,
+                                    ..
+                                }
+                                | $crate::prepared::op::PreparedOp::Update {
+                                    key_selector,
+                                    take_key,
+                                    ..
+                                } => {
+                                    *take_key = taken.insert(key_selector.key_id());
+                                }
+                                _ => {}
+                            }
+                            op.insert_key_ids(&mut taken);
+                        }
                         [<$name Tx>] {
-                            custodian: self.custodian,
-                            indexer: self.indexer,
+                            custodian,
+                            indexer,
                             guards,
                             ops,
                         }

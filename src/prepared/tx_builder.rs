@@ -3,7 +3,6 @@ use crate::{
     lock_policies::lock_policy::LockPolicy,
     prepared::{guard::Guard, op::PreparedOp, schema::TxKeySelector},
 };
-use hashbrown::HashSet;
 use std::{hash::BuildHasher, marker::PhantomData};
 
 /// Fluent builder for a prepared (re-usable) transaction, still accepting
@@ -234,47 +233,7 @@ where
 {
     type Tx;
 
-    fn guards(&self) -> Vec<Guard<'tx, K, V, KEYS, PARAMS, STATE>>;
-    fn ops(&self) -> Vec<PreparedOp<'tx, K, V, KEYS, PARAMS, STATE>>;
-    fn tx(
-        self,
-        guards: Vec<Guard<'tx, K, V, KEYS, PARAMS, STATE>>,
-        ops: Vec<PreparedOp<'tx, K, V, KEYS, PARAMS, STATE>>,
-    ) -> Self::Tx;
     #[must_use]
     /// Consumes the builder and returns the schema's transaction type.
-    fn into_transaction(self) -> Self::Tx {
-        // Ops apply in order, so a consuming op may move its key out of the
-        // per-execution keys container instead of cloning it only when no
-        // later op references the same key handle. Iterating backwards and
-        // keeping the handles already seen by later ops, the final op to see
-        // a key always takes it; earlier uses fall back to cloning.
-        let mut taken: HashSet<&'static str> = HashSet::new();
-        let mut ops = self.ops();
-        for op in ops.iter_mut().rev() {
-            match op {
-                PreparedOp::InsertWith {
-                    key_selector,
-                    take_key,
-                    ..
-                }
-                | PreparedOp::InsertWithIfAbsent {
-                    key_selector,
-                    take_key,
-                    ..
-                }
-                | PreparedOp::Update {
-                    key_selector,
-                    take_key,
-                    ..
-                } => {
-                    *take_key = taken.insert(key_selector.key_id());
-                }
-                _ => {}
-            }
-            op.insert_key_ids(&mut taken);
-        }
-        let guards = self.guards();
-        self.tx(guards, ops)
-    }
+    fn into_transaction(self) -> Self::Tx;
 }
