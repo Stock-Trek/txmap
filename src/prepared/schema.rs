@@ -46,7 +46,7 @@ pub trait TxSchema {
     ///
     /// `PHASE` is a phase marker ([`PreparedBuilderPhase`] while the builder
     /// is still accepting guard requirements and
-    /// [`PreparedBuildablePhase`](crate::prepared::tx_builder::PreparedBuildablePhase)
+    /// [`PreparedBuildablePhase`](crate::prelude::PreparedBuildablePhase)
     /// once it has at least one operation and can be turned into a
     /// transaction). The lock policy `L` and hasher `S` default to
     /// `MutexPolicy` and `DefaultBuildHasher`.
