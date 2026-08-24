@@ -28,13 +28,13 @@ Add `txmap` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-txmap = "3.5.1"
+txmap = "3.7.1"
 ```
 
 ### Creating a `TxMap`
 
 ```rust
-use txmap::prelude::*;
+use txmap::*;
 
 let map = TxMap::new();
 ```
@@ -71,7 +71,7 @@ The value type `V` has no required trait bounds apart from a few specific cases 
 You may need to run a one-off transaction, for these cases use `map.immediate_tx()`.
 
 ```rust
-use txmap::prelude::*;
+use txmap::*;
 
 // Create a state struct for the transaction, it must implement Default
 #[derive(Default)]
@@ -108,13 +108,16 @@ Some transaction might need to be run many times, or with different parameters. 
 Prepared transactions need a transaction schema, created via the macro `tx_schema`.
 
 ```rust
-use txmap::prelude::*;
+use txmap::*;
 
-// The example below will create 4 types to use in the transaction
+// The example below will create 7 types to use in the transaction
 // 1. Transfer: Contains constants for SCHEMA and all key handles used in the transaction, (from and to)
-// 2. TransferKeys: Used to pass in the actual keys for each execution
-// 3. TransferParams: Used to pass in the real parameters for each execution
-// 4. TransferState: Used by the transaction to store state and is returned as part of the final result
+// 2. TransferBuilder: Used to gather requirements or operations for the transaction
+// 3. TransferBuildable: Used to gather operations or build the transaction
+// 4. TransferTx: The re-usable transaction type
+// 5. TransferKeys: Used to pass in the actual keys for each execution
+// 6. TransferParams: Used to pass in the real parameters for each execution
+// 7. TransferState: Used by the transaction to store state and is returned as part of the final result
 
 tx_schema! {
     Transfer,               // transaction name
@@ -136,7 +139,7 @@ db.insert("bob".into(), 0);
 
 let transfer_tx = db
     .prepared_tx(&Transfer::SCHEMA) // pass in the SCHEMA constant
-    // prepared transactions also pass in your parameters to all closures
+    // prepared transactions will pass your parameters onto all closures
     .modify(
         Transfer::from, // use the key handles available, these are populated per execution
         |_name, balance, params, _state| {
@@ -207,7 +210,7 @@ Perhaps Alice doesn't have enough funds to make a transfer and you need to preve
 Guards can be used to veto a transaction if they fail, in which case `TxResult::RequirementNotMet` is returned.
 
 ```rust
-use txmap::prelude::*;
+use txmap::*;
 
 #[derive(Default)]
 struct TransferResult {
