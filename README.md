@@ -208,10 +208,12 @@ store for later use:
 
 ```rust
 // 5. TransferPreparedTransaction: the macro-generated PreparedTransaction
-//    for this schema. It is generic over the schema instantiated with its
-//    key and value types, so it can be stored with a single generic
-//    parameter: TransferPreparedTransaction<'tx, Transfer<String, u64>>.
-//    The lock policy and hasher default to MutexPolicy / DefaultBuildHasher.
+//    for this schema. It is generic over the map's key and value types only
+//    (the lock policy and hasher default to MutexPolicy / DefaultBuildHasher),
+//    so it can be stored by naming those two types:
+//    TransferPreparedTransaction<'tx, String, u64>. It implements
+//    PreparedTransactionTrait, exposing the schema (Transfer<String, u64>)
+//    as its SCHEMA associated type.
 // 6. TransferPreparedTxBuilder: the macro-generated PreparedTxBuilder for
 //    this schema (the lock policy and hasher default to
 //    MutexPolicy / DefaultBuildHasher).
@@ -219,7 +221,7 @@ store for later use:
 //    every type from the map, so no generic parameters need to be written.
 
 struct App<'tx> {
-    transfer: TransferPreparedTransaction<'tx, Transfer<String, u64>>, // one generic parameter
+    transfer: TransferPreparedTransaction<'tx, String, u64>,
 }
 
 let app = App {
