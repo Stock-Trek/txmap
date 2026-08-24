@@ -1,10 +1,10 @@
 use crate::{
+    custodian::Custodian,
     hasher::DefaultBuildHasher,
     indexer::Indexer,
     lock_policies::lock_policy::LockPolicy,
     new_types::ShardCount,
     prepared::tx_builder::{PreparedTxOperationsBuilder, PreparedTxRequirementsBuilder},
-    tx_map::TxMap,
 };
 use std::hash::BuildHasher;
 
@@ -47,7 +47,12 @@ pub trait TxSchema<K> {
     /// Every type is inferred from the map, so no generic parameters need to
     /// be written. [`TxMap::prepared_tx`](crate::tx_map::TxMap::prepared_tx)
     /// delegates to this method.
-    fn builder<'tx, V, L, S>(&self, map: &'tx TxMap<K, V, L, S>) -> Self::Builder<'tx, V, L, S>
+    fn builder<'tx, V, L, S>(
+        &self,
+        shard_count: ShardCount,
+        custodian: &'tx Custodian<K, V, L>,
+        indexer: &'tx Indexer<S>,
+    ) -> Self::Builder<'tx, V, L, S>
     where
         Self: Sized + 'tx,
         K: 'tx,
@@ -133,7 +138,9 @@ macro_rules! tx_schema {
 
                     fn builder<'tx, V, L, S>(
                         &self,
-                        map: &'tx $crate::TxMap<K, V, L, S>,
+                        shard_count: $crate::ShardCount,
+                        custodian: &'tx $crate::custodian::Custodian<K, V, L>,
+                        indexer: &'tx $crate::indexer::Indexer<S>,
                     ) -> [<$name Builder>]<'tx, K, V, L, S>
                     where
                         K: 'tx,
@@ -145,8 +152,9 @@ macro_rules! tx_schema {
                         Self::State: 'tx,
                     {
                         [<$name Builder>] {
-                            custodian: &map.custodian,
-                            indexer: &map.indexer,
+                            shard_count,
+                            custodian,
+                            indexer,
                             guards: std::vec::Vec::new(),
                         }
                     }
@@ -224,6 +232,7 @@ macro_rules! tx_schema {
                     L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
+                    pub(crate) shard_count: $crate::ShardCount,
                     pub(crate) custodian: &'tx $crate::custodian::Custodian<K, V, L>,
                     pub(crate) indexer: &'tx $crate::indexer::Indexer<S>,
                     pub(crate) guards: std::vec::Vec<$crate::prepared::guard::PreparedGuard<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>>,
@@ -281,12 +290,14 @@ macro_rules! tx_schema {
                         op: $crate::prepared::op::PreparedOp<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>,
                     ) -> Self::Builder {
                         let [<$name Builder>] {
+                            shard_count,
                             custodian,
                             indexer,
                             guards,
                         } = self;
                         let ops = std::vec![op];
                         [<$name Buildable>] {
+                            shard_count,
                             custodian,
                             indexer,
                             guards,
@@ -303,6 +314,7 @@ macro_rules! tx_schema {
                     L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
+                    pub(crate) shard_count: $crate::ShardCount,
                     pub(crate) custodian: &'tx $crate::custodian::Custodian<K, V, L>,
                     pub(crate) indexer: &'tx $crate::indexer::Indexer<S>,
                     pub(crate) guards: std::vec::Vec<$crate::prepared::guard::PreparedGuard<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>>,
@@ -363,6 +375,7 @@ macro_rules! tx_schema {
                         // keeping the handles already seen by later ops, the final op to see
                         // a key always takes it; earlier uses fall back to cloning.
                         let [<$name Buildable>] {
+                            shard_count,
                             custodian,
                             indexer,
                             guards,
@@ -393,6 +406,7 @@ macro_rules! tx_schema {
                             op.insert_key_ids(&mut taken);
                         }
                         [<$name Tx>] {
+                            shard_count,
                             custodian,
                             indexer,
                             guards,
@@ -409,6 +423,7 @@ macro_rules! tx_schema {
                     L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
+                    pub(crate) shard_count: $crate::ShardCount,
                     pub(crate) custodian: &'tx $crate::custodian::Custodian<K, V, L>,
                     pub(crate) indexer: &'tx $crate::indexer::Indexer<S>,
                     pub(crate) guards: std::vec::Vec<$crate::prepared::guard::PreparedGuard<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>>,
@@ -435,7 +450,7 @@ macro_rules! tx_schema {
                         params: [<$name Params>],
                     ) -> $crate::TxResult<[<$name State>]>
                     {
-                        let mut indexed_keys = keys.into_indexed(self.custodian.shard_count, self.indexer);
+                        let mut indexed_keys = keys.into_indexed(self.shard_count, self.indexer);
                         let mut total_read_bitmask = $crate::new_types::BitMask::ZERO;
                         let mut total_write_bitmask = $crate::new_types::BitMask::ZERO;
 

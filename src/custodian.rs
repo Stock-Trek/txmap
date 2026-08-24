@@ -16,8 +16,7 @@ pub struct Custodian<K, V, L>
 where
     L: LockPolicy,
 {
-    /// Number of shards in the map.
-    pub shard_count: ShardCount,
+    pub(crate) shard_count: ShardCount,
     pub(crate) shards: Vec<CachePadded<L::Lock<Shard<K, V>>>>,
 }
 
