@@ -5,9 +5,10 @@ use crate::{
     indexer::Indexer,
     iter::{Drain, Iter, Keys, Values},
     key::TxKey,
+    lock_guards::LockGuards,
     lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
     multi_shard_ops::MultiShardOps,
-    new_types::{ShardCount, ShardIndex},
+    new_types::{BitMask, ShardCount, ShardIndex},
     prepared::schema::{PreparedBuilderPhase, TxSchema},
     shard_ops::ShardOps,
     tx_map_builder::TxMapBuilder,
@@ -318,6 +319,10 @@ where
     #[allow(dead_code)]
     pub(crate) fn indexed_key(&self, key: K) -> TxKey<K> {
         self.indexer.indexed_key(self.shard_count, key)
+    }
+    #[allow(dead_code)]
+    pub(crate) fn lock_guards(&self, read: BitMask, write: BitMask) -> LockGuards<'_, K, V, L> {
+        self.custodian.lock_guards(read, write)
     }
 }
 
