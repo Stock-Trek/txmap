@@ -1,7 +1,7 @@
 use crate::{
     key::TxKey,
     lock_policies::lock_policy::LockPolicy,
-    prepared::{guard::Guard, op::PreparedOp, schema::TxKeySelector},
+    prepared::{guard::PreparedGuard, op::PreparedOp, schema::TxKeySelector},
 };
 use std::{hash::BuildHasher, marker::PhantomData};
 
@@ -30,7 +30,7 @@ where
     type Builder: PreparedTxRequirementsBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE>
         + PreparedTxOperationsBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE>;
 
-    fn with_guard(self, guard: Guard<'tx, K, V, KEYS, PARAMS, STATE>) -> Self::Builder;
+    fn with_guard(self, guard: PreparedGuard<'tx, K, V, KEYS, PARAMS, STATE>) -> Self::Builder;
 
     /// Adds a guard precondition using a key selector.
     fn require(
@@ -39,7 +39,7 @@ where
         key_selector: impl TxKeySelector<TxKey<K>, KEYS> + 'tx,
         condition: impl Fn(&K, Option<&V>, &PARAMS, &mut STATE) -> bool + 'tx,
     ) -> Self::Builder {
-        let guard = Guard {
+        let guard = PreparedGuard {
             name: name.as_ref().into(),
             key_selector: Box::new(key_selector),
             condition: Box::new(condition),

@@ -1,6 +1,6 @@
 use crate::{
     custodian::Custodian,
-    immediate::{guard::Guard, op::ImmediateOp, transaction::ImmediateTransaction},
+    immediate::{guard::ImmediateGuard, op::ImmediateOp, transaction::ImmediateTx},
     indexer::Indexer,
     lock_policies::lock_policy::LockPolicy,
     result::TxResult,
@@ -31,7 +31,7 @@ where
 {
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) indexer: &'tx Indexer<S>,
-    pub(crate) guards: Vec<Guard<'tx, K, V, STATE>>,
+    pub(crate) guards: Vec<ImmediateGuard<'tx, K, V, STATE>>,
     #[allow(clippy::type_complexity)]
     pub(crate) ops: Vec<ImmediateOp<'tx, K, V, STATE>>,
     pub(crate) _phase: PhantomData<PHASE>,
@@ -57,7 +57,7 @@ where
         key: K,
         condition: impl FnOnce(&K, Option<&V>, &mut STATE) -> bool + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuilderPhase> {
-        let guard = Guard {
+        let guard = ImmediateGuard {
             name: name.as_ref().into(),
             key: self.indexer.indexed_key(self.custodian.shard_count, key),
             condition: Some(Box::new(condition)),
@@ -331,7 +331,7 @@ where
             ops,
             _phase,
         } = self;
-        ImmediateTransaction {
+        ImmediateTx {
             custodian,
             indexer,
             guards,
