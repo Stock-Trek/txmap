@@ -366,7 +366,7 @@ where
     pub fn prepared_tx<'tx, SCHEMA>(
         &'tx self,
         _schema: &SCHEMA,
-    ) -> SCHEMA::PreparedTxBuilder<'tx, L, S, PreparedBuilderPhase>
+    ) -> SCHEMA::Builder<'tx, L, S, PreparedBuilderPhase>
     where
         SCHEMA: TxSchema<Key = K, Value = V> + 'tx,
         K: Hash + 'tx,

@@ -225,7 +225,7 @@ fn param_transaction_basic() {
 #[test]
 fn prepared_transaction_is_storable_with_key_and_value_types() {
     struct App<'tx> {
-        transfer: TransferPreparedTransaction<'tx, String, u64>,
+        transfer: TransferTx<'tx, String, u64>,
     }
     impl<'tx> App<'tx> {
         fn new(map: &'tx TxMap<String, u64>) -> App<'tx> {
@@ -272,7 +272,7 @@ fn prepared_transaction_is_storable_with_key_and_value_types() {
 #[test]
 fn prepared_transaction_is_storable_with_key_and_value_types_via_map_entry() {
     struct App<'tx> {
-        increment: IncrementPreparedTransaction<'tx, String, u64>,
+        increment: IncrementTx<'tx, String, u64>,
     }
     impl<'tx> App<'tx> {
         fn new(map: &'tx TxMap<String, u64>) -> App<'tx> {
@@ -304,7 +304,7 @@ fn specialised_prepared_tx_method_needs_no_generics() {
     map.insert(ALICE.into(), 100);
     map.insert(BOB.into(), 0);
 
-    let builder: TransferPreparedTxBuilder<'_, Transfer<String, u64>> = Transfer::prepared_tx(&map);
+    let builder: TransferBuilder<'_, Transfer<String, u64>> = Transfer::prepared_tx(&map);
     let tx = builder
         .modify(Transfer::from, |_k, v, p, _s| *v -= p.amount)
         .modify(Transfer::to, |_k, v, p, _s| *v += p.amount)
@@ -337,7 +337,7 @@ fn prepared_transaction_implements_prepared_transaction_trait() {
 
     // The schema is recoverable from the stored transaction type via the
     // trait's associated type, without naming it as a generic parameter.
-    fn assert_schema<T: PreparedTransactionTrait>(_tx: &T) {
+    fn assert_schema<T: TxTrait>(_tx: &T) {
         // `T::SCHEMA` is a `TxSchema` and its structural types are usable.
         fn _check<KEYS, PARAMS, STATE: Default>() {}
         _check::<

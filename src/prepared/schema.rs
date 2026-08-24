@@ -13,7 +13,7 @@ use std::hash::{BuildHasher, Hash};
 ///
 /// The map's value type, lock policy and hasher are deliberately *not* part
 /// of the schema: they are carried by the specialised
-/// [`PreparedTransaction`](Self::PreparedTransaction) itself (with the lock
+/// [`Tx`](Self::Tx) itself (with the lock
 /// policy and hasher defaulting to `MutexPolicy` and `DefaultBuildHasher`)
 /// and are inferred from the map when the transaction is built via
 /// [`TxMap::prepared_tx`](crate::tx_map::TxMap::prepared_tx). This keeps the
@@ -25,9 +25,9 @@ pub trait TxSchema {
     /// The value type of the map the transaction operates on.
     ///
     /// Carried by the schema so the specialised
-    /// [`PreparedTransaction`](Self::PreparedTransaction) is generic over the
+    /// [`Tx`](Self::Tx) is generic over the
     /// map's key and value types: storing one only requires writing those two
-    /// types, e.g. `TransferPreparedTransaction<'tx, String, u64>`.
+    /// types, e.g. `TransferTx<'tx, String, u64>`.
     type Value;
     /// The raw (un-indexed) keys type.
     ///
@@ -50,7 +50,7 @@ pub trait TxSchema {
     /// once it has at least one operation and can be turned into a
     /// transaction). The lock policy `L` and hasher `S` default to
     /// `MutexPolicy` and `DefaultBuildHasher`.
-    type PreparedTxBuilder<'tx, L, S, PHASE>
+    type Builder<'tx, L, S, PHASE>
     where
         Self: 'tx,
         L: LockPolicy + 'tx,
@@ -62,10 +62,10 @@ pub trait TxSchema {
     /// The generated transaction is generic over the map's key and value
     /// types (the lock policy `L` and hasher `S` default to `MutexPolicy` and
     /// `DefaultBuildHasher`), so it can be stored by naming those two types
-    /// directly, e.g. `TransferPreparedTransaction<'tx, String, u64>`. It
-    /// implements [`PreparedTransactionTrait`] with the schema as its
-    /// [`SCHEMA`](PreparedTransactionTrait::SCHEMA) associated type.
-    type PreparedTransaction<'tx, L, S>
+    /// directly, e.g. `TransferTx<'tx, String, u64>`. It
+    /// implements [`TxTrait`] with the schema as its
+    /// [`SCHEMA`](TxTrait::SCHEMA) associated type.
+    type Tx<'tx, L, S>
     where
         Self: 'tx,
         L: LockPolicy + 'tx,
@@ -76,11 +76,11 @@ pub trait TxSchema {
     ///
     /// Every type is inferred from the map, so no generic parameters need to
     /// be written: `Transfer::prepared_tx(&db)` returns the specialised
-    /// `TransferPreparedTxBuilder`. [`TxMap::prepared_tx`](crate::tx_map::TxMap::prepared_tx)
+    /// `TransferBuilder`. [`TxMap::prepared_tx`](crate::tx_map::TxMap::prepared_tx)
     /// delegates to this method.
     fn prepared_tx<'tx, L, S>(
         map: &'tx TxMap<Self::Key, Self::Value, L, S>,
-    ) -> Self::PreparedTxBuilder<'tx, L, S, PreparedBuilderPhase>
+    ) -> Self::Builder<'tx, L, S, PreparedBuilderPhase>
     where
         Self: Sized + 'tx,
         L: LockPolicy + 'tx,
@@ -96,13 +96,13 @@ pub trait TxSchema {
 /// associated type, so the schema does not need to be a generic parameter of
 /// the transaction type itself. The macro-generated transaction is generic
 /// over the map's key and value types only, e.g.
-/// `TransferPreparedTransaction<'tx, String, u64>`, and the schema is
-/// recoverable as `<TransferPreparedTransaction<'tx, String, u64>>::SCHEMA`
+/// `TransferTx<'tx, String, u64>`, and the schema is
+/// recoverable as `<TransferTx<'tx, String, u64>>::SCHEMA`
 /// (i.e. `Transfer<String, u64>`).
 ///
 /// Generic code can bound on this trait to accept any schema's prepared
 /// transaction while still naming the schema.
-pub trait PreparedTransactionTrait {
+pub trait TxTrait {
     /// The [`TxSchema`] the transaction was built from.
     type SCHEMA: TxSchema;
 }
@@ -156,8 +156,8 @@ macro_rules! tx_schema {
             pub use [<__private $name>] :: [<$name Params>];
             pub use [<__private $name>] :: [<$name State>];
             // Specialised prepared transaction types and entry method.
-            pub use [<__private $name>] :: [<$name PreparedTxBuilder>];
-            pub use [<__private $name>] :: [<$name PreparedTransaction>];
+            pub use [<__private $name>] :: [<$name Builder>];
+            pub use [<__private $name>] :: [<$name Tx>];
             #[allow(non_snake_case)]
             mod [<__private $name>] {
                 // Bring the types referenced by the macro invocation (params,
@@ -171,12 +171,12 @@ macro_rules! tx_schema {
                 // schema
                 //
                 // The schema is generic over the map's key and value types.
-                // The generated specialised `PreparedTransaction` is generic
+                // The generated specialised `Tx` is generic
                 // over those same key and value types and implements
-                // `PreparedTransactionTrait` with the schema as its `SCHEMA`
+                // `TxTrait` with the schema as its `SCHEMA`
                 // associated type, so it can be stored by naming the key and
                 // value types directly, e.g.
-                // `TransferPreparedTransaction<'tx, String, u64>`.
+                // `TransferTx<'tx, String, u64>`.
                 pub struct $name<K, V> {
                     _phantom: std::marker::PhantomData<(K, V)>,
                 }
@@ -190,15 +190,15 @@ macro_rules! tx_schema {
                     type IndexedKeys = [<$name IndexedKeys>]<K>;
                     type Params = [<$name Params>];
                     type State =  [<$name State>];
-                    type PreparedTxBuilder<'tx, L, S, PHASE> =
-                        [<$name PreparedTxBuilder>]<'tx, $name<K, V>, L, S, PHASE>
+                    type Builder<'tx, L, S, PHASE> =
+                        [<$name Builder>]<'tx, $name<K, V>, L, S, PHASE>
                     where
                         Self: 'tx,
                         L: $crate::prelude::LockPolicy + 'tx,
                         S: std::hash::BuildHasher + 'tx,
                         PHASE: 'tx;
-                    type PreparedTransaction<'tx, L, S> =
-                        [<$name PreparedTransaction>]<'tx, K, V, L, S>
+                    type Tx<'tx, L, S> =
+                        [<$name Tx>]<'tx, K, V, L, S>
                     where
                         Self: 'tx,
                         L: $crate::prelude::LockPolicy + 'tx,
@@ -206,7 +206,7 @@ macro_rules! tx_schema {
 
                     fn prepared_tx<'tx, L, S>(
                         map: &'tx $crate::prelude::TxMap<K, V, L, S>,
-                    ) -> [<$name PreparedTxBuilder>]<
+                    ) -> [<$name Builder>]<
                         'tx,
                         $name<K, V>,
                         L,
@@ -219,7 +219,7 @@ macro_rules! tx_schema {
                         L: $crate::prelude::LockPolicy + 'tx,
                         S: std::hash::BuildHasher + 'tx,
                     {
-                        [<$name PreparedTxBuilder>] {
+                        [<$name Builder>] {
                             custodian: &map.custodian,
                             indexer: &map.indexer,
                             guards: std::vec::Vec::new(),
@@ -238,10 +238,10 @@ macro_rules! tx_schema {
                     /// Every type is inferred from the map, so no generic
                     /// parameters need to be written:
                     /// `Transfer::prepared_tx(&db)` returns the specialised
-                    /// `TransferPreparedTxBuilder`.
+                    /// `TransferBuilder`.
                     pub fn prepared_tx<'tx, L, S>(
                         map: &'tx $crate::prelude::TxMap<K, V, L, S>,
-                    ) -> [<$name PreparedTxBuilder>]<
+                    ) -> [<$name Builder>]<
                         'tx,
                         $name<K, V>,
                         L,
@@ -254,7 +254,7 @@ macro_rules! tx_schema {
                         L: $crate::prelude::LockPolicy + 'tx,
                         S: std::hash::BuildHasher + 'tx,
                     {
-                        [<$name PreparedTxBuilder>] {
+                        [<$name Builder>] {
                             custodian: &map.custodian,
                             indexer: &map.indexer,
                             guards: std::vec::Vec::new(),
@@ -337,7 +337,7 @@ macro_rules! tx_schema {
                 // `DefaultBuildHasher` and the phase defaults to
                 // `PreparedBuilderPhase`); the schema itself is baked in by
                 // the type name.
-                pub struct [<$name PreparedTxBuilder>]<
+                pub struct [<$name Builder>]<
                     'tx,
                     SCHEMA,
                     L = $crate::prelude::MutexPolicy,
@@ -376,7 +376,7 @@ macro_rules! tx_schema {
                 }
 
                 impl<'tx, SCHEMA, L, S>
-                    [<$name PreparedTxBuilder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuilderPhase>
+                    [<$name Builder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuilderPhase>
                 where
                     SCHEMA: $crate::prelude::TxSchema + 'tx,
                     L: $crate::prelude::LockPolicy,
@@ -394,7 +394,7 @@ macro_rules! tx_schema {
                             &mut SCHEMA::State,
                         ) -> bool
                         + 'tx,
-                    ) -> [<$name PreparedTxBuilder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuilderPhase> {
+                    ) -> [<$name Builder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuilderPhase> {
                         let guard = $crate::prepared::guard::Guard {
                             name: name.as_ref().into(),
                             key_selector: Box::new(key_selector),
@@ -402,7 +402,7 @@ macro_rules! tx_schema {
                             _phantom: std::marker::PhantomData,
                         };
                         self.guards.push(guard);
-                        [<$name PreparedTxBuilder>] {
+                        [<$name Builder>] {
                             custodian: self.custodian,
                             indexer: self.indexer,
                             guards: self.guards,
@@ -413,7 +413,7 @@ macro_rules! tx_schema {
                 }
 
                 impl<'tx, SCHEMA, L, S, PHASE>
-                    [<$name PreparedTxBuilder>]<'tx, SCHEMA, L, S, PHASE>
+                    [<$name Builder>]<'tx, SCHEMA, L, S, PHASE>
                 where
                     SCHEMA: $crate::prelude::TxSchema + 'tx,
                     L: $crate::prelude::LockPolicy,
@@ -424,12 +424,12 @@ macro_rules! tx_schema {
                         mut self,
                         key_selector: impl $crate::prelude::TxKeySelector<$crate::prelude::TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
                         get: impl Fn(&SCHEMA::Key, Option<&SCHEMA::Value>, &SCHEMA::Params, &mut SCHEMA::State) + 'tx,
-                    ) -> [<$name PreparedTxBuilder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
+                    ) -> [<$name Builder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
                         self.ops.push($crate::prepared::op::PreparedOp::Get {
                             key_selector: Box::new(key_selector),
                             get: Box::new(get),
                         });
-                        [<$name PreparedTxBuilder>] {
+                        [<$name Builder>] {
                             custodian: self.custodian,
                             indexer: self.indexer,
                             guards: self.guards,
@@ -450,7 +450,7 @@ macro_rules! tx_schema {
                         key_selector: impl $crate::prelude::TxKeySelector<$crate::prelude::TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
                         value: SCHEMA::Value,
                         get: impl Fn(&SCHEMA::Key, &SCHEMA::Value, &SCHEMA::Params, &mut SCHEMA::State) + 'tx,
-                    ) -> [<$name PreparedTxBuilder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase>
+                    ) -> [<$name Builder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase>
                     where
                         SCHEMA::Value: Clone,
                     {
@@ -459,7 +459,7 @@ macro_rules! tx_schema {
                             value_generator: Box::new(move |_k, _p, _s| value.clone()),
                             get: Box::new(get),
                         });
-                        [<$name PreparedTxBuilder>] {
+                        [<$name Builder>] {
                             custodian: self.custodian,
                             indexer: self.indexer,
                             guards: self.guards,
@@ -481,13 +481,13 @@ macro_rules! tx_schema {
                         value_generator: impl Fn(&SCHEMA::Key, &SCHEMA::Params, &mut SCHEMA::State) -> SCHEMA::Value
                         + 'tx,
                         get: impl Fn(&SCHEMA::Key, &SCHEMA::Value, &SCHEMA::Params, &mut SCHEMA::State) + 'tx,
-                    ) -> [<$name PreparedTxBuilder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
+                    ) -> [<$name Builder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
                         self.ops.push($crate::prepared::op::PreparedOp::GetOrInsertWith {
                             key_selector: Box::new(key_selector),
                             value_generator: Box::new(value_generator),
                             get: Box::new(get),
                         });
-                        [<$name PreparedTxBuilder>] {
+                        [<$name Builder>] {
                             custodian: self.custodian,
                             indexer: self.indexer,
                             guards: self.guards,
@@ -502,13 +502,13 @@ macro_rules! tx_schema {
                         key_selector: impl $crate::prelude::TxKeySelector<$crate::prelude::TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
                         value_generator: impl Fn(&SCHEMA::Key, &SCHEMA::Params, &mut SCHEMA::State) -> SCHEMA::Value
                         + 'tx,
-                    ) -> [<$name PreparedTxBuilder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
+                    ) -> [<$name Builder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
                         self.ops.push($crate::prepared::op::PreparedOp::InsertWith {
                             key_selector: Box::new(key_selector),
                             value_generator: Box::new(value_generator),
                             take_key: false,
                         });
-                        [<$name PreparedTxBuilder>] {
+                        [<$name Builder>] {
                             custodian: self.custodian,
                             indexer: self.indexer,
                             guards: self.guards,
@@ -522,13 +522,13 @@ macro_rules! tx_schema {
                         key_selector: impl $crate::prelude::TxKeySelector<$crate::prelude::TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
                         value_generator: impl Fn(&SCHEMA::Key, &SCHEMA::Params, &mut SCHEMA::State) -> SCHEMA::Value
                         + 'tx,
-                    ) -> [<$name PreparedTxBuilder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
+                    ) -> [<$name Builder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
                         self.ops.push($crate::prepared::op::PreparedOp::InsertWithIfAbsent {
                             key_selector: Box::new(key_selector),
                             value_generator: Box::new(value_generator),
                             take_key: false,
                         });
-                        [<$name PreparedTxBuilder>] {
+                        [<$name Builder>] {
                             custodian: self.custodian,
                             indexer: self.indexer,
                             guards: self.guards,
@@ -541,12 +541,12 @@ macro_rules! tx_schema {
                         mut self,
                         key_selector: impl $crate::prelude::TxKeySelector<$crate::prelude::TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
                         mutate: impl Fn(&SCHEMA::Key, &mut SCHEMA::Value, &SCHEMA::Params, &mut SCHEMA::State) + 'tx,
-                    ) -> [<$name PreparedTxBuilder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
+                    ) -> [<$name Builder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
                         self.ops.push($crate::prepared::op::PreparedOp::Modify {
                             key_selector: Box::new(key_selector),
                             mutate: Box::new(mutate),
                         });
-                        [<$name PreparedTxBuilder>] {
+                        [<$name Builder>] {
                             custodian: self.custodian,
                             indexer: self.indexer,
                             guards: self.guards,
@@ -559,12 +559,12 @@ macro_rules! tx_schema {
                         mut self,
                         key_selector_from: impl $crate::prelude::TxKeySelector<$crate::prelude::TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
                         key_selector_to: impl $crate::prelude::TxKeySelector<$crate::prelude::TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-                    ) -> [<$name PreparedTxBuilder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
+                    ) -> [<$name Builder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
                         self.ops.push($crate::prepared::op::PreparedOp::MoveValue {
                             key_selector_from: Box::new(key_selector_from),
                             key_selector_to: Box::new(key_selector_to),
                         });
-                        [<$name PreparedTxBuilder>] {
+                        [<$name Builder>] {
                             custodian: self.custodian,
                             indexer: self.indexer,
                             guards: self.guards,
@@ -576,11 +576,11 @@ macro_rules! tx_schema {
                     pub fn remove(
                         mut self,
                         key_selector: impl $crate::prelude::TxKeySelector<$crate::prelude::TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-                    ) -> [<$name PreparedTxBuilder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
+                    ) -> [<$name Builder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
                         self.ops.push($crate::prepared::op::PreparedOp::Remove {
                             key_selector: Box::new(key_selector),
                         });
-                        [<$name PreparedTxBuilder>] {
+                        [<$name Builder>] {
                             custodian: self.custodian,
                             indexer: self.indexer,
                             guards: self.guards,
@@ -594,12 +594,12 @@ macro_rules! tx_schema {
                         key_selector: impl $crate::prelude::TxKeySelector<$crate::prelude::TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
                         condition: impl Fn(&SCHEMA::Key, &SCHEMA::Value, &SCHEMA::Params, &mut SCHEMA::State) -> bool
                         + 'tx,
-                    ) -> [<$name PreparedTxBuilder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
+                    ) -> [<$name Builder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
                         self.ops.push($crate::prepared::op::PreparedOp::RemoveIf {
                             key_selector: Box::new(key_selector),
                             condition: Box::new(condition),
                         });
-                        [<$name PreparedTxBuilder>] {
+                        [<$name Builder>] {
                             custodian: self.custodian,
                             indexer: self.indexer,
                             guards: self.guards,
@@ -612,12 +612,12 @@ macro_rules! tx_schema {
                         mut self,
                         key_selector_a: impl $crate::prelude::TxKeySelector<$crate::prelude::TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
                         key_selector_b: impl $crate::prelude::TxKeySelector<$crate::prelude::TxKey<SCHEMA::Key>, SCHEMA::IndexedKeys> + 'tx,
-                    ) -> [<$name PreparedTxBuilder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
+                    ) -> [<$name Builder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
                         self.ops.push($crate::prepared::op::PreparedOp::SwapValue {
                             key_selector_a: Box::new(key_selector_a),
                             key_selector_b: Box::new(key_selector_b),
                         });
-                        [<$name PreparedTxBuilder>] {
+                        [<$name Builder>] {
                             custodian: self.custodian,
                             indexer: self.indexer,
                             guards: self.guards,
@@ -636,13 +636,13 @@ macro_rules! tx_schema {
                             &mut SCHEMA::State,
                         ) -> Option<SCHEMA::Value>
                         + 'tx,
-                    ) -> [<$name PreparedTxBuilder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
+                    ) -> [<$name Builder>]<'tx, SCHEMA, L, S, $crate::prelude::PreparedBuildablePhase> {
                         self.ops.push($crate::prepared::op::PreparedOp::Update {
                             key_selector: Box::new(key_selector),
                             transform: Box::new(transform),
                             take_key: false,
                         });
-                        [<$name PreparedTxBuilder>] {
+                        [<$name Builder>] {
                             custodian: self.custodian,
                             indexer: self.indexer,
                             guards: self.guards,
@@ -658,9 +658,9 @@ macro_rules! tx_schema {
                 // `SCHEMA::IndexedKeys`, `SCHEMA::Params` and `SCHEMA::State`
                 // through the schema's `TxSchema` impl and see that the
                 // builder's guards and ops move unchanged into the
-                // specialised `$name PreparedTransaction`.
+                // specialised `$name Tx`.
                 impl<'tx, K, V, L, S>
-                    [<$name PreparedTxBuilder>]<
+                    [<$name Builder>]<
                         'tx,
                         $name<K, V>,
                         L,
@@ -676,14 +676,14 @@ macro_rules! tx_schema {
                 {
                     #[must_use]
                     /// Consumes the builder and returns the specialised
-                    /// `$name PreparedTransaction` generated by
+                    /// `$name Tx` generated by
                     /// [`tx_schema`](macro@crate::tx_schema).
                     ///
                     /// The transaction carries the entire execution plan — the map
                     /// references, guards and operations — as its own fields, so no
                     /// closure needs to be boxed. The returned transaction can be
                     /// executed repeatedly and stored easily.
-                    pub fn into_transaction(self) -> [<$name PreparedTransaction>]<'tx, K, V, L, S> {
+                    pub fn into_transaction(self) -> [<$name Tx>]<'tx, K, V, L, S> {
                         // Ops apply in order, so a consuming op may move its key out of the
                         // per-execution keys container instead of cloning it only when no
                         // later op references the same key handle. Iterating backwards and
@@ -714,13 +714,13 @@ macro_rules! tx_schema {
                             }
                             op.insert_key_ids(&mut taken);
                         }
-                        let [<$name PreparedTxBuilder>] {
+                        let [<$name Builder>] {
                             custodian,
                             indexer,
                             guards,
                             ..
                         } = self;
-                        [<$name PreparedTransaction>] {
+                        [<$name Tx>] {
                             custodian,
                             indexer,
                             guards,
@@ -735,11 +735,11 @@ macro_rules! tx_schema {
                 // each schema. The transaction is generic over the map's key
                 // and value types (the lock policy and hasher default to
                 // `MutexPolicy` and `DefaultBuildHasher`), and implements
-                // `PreparedTransactionTrait` with the schema as its `SCHEMA`
+                // `TxTrait` with the schema as its `SCHEMA`
                 // associated type, so it is storable without naming the
                 // schema as a generic parameter:
-                // `TransferPreparedTransaction<'tx, String, u64>`.
-                pub struct [<$name PreparedTransaction>]<
+                // `TransferTx<'tx, String, u64>`.
+                pub struct [<$name Tx>]<
                     'tx,
                     K,
                     V,
@@ -777,7 +777,7 @@ macro_rules! tx_schema {
                     >,
                 }
 
-                impl<'tx, K, V, L, S> [<$name PreparedTransaction>]<'tx, K, V, L, S>
+                impl<'tx, K, V, L, S> [<$name Tx>]<'tx, K, V, L, S>
                 where
                     K: Clone + std::hash::Hash + Eq + 'tx,
                     V: 'tx,
@@ -838,8 +838,8 @@ macro_rules! tx_schema {
                     }
                 }
 
-                impl<'tx, K, V, L, S> $crate::prelude::PreparedTransactionTrait
-                    for [<$name PreparedTransaction>]<'tx, K, V, L, S>
+                impl<'tx, K, V, L, S> $crate::prelude::TxTrait
+                    for [<$name Tx>]<'tx, K, V, L, S>
                 where
                     K: std::hash::Hash + 'tx,
                     V: 'tx,
