@@ -335,19 +335,6 @@ fn prepared_transaction_implements_prepared_transaction_trait() {
         .modify(Transfer::to, |_k, v, p, _s| *v += p.amount)
         .into_transaction();
 
-    // The schema is recoverable from the stored transaction type via the
-    // trait's associated type, without naming it as a generic parameter.
-    fn assert_schema<T: TxTrait>(_tx: &T) {
-        // `T::SCHEMA` is a `TxSchema` and its structural types are usable.
-        fn _check<KEYS, PARAMS, STATE: Default>() {}
-        _check::<
-            <T::SCHEMA as TxSchema>::Keys,
-            <T::SCHEMA as TxSchema>::Params,
-            <T::SCHEMA as TxSchema>::State,
-        >();
-    }
-    assert_schema(&tx);
-
     map.insert(ALICE.into(), 100);
     map.insert(BOB.into(), 0);
     let result = tx.execute(

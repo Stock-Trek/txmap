@@ -9,7 +9,7 @@ use crate::{
     lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
     multi_shard_ops::MultiShardOps,
     new_types::{BitMask, ShardCount, ShardIndex},
-    prepared::schema::{PreparedBuilderPhase, TxSchema},
+    prepared::schema::{BuilderPhase, TxSchema},
     shard_ops::ShardOps,
     tx_map_builder::TxMapBuilder,
 };
@@ -366,7 +366,7 @@ where
     pub fn prepared_tx<'tx, SCHEMA>(
         &'tx self,
         schema: &SCHEMA,
-    ) -> SCHEMA::Builder<'tx, L, S, PreparedBuilderPhase>
+    ) -> SCHEMA::Builder<'tx, L, S, BuilderPhase>
     where
         SCHEMA: TxSchema<Key = K, Value = V> + 'tx,
         K: Hash + 'tx,
