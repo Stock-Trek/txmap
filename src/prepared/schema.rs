@@ -73,9 +73,9 @@ pub trait TxSchema<K> {
     /// map.
     ///
     /// Every type is inferred from the map, so no generic parameters need to
-    /// be written. [`TxMap::prepared_tx`](crate::tx_map::TxMap::prepared_tx)
+    /// be written. [`TxMap::builder`](crate::tx_map::TxMap::builder)
     /// delegates to this method.
-    fn prepared_tx<'tx, V, L, S>(map: &'tx TxMap<K, V, L, S>) -> Self::Builder<'tx, V, L, S>
+    fn builder<'tx, V, L, S>(&self, map: &'tx TxMap<K, V, L, S>) -> Self::Builder<'tx, V, L, S>
     where
         Self: Sized + 'tx,
         K: 'tx,
@@ -178,7 +178,8 @@ macro_rules! tx_schema {
                         L: $crate::prelude::LockPolicy + 'tx,
                         S: std::hash::BuildHasher + 'tx;
 
-                    fn prepared_tx<'tx, V, L, S>(
+                    fn builder<'tx, V, L, S>(
+                        &self,
                         map: &'tx $crate::prelude::TxMap<K, V, L, S>,
                     ) -> [<$name Builder>]<'tx, K, V, L, S>
                     where

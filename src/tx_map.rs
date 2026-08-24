@@ -344,21 +344,21 @@ where
     #[must_use]
     /// Starts building a prepared (re-usable) transaction.
     ///
-    /// `_schema` is a schema constant created via the [`tx_schema`](macro@crate::tx_schema) macro.
+    /// `schema` is a schema constant created via the [`tx_schema`](macro@crate::tx_schema) macro.
     /// The returned builder can be turned into a transaction that can be
     /// executed many times with different keys/parameters.
-    pub fn prepared_tx<'tx, SCHEMA>(&'tx self, _schema: &SCHEMA) -> SCHEMA::Builder<'tx, V, L, S>
+    pub fn prepared_tx<'tx, SCHEMA>(&'tx self, schema: &SCHEMA) -> SCHEMA::Builder<'tx, V, L, S>
     where
-        SCHEMA: TxSchema<K> + 'tx,
         K: 'tx,
         V: 'tx,
         L: LockPolicy + 'tx,
         S: BuildHasher + 'tx,
+        SCHEMA: TxSchema<K> + 'tx,
         SCHEMA::IndexedKeys: 'tx,
         SCHEMA::Params: 'tx,
         SCHEMA::State: 'tx,
     {
-        SCHEMA::prepared_tx(self)
+        schema.builder(self)
     }
 
     /// Removes all entries from the map.
