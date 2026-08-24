@@ -139,7 +139,7 @@ macro_rules! tx_schema {
                 pub struct $name<K> {
                     _phantom: std::marker::PhantomData<K>,
                 }
-                impl<K> $crate::prelude::TxSchema<K> for $name<K>
+                impl<K> $crate::TxSchema<K> for $name<K>
                 where
                     K: std::hash::Hash,
                 {
@@ -153,7 +153,7 @@ macro_rules! tx_schema {
                         Self: 'tx,
                         K: 'tx,
                         V: 'tx,
-                        L: $crate::prelude::LockPolicy + 'tx,
+                        L: $crate::LockPolicy + 'tx,
                         S: std::hash::BuildHasher + 'tx,
                         Self::IndexedKeys: 'tx,
                         Self::Params: 'tx,
@@ -164,7 +164,7 @@ macro_rules! tx_schema {
                         Self: 'tx,
                         K: 'tx,
                         V: 'tx,
-                        L: $crate::prelude::LockPolicy + 'tx,
+                        L: $crate::LockPolicy + 'tx,
                         S: std::hash::BuildHasher + 'tx,
                         Self::IndexedKeys: 'tx,
                         Self::Params: 'tx,
@@ -175,17 +175,17 @@ macro_rules! tx_schema {
                         Self: 'tx,
                         K: 'tx,
                         V: 'tx,
-                        L: $crate::prelude::LockPolicy + 'tx,
+                        L: $crate::LockPolicy + 'tx,
                         S: std::hash::BuildHasher + 'tx;
 
                     fn builder<'tx, V, L, S>(
                         &self,
-                        map: &'tx $crate::prelude::TxMap<K, V, L, S>,
+                        map: &'tx $crate::TxMap<K, V, L, S>,
                     ) -> [<$name Builder>]<'tx, K, V, L, S>
                     where
                         K: 'tx,
                         V: 'tx,
-                        L: $crate::prelude::LockPolicy + 'tx,
+                        L: $crate::LockPolicy + 'tx,
                         S: std::hash::BuildHasher + 'tx,
                         Self::IndexedKeys: 'tx,
                         Self::Params: 'tx,
@@ -227,7 +227,7 @@ macro_rules! tx_schema {
                 }
 
                 pub struct [<$name IndexedKeys>]<K> {
-                    $(pub $key: std::option::Option<$crate::prelude::TxKey<K>>,)*
+                    $(pub $key: std::option::Option<$crate::TxKey<K>>,)*
                 }
                 $(
                     #[allow(non_camel_case_types)]
@@ -236,25 +236,25 @@ macro_rules! tx_schema {
                     }
                 )*
                 $(
-                    impl<K> $crate::prelude::TxKeySelector<$crate::prelude::TxKey<K>, [<$name IndexedKeys>]<K>> for [<$name _ $key>]<K>
+                    impl<K> $crate::TxKeySelector<$crate::TxKey<K>, [<$name IndexedKeys>]<K>> for [<$name _ $key>]<K>
                     {
-                        fn get<'keys>(&self, keys: &'keys [<$name IndexedKeys>]<K>) -> &'keys $crate::prelude::TxKey<K> {
+                        fn get<'keys>(&self, keys: &'keys [<$name IndexedKeys>]<K>) -> &'keys $crate::TxKey<K> {
                             keys.$key.as_ref().expect("key handle already consumed")
                         }
                         fn key_id(&self) -> &'static str {
                             stringify!($key)
                         }
-                        fn take(&self, keys: &mut [<$name IndexedKeys>]<K>) -> $crate::prelude::TxKey<K> {
+                        fn take(&self, keys: &mut [<$name IndexedKeys>]<K>) -> $crate::TxKey<K> {
                             keys.$key.take().expect("key handle already consumed")
                         }
                     }
                 )*
-                impl<K, S> $crate::prelude::TxKeys<K, [<$name IndexedKeys>]<K>, S> for [<$name Keys>]<K>
+                impl<K, S> $crate::TxKeys<K, [<$name IndexedKeys>]<K>, S> for [<$name Keys>]<K>
                 where
                     K: std::hash::Hash,
                     S: std::hash::BuildHasher,
                 {
-                    fn into_indexed(self, shard_count: $crate::prelude::ShardCount, indexer: &$crate::indexer::Indexer<S>) -> [<$name IndexedKeys>]<K> {
+                    fn into_indexed(self, shard_count: $crate::ShardCount, indexer: &$crate::indexer::Indexer<S>) -> [<$name IndexedKeys>]<K> {
                         [<$name IndexedKeys>] {
                             $(
                                 $key: std::option::Option::Some(indexer.indexed_key(shard_count, self.$key)),
@@ -268,7 +268,7 @@ macro_rules! tx_schema {
                 where
                     K: 'tx,
                     V: 'tx,
-                    L: $crate::prelude::LockPolicy + 'tx,
+                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
                     pub(crate) custodian: &'tx $crate::custodian::Custodian<K, V, L>,
@@ -290,7 +290,7 @@ macro_rules! tx_schema {
                 where
                     K: 'tx,
                     V: 'tx,
-                    L: $crate::prelude::LockPolicy + 'tx,
+                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
                     type Builder = [<$name Builder>]<'tx, K, V, L, S>;
@@ -318,7 +318,7 @@ macro_rules! tx_schema {
                 where
                     K: 'tx,
                     V: 'tx,
-                    L: $crate::prelude::LockPolicy + 'tx,
+                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
                     type Builder = [<$name Buildable>]<'tx, K, V, L, S>;
@@ -341,7 +341,7 @@ macro_rules! tx_schema {
                 where
                     K: 'tx,
                     V: 'tx,
-                    L: $crate::prelude::LockPolicy + 'tx,
+                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
                     pub(crate) custodian: &'tx $crate::custodian::Custodian<K, V, L>,
@@ -364,7 +364,7 @@ macro_rules! tx_schema {
                 where
                     K: 'tx,
                     V: 'tx,
-                    L: $crate::prelude::LockPolicy + 'tx,
+                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
                     type Builder = [<$name Buildable>]<'tx, K, V, L, S>;
@@ -392,7 +392,7 @@ macro_rules! tx_schema {
                 where
                     K: 'tx,
                     V: 'tx,
-                    L: $crate::prelude::LockPolicy + 'tx,
+                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
                     type Tx = [<$name Tx>]<'tx, K, V, L, S>;
@@ -422,7 +422,7 @@ macro_rules! tx_schema {
                 where
                     K: 'tx,
                     V: 'tx,
-                    L: $crate::prelude::LockPolicy + 'tx,
+                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
                     pub(crate) custodian: &'tx $crate::custodian::Custodian<K, V, L>,
@@ -435,7 +435,7 @@ macro_rules! tx_schema {
                 where
                     K: 'tx + std::clone::Clone + std::hash::Hash + std::cmp::Eq,
                     V: 'tx,
-                    L: $crate::prelude::LockPolicy + 'tx,
+                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
                     #[must_use]
@@ -444,14 +444,14 @@ macro_rules! tx_schema {
                     /// The keys are hashed, locks are acquired, guards are
                     /// checked, and operations are applied. Returns the final
                     /// state wrapped in
-                    /// [`TxResult`](crate::prelude::TxResult).
+                    /// [`TxResult`](crate::TxResult).
                     pub fn execute<RAW>(
                         &self,
                         keys: RAW,
                         params: [<$name Params>],
-                    ) -> $crate::prelude::TxResult<[<$name State>]>
+                    ) -> $crate::TxResult<[<$name State>]>
                     where
-                        RAW: $crate::prelude::TxKeys<K, [<$name IndexedKeys>]<K>, S>,
+                        RAW: $crate::TxKeys<K, [<$name IndexedKeys>]<K>, S>,
                     {
                         $crate::prepared::transaction::execute(
                             self.custodian,
