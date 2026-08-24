@@ -365,7 +365,7 @@ where
     /// infers the schema from the map, so the schema argument is optional.
     pub fn prepared_tx<'tx, SCHEMA>(
         &'tx self,
-        _schema: &SCHEMA,
+        schema: &SCHEMA,
     ) -> SCHEMA::Builder<'tx, L, S, PreparedBuilderPhase>
     where
         SCHEMA: TxSchema<Key = K, Value = V> + 'tx,
@@ -374,7 +374,7 @@ where
         L: 'tx,
         S: 'tx,
     {
-        SCHEMA::prepared_tx(self)
+        schema.prepared_tx(self)
     }
 
     /// Removes all entries from the map.

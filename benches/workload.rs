@@ -1,8 +1,8 @@
 //! Concurrent workload benchmarks.
 //!
-//! Simulates realistic concurrent access patterns — read-heavy caches,
+//! Simulates realistic concurrent access patterns, read-heavy caches,
 //! write-heavy ingestion, counter-style read-modify-write, and atomic
-//! two-key transfers — under two contention profiles (partitioned keys
+//! two-key transfers, under two contention profiles (partitioned keys
 //! and a shared hot-key set) and thread counts from 1 to 6.
 //!
 //! Each workload is compared against `RwLock<HashMap>` and
