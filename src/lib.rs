@@ -27,7 +27,7 @@ pub mod tx_map_builder;
 
 pub use hasher::DefaultBuildHasher;
 pub use immediate::{
-    transaction::ImmediateTransaction,
+    transaction::ImmediateTx,
     tx_builder::{ImmediateBuildablePhase, ImmediateBuilderPhase, ImmediateTxBuilder},
 };
 pub use iter::Iter;
@@ -37,10 +37,8 @@ pub use lock_policies::{
 };
 pub use new_types::{HashCode, ShardCount, ShardIndex};
 pub use prepared::{
-    build_phase::{BuildPhase, PreparedBuildablePhase, PreparedBuilderPhase},
     schema::{TxKeySelector, TxKeys, TxSchema},
-    transaction::PreparedTransaction,
-    tx_builder::PreparedTxBuilder,
+    tx_builder::{PreparedTxBuilder, PreparedTxOperationsBuilder, PreparedTxRequirementsBuilder},
 };
 pub use result::{TryReserveError, TxResult};
 pub use shards::Shards;
@@ -49,9 +47,9 @@ pub use tx_map_builder::TxMapBuilder;
 
 pub mod prelude {
     pub use crate::{
-        HashCode, ImmediateBuildablePhase, ImmediateBuilderPhase, ImmediateTransaction,
-        ImmediateTxBuilder, LockPolicy, MutexPolicy, PreparedBuildablePhase, PreparedBuilderPhase,
-        PreparedTransaction, PreparedTxBuilder, RwLockPolicy, ShardCount, ShardIndex, Shards,
+        HashCode, ImmediateBuildablePhase, ImmediateBuilderPhase, ImmediateTx, ImmediateTxBuilder,
+        LockPolicy, MutexPolicy, PreparedTxBuilder, PreparedTxOperationsBuilder,
+        PreparedTxRequirementsBuilder, RwLockPolicy, ShardCount, ShardIndex, Shards,
         TryReserveError, TxKey, TxKeySelector, TxKeys, TxMap, TxMapBuilder, TxResult, TxSchema,
         tx_schema,
     };

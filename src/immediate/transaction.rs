@@ -1,6 +1,6 @@
 use crate::{
     custodian::Custodian,
-    immediate::{guard::Guard, op::ImmediateOp},
+    immediate::{guard::ImmediateGuard, op::ImmediateOp},
     indexer::Indexer,
     lock_policies::lock_policy::LockPolicy,
     new_types::BitMask,
@@ -13,19 +13,19 @@ use std::hash::{BuildHasher, Hash};
 /// Built via [`ImmediateTxBuilder`](crate::immediate::tx_builder::ImmediateTxBuilder) and executed immediately.
 /// Acquires all needed locks, checks guards, applies operations,
 /// then releases locks and returns the final state.
-pub struct ImmediateTransaction<'tx, K, V, L, S, STATE>
+pub struct ImmediateTx<'tx, K, V, L, S, STATE>
 where
     L: LockPolicy,
     S: BuildHasher,
 {
     pub(crate) custodian: &'tx Custodian<K, V, L>,
     pub(crate) indexer: &'tx Indexer<S>,
-    pub(crate) guards: Vec<Guard<'tx, K, V, STATE>>,
+    pub(crate) guards: Vec<ImmediateGuard<'tx, K, V, STATE>>,
     #[allow(clippy::type_complexity)]
     pub(crate) ops: Vec<ImmediateOp<'tx, K, V, STATE>>,
 }
 
-impl<'tx, K, V, L, S, STATE> ImmediateTransaction<'tx, K, V, L, S, STATE>
+impl<'tx, K, V, L, S, STATE> ImmediateTx<'tx, K, V, L, S, STATE>
 where
     K: Clone + Hash + Eq,
     L: LockPolicy,

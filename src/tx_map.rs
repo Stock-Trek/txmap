@@ -7,11 +7,7 @@ use crate::{
     lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
     multi_shard_ops::MultiShardOps,
     new_types::{ShardCount, ShardIndex},
-    prepared::{
-        build_phase::PreparedBuilderPhase,
-        schema::{TxKeys, TxSchema},
-        tx_builder::PreparedTxBuilder,
-    },
+    prepared::schema::TxSchema,
     shard_ops::ShardOps,
     tx_map_builder::TxMapBuilder,
 };
@@ -340,30 +336,21 @@ where
     #[must_use]
     /// Starts building a prepared (re-usable) transaction.
     ///
-    /// `_schema` is a schema constant created via the [`tx_schema`](macro@crate::tx_schema) macro.
-    /// The returned builder can be turned into a [`PreparedTransaction`](crate::prepared::transaction::PreparedTransaction)
-    /// that can be executed many times with different keys/parameters.
-    pub fn prepared_tx<'tx, SCHEMA, RAW, KEYS, PARAMS, STATE>(
-        &'tx self,
-        _schema: &SCHEMA,
-    ) -> PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE, PreparedBuilderPhase>
+    /// `schema` is a schema constant created via the [`tx_schema`](macro@crate::tx_schema) macro.
+    /// The returned builder can be turned into a transaction that can be
+    /// executed many times with different keys/parameters.
+    pub fn prepared_tx<'tx, SCHEMA>(&'tx self, schema: &SCHEMA) -> SCHEMA::Builder<'tx, V, L, S>
     where
         K: 'tx,
         V: 'tx,
-        S: 'tx,
-        SCHEMA: TxSchema<K, Keys = RAW, IndexedKeys = KEYS, Params = PARAMS, State = STATE> + 'tx,
-        RAW: TxKeys<K, KEYS, S> + 'tx,
-        KEYS: 'tx,
-        PARAMS: 'tx,
-        STATE: 'tx,
+        L: LockPolicy + 'tx,
+        S: BuildHasher + 'tx,
+        SCHEMA: TxSchema<K> + 'tx,
+        SCHEMA::IndexedKeys: 'tx,
+        SCHEMA::Params: 'tx,
+        SCHEMA::State: 'tx,
     {
-        PreparedTxBuilder {
-            custodian: &self.custodian,
-            indexer: &self.indexer,
-            guards: Vec::new(),
-            ops: Vec::new(),
-            _phase: std::marker::PhantomData,
-        }
+        schema.builder(self.shard_count, &self.custodian, &self.indexer)
     }
 
     /// Removes all entries from the map.

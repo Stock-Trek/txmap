@@ -24,10 +24,11 @@ pub struct ShardCount(pub(crate) u8);
 #[cfg_attr(feature = "serde", serde(transparent))]
 pub struct ShardIndex(pub(crate) u8);
 
+/// Bitmask for locked shard indices
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
-pub(crate) struct BitMask(pub u128);
+pub struct BitMask(pub u128);
 
 /// Maximum number of shards supported by a [`TxMap`](crate::TxMap).
 ///

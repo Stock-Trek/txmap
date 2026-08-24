@@ -7,7 +7,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-pub(crate) struct Guard<'tx, K, V, STATE> {
+pub(crate) struct ImmediateGuard<'tx, K, V, STATE> {
     pub name: String,
     pub key: TxKey<K>,
     #[allow(clippy::type_complexity)]
@@ -15,13 +15,13 @@ pub(crate) struct Guard<'tx, K, V, STATE> {
     pub _phantom: PhantomData<STATE>,
 }
 
-impl<'tx, K, V, STATE> Guard<'tx, K, V, STATE> {
+impl<'tx, K, V, STATE> ImmediateGuard<'tx, K, V, STATE> {
     pub fn read_bitmask(&self) -> BitMask {
         self.key.shard_index.bitmask()
     }
 }
 
-impl<'tx, K, V, STATE> Guard<'tx, K, V, STATE>
+impl<'tx, K, V, STATE> ImmediateGuard<'tx, K, V, STATE>
 where
     K: Eq,
 {
