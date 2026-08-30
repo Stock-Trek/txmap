@@ -9,7 +9,7 @@ runs:
     - name: Install pi-coding-agent and json-schema extension
       shell: bash
       run: |
-        bun install -g @mariozechner/pi-coding-agent
+        bun install -g @earendil-works/pi-coding-agent
         pi install npm:@nqbao/pi-json-schema
 
     - name: Configure DeepSeek as custom provider

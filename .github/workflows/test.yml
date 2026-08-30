@@ -29,18 +29,6 @@ jobs:
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
 
-      - name: Set up shipyard ssh auth
-        env:
-          SHIPYARD_KNOWN_HOST: ${{ env.SHIPYARD_KNOWN_HOST }}
-          SHIPYARD_SSH_PRIVATE_KEY_CLIENT: ${{ env.SHIPYARD_SSH_PRIVATE_KEY_CLIENT }}
-        run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "${{ env.SHIPYARD_SSH_PRIVATE_KEY_CLIENT }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          echo "${{ env.SHIPYARD_KNOWN_HOST }}" >> ~/.ssh/known_hosts
-          ssh -T git@ssh.shipyard.rs
-
       - name: Run checks
         run: |
           cargo fmt --check

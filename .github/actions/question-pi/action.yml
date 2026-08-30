@@ -25,16 +25,16 @@ runs:
         SCHEMA=$(echo "${{ inputs.schema-base64 }}" | base64 -d)
         echo "${PROMPT}"
         echo "${SCHEMA}"
-        PI_PROMPT="${PROMPT}"$'\n\n'" <Start of context> ${CONTEXT} <End of context>"
+        MESSAGE=$(printf '%s\n\n%s\n%s\n%s' "${PROMPT}" "<Start of context>" "${CONTEXT}" "<End of context>")
         JSON_OUTPUT_FILE=$(mktemp)
         PI_RESPONSE=$(pi \
           --provider deepseek \
-          --model deepseek-v4-pro \
+          --model deepseek-v4-flash \
           --tools read,bash,grep,find,ls,json_output \
           --json-schema "${SCHEMA}" \
           --json-fallback force \
           --json-output "${JSON_OUTPUT_FILE}" \
-          --print "${PI_PROMPT}" \
+          --print "${MESSAGE}" \
           )
         echo "${PI_RESPONSE}"
         if [ ! -s "${JSON_OUTPUT_FILE}" ]; then
