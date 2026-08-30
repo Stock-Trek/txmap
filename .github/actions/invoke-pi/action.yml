@@ -20,12 +20,12 @@ runs:
         CONTEXT=$(echo "${{ inputs.context-base64 }}" | base64 -d)
         PROMPT=$(echo "${{ inputs.prompt-base64 }}" | base64 -d)
         echo "${PROMPT}"
-        PI_PROMPT="${PROMPT}"$'\n\n'" <Start of context> ${CONTEXT} <End of context>"
+        MESSAGE=$(printf '%s\n\n%s\n%s\n%s' "${PROMPT}" "<Start of context>" "${CONTEXT}" "<End of context>")
         PI_RESPONSE=$(pi \
           --provider deepseek \
           --model deepseek-v4-flash \
           --tools read,write,edit,bash,grep,find,ls \
-          --print "${PI_PROMPT}" \
+          --print "${MESSAGE}" \
           )
         echo "${PI_RESPONSE}"
         PI_RESPONSE_BASE64=$(echo "${PI_RESPONSE}" | base64 -w 0)

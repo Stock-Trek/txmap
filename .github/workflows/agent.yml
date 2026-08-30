@@ -62,18 +62,18 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
 
-      - name: Remove all previous reactions from issue and comment
+      - name: Remove all previous reactions from the comment or issue that triggered the workflow
         uses: ./.github/actions/remove-emoji-reactions
         with:
           comment-id: ${{ github.event.comment.id }}
-          issue-number: ${{ github.event.issue.number }}
+          issue-number: ${{ github.event_name == 'issues' && github.event.issue.number || '' }}
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Acknowledge
         uses: ./.github/actions/emoji-react
         with:
           comment-id: ${{ github.event.comment.id }}
-          issue-number: ${{ github.event.issue.number }}
+          issue-number: ${{ github.event_name == 'issues' && github.event.issue.number || '' }}
           reaction: 'eyes'
           token: ${{ steps.app-token.outputs.token }}
 
@@ -204,7 +204,7 @@ jobs:
         uses: ./.github/actions/emoji-react
         with:
           comment-id: ${{ github.event.comment.id }}
-          issue-number: ${{ github.event.issue.number }}
+          issue-number: ${{ github.event_name == 'issues' && github.event.issue.number || '' }}
           reaction: '-1'
           token: ${{ steps.app-token.outputs.token }}
 
@@ -245,7 +245,7 @@ jobs:
         uses: ./.github/actions/emoji-react
         with:
           comment-id: ${{ github.event.comment.id }}
-          issue-number: ${{ github.event.issue.number }}
+          issue-number: ${{ github.event_name == 'issues' && github.event.issue.number || '' }}
           reaction: 'confused'
           token: ${{ steps.app-token.outputs.token }}
       - name: Add comment
@@ -388,15 +388,20 @@ jobs:
         uses: ./.github/actions/emoji-react
         with:
           comment-id: ${{ github.event.comment.id }}
-          issue-number: ${{ github.event.issue.number }}
+          issue-number: ${{ github.event_name == 'issues' && github.event.issue.number || '' }}
           reaction: 'confused'
           token: ${{ steps.app-token.outputs.token }}
       - name: Ask for required information
         if: steps.save-response-type.outputs.response-type == 'REQUIRES_MORE_INFORMATION'
+        env:
+          EXTRA_INFO: ${{ steps.save-extra-information-required.outputs.extra-information-required }}
         uses: actions/github-script@v9
         with:
           script: |
-            let extraInfo = ${{ toJson(steps.save-extra-information-required.outputs.extra-information-required) }};
+            // Read the JSON from the environment rather than interpolating it
+            // into the script: the model-generated text may contain characters
+            // that would break the generated JavaScript.
+            let extraInfo = process.env.EXTRA_INFO;
             // The response is schema-validated JSON (an array of strings); parse
             // it, falling back to the raw text for robustness.
             if (typeof extraInfo === 'string') {
@@ -427,7 +432,7 @@ jobs:
         uses: ./.github/actions/emoji-react
         with:
           comment-id: ${{ github.event.comment.id }}
-          issue-number: ${{ github.event.issue.number }}
+          issue-number: ${{ github.event_name == 'issues' && github.event.issue.number || '' }}
           reaction: '+1'
           token: ${{ steps.app-token.outputs.token }}
       - name: Ensure issue branch
@@ -437,18 +442,6 @@ jobs:
           branch: ${{ needs.triage.outputs.issue-branch }}
           base: ${{ needs.triage.outputs.issue-branch-base }}
           create-if-not-exists: true
-      - name: Set up shipyard ssh auth
-        if: steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY'
-        env:
-          SHIPYARD_KNOWN_HOST: ${{ env.SHIPYARD_KNOWN_HOST }}
-          SHIPYARD_SSH_PRIVATE_KEY_CLIENT: ${{ env.SHIPYARD_SSH_PRIVATE_KEY_CLIENT }}
-        run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "${{ env.SHIPYARD_SSH_PRIVATE_KEY_CLIENT }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          echo "${{ env.SHIPYARD_KNOWN_HOST }}" >> ~/.ssh/known_hosts
-          ssh -T git@ssh.shipyard.rs
       - name: Address issue
         id: address-issue
         if: steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY'
@@ -473,27 +466,38 @@ jobs:
         id: check-for-code-changes
         if: steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY'
         run: |
-          # quick local check
+          # quick local check: uncommitted changes made by the agent
           if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
             echo "has-changes=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # slow network check
-          ISSUE_BRANCH="${{ needs.triage.outputs.issue-branch }}"
+          # slow network check: committed changes. The agent may commit (and
+          # even push) its own changes, so compare the branch tip against the
+          # BASE branch - never against the issue branch, which the agent may
+          # have just pushed to (comparing against it always shows no diff).
           ISSUE_BRANCH_BASE="${{ needs.triage.outputs.issue-branch-base }}"
-          git fetch origin "$ISSUE_BRANCH" 2>/dev/null || true
           git fetch origin "$ISSUE_BRANCH_BASE" 2>/dev/null || true
-          if git rev-parse --verify "origin/$ISSUE_BRANCH" >/dev/null 2>&1; then
-            REFERENCE="origin/$ISSUE_BRANCH"
-          elif git rev-parse --verify "origin/$ISSUE_BRANCH_BASE" >/dev/null 2>&1; then
-            REFERENCE="origin/$ISSUE_BRANCH_BASE"
+          REFERENCE=""
+          for CANDIDATE in "origin/$ISSUE_BRANCH_BASE" "$ISSUE_BRANCH_BASE"; do
+            if git rev-parse --verify --quiet "$CANDIDATE" >/dev/null 2>&1; then
+              REFERENCE="$CANDIDATE"
+              break
+            fi
+          done
+          if [ -n "$REFERENCE" ]; then
+            # If the commit count cannot be determined, be conservative and
+            # treat it as a change so the PR and links are not silently dropped.
+            COMMITS_AHEAD=$(git rev-list --count "$REFERENCE"..HEAD 2>/dev/null || echo 1)
+            if [ "${COMMITS_AHEAD}" -gt 0 ]; then
+              HAS_CHANGES=true
+            else
+              HAS_CHANGES=false
+            fi
           else
-            REFERENCE="HEAD"
-          fi
-          if ! git diff --quiet HEAD "$REFERENCE"; then
+            # No base reference is available (e.g. the fetch failed or the base
+            # branch was renamed). Be conservative: report a change so the
+            # workflow still commits, raises a PR and posts the links.
             HAS_CHANGES=true
-          else
-            HAS_CHANGES=false
           fi
           echo "has-changes=${HAS_CHANGES}" >> "$GITHUB_OUTPUT"
       - name: Commit and push code changes
@@ -502,14 +506,24 @@ jobs:
           git config --global user.email "agent@stock-trek.com"
           git config --global user.name "Stock-Trek Agent"
           git add .
-          git commit --allow-empty -m "Commit changes made by pi"
+          if ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+            git commit -m "Commit changes made by pi"
+          fi
           git push
       - name: Reply if no code changes made
         if: (steps.save-response-type.outputs.response-type == 'CAN_ADDRESS_FULLY') && (steps.check-for-code-changes.outputs.has-changes == 'false')
+        env:
+          SUMMARY: ${{ steps.save-address-issue-summary.outputs.summary }}
         uses: actions/github-script@v9
         with:
           script: |
-            const body = ${{ toJson(steps.save-address-issue-summary.outputs.summary) }};
+            // Read the summary from the environment rather than interpolating
+            // it into the script: the summary is free-form text that may
+            // contain characters that would break the generated JavaScript.
+            let body = process.env.SUMMARY;
+            if (typeof body !== 'string' || body.trim() === '') {
+              body = "I have now addressed this, but no code changes were needed.";
+            }
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
