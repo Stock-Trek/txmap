@@ -64,13 +64,14 @@ where
     where
         C: UnindexedConsumer<Self::Item>,
     {
-        let shard_count = self.custodian.shard_count.0 as usize;
-        // Acquire a read guard on every shard and hold all of them until the
-        // parallel iteration below completes, giving a consistent snapshot.
-        let mut guards: Vec<L::ReadGuard<'_, Shard<K, V>>> = Vec::with_capacity(shard_count);
-        let mut shard_iters: Vec<ShardIter<'a, (K, V)>> = Vec::with_capacity(shard_count);
-        for shard_index in 0..shard_count {
-            let guard = self.custodian.read_guard_at(ShardIndex(shard_index as u8));
+        let ids = self.custodian.active_ids();
+        // Acquire a read guard on every active leaf and hold all of them until
+        // the parallel iteration below completes, giving a consistent
+        // snapshot.
+        let mut guards: Vec<L::ReadGuard<'_, Shard<K, V>>> = Vec::with_capacity(ids.len());
+        let mut shard_iters: Vec<ShardIter<'a, (K, V)>> = Vec::with_capacity(ids.len());
+        for id in ids {
+            let guard = self.custodian.read_guard_at(ShardIndex(id));
             // SAFETY: `ShardIter` stores only raw pointers into the shard's
             // heap-allocated buckets plus a `PhantomData` marker; the lifetime
             // is not tracked at runtime. The read guards keep the shard data

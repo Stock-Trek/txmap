@@ -18,10 +18,13 @@ pub mod result;
 #[cfg(feature = "serde")]
 pub mod serde;
 pub mod shard;
+mod shard_map;
 pub mod shard_ops;
 pub mod shards;
+mod split_merge;
 #[cfg(test)]
 pub mod tests;
+mod trie;
 pub mod tx_map;
 pub mod tx_map_builder;
 

@@ -1,6 +1,7 @@
 use crate::{
-    indexer::Indexer, key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
-    multi_shard_ops::MultiShardOps, new_types::BitMask, shard_ops::ShardOps,
+    custodian::Custodian, indexer::Indexer, key::TxKey, lock_guards::LockGuards,
+    lock_policies::lock_policy::LockPolicy, multi_shard_ops::MultiShardOps, new_types::BitMask,
+    shard_ops::ShardOps,
 };
 use std::{
     hash::{BuildHasher, Hash},
@@ -78,6 +79,63 @@ impl<'tx, K, V, STATE> ImmediateOp<'tx, K, V, STATE> {
                 BitMask::ZERO,
                 key_a.shard_index.bitmask() | key_b.shard_index.bitmask(),
             ),
+        }
+    }
+
+    /// Re-routes every key after a routing change, refreshing the leaf ids
+    /// and versions that were captured at build time.
+    pub fn reroute<L>(&mut self, custodian: &Custodian<K, V, L>)
+    where
+        L: LockPolicy,
+    {
+        let rekey = |key: &mut TxKey<K>| {
+            key.shard_index = custodian.route(key.hash_code);
+            key.version = custodian.version(key.shard_index);
+        };
+        match self {
+            Self::Get { key, .. }
+            | Self::GetOrInsert { key, .. }
+            | Self::GetOrInsertWith { key, .. }
+            | Self::InsertWith { key, .. }
+            | Self::InsertWithIfAbsent { key, .. }
+            | Self::Modify { key, .. }
+            | Self::Remove { key, .. }
+            | Self::RemoveIf { key, .. }
+            | Self::Update { key, .. } => rekey(key),
+            Self::MoveValue { key_from, key_to } => {
+                rekey(key_from);
+                rekey(key_to);
+            }
+            Self::SwapValue { key_a, key_b } => {
+                rekey(key_a);
+                rekey(key_b);
+            }
+        }
+    }
+
+    /// Records the routed leaf and version of every referenced key.
+    pub fn push_versions(&self, out: &mut Vec<(u8, u32)>) {
+        let push = |key: &TxKey<K>, out: &mut Vec<(u8, u32)>| {
+            out.push((key.shard_index.0, key.version));
+        };
+        match self {
+            Self::Get { key, .. }
+            | Self::GetOrInsert { key, .. }
+            | Self::GetOrInsertWith { key, .. }
+            | Self::InsertWith { key, .. }
+            | Self::InsertWithIfAbsent { key, .. }
+            | Self::Modify { key, .. }
+            | Self::Remove { key, .. }
+            | Self::RemoveIf { key, .. }
+            | Self::Update { key, .. } => push(key, out),
+            Self::MoveValue { key_from, key_to } => {
+                push(key_from, out);
+                push(key_to, out);
+            }
+            Self::SwapValue { key_a, key_b } => {
+                push(key_a, out);
+                push(key_b, out);
+            }
         }
     }
 }
