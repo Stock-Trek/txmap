@@ -58,39 +58,33 @@ pub enum PreparedOp<'tx, K, V, KEYS, PARAMS, STATE> {
 }
 
 impl<'tx, K, V, KEYS, PARAMS, STATE> PreparedOp<'tx, K, V, KEYS, PARAMS, STATE> {
-    /// Bitmasks of the shards this op reads from and writes to.
-    pub fn read_write_bitmasks(&self, keys: &KEYS) -> (BitMask, BitMask) {
+    /// Bitmask of the shards this op needs.
+    pub fn bitmask(&self, keys: &KEYS) -> BitMask {
         match self {
-            Self::Get { key_selector, .. } => {
-                (key_selector.get(keys).shard_index.bitmask(), BitMask::ZERO)
-            }
+            Self::Get { key_selector, .. } => key_selector.get(keys).shard_index.bitmask(),
             Self::GetOrInsertWith { key_selector, .. }
             | Self::InsertWith { key_selector, .. }
             | Self::InsertWithIfAbsent { key_selector, .. }
             | Self::Modify { key_selector, .. }
             | Self::Remove { key_selector, .. }
             | Self::RemoveIf { key_selector, .. }
-            | Self::Update { key_selector, .. } => {
-                (BitMask::ZERO, key_selector.get(keys).shard_index.bitmask())
-            }
+            | Self::Update { key_selector, .. } => key_selector.get(keys).shard_index.bitmask(),
             Self::MoveValue {
                 key_selector_from,
                 key_selector_to,
                 ..
-            } => (
-                BitMask::ZERO,
+            } => {
                 key_selector_from.get(keys).shard_index.bitmask()
-                    | key_selector_to.get(keys).shard_index.bitmask(),
-            ),
+                    | key_selector_to.get(keys).shard_index.bitmask()
+            }
             Self::SwapValue {
                 key_selector_a,
                 key_selector_b,
                 ..
-            } => (
-                BitMask::ZERO,
+            } => {
                 key_selector_a.get(keys).shard_index.bitmask()
-                    | key_selector_b.get(keys).shard_index.bitmask(),
-            ),
+                    | key_selector_b.get(keys).shard_index.bitmask()
+            }
         }
     }
     /// Insert the stable identifiers of all key handles referenced by this op.
@@ -144,7 +138,7 @@ where
         match self {
             Self::Get { key_selector, get } => {
                 let key = key_selector.get(keys);
-                let shard = lock_guards.read_guard(key);
+                let shard = lock_guards.shard_for_key(key);
                 let value_ref = ShardOps::value_ref(shard, key.hash_code, &key.key);
                 (get)(&key.key, value_ref, params, state)
             }
@@ -154,7 +148,7 @@ where
                 get,
             } => {
                 let key = key_selector.get(keys);
-                let shard = lock_guards.write_guard(key);
+                let shard = lock_guards.shard_for_key(key);
                 let value_ref = ShardOps::get_or_insert_with(
                     shard,
                     key.hash_code,
@@ -175,14 +169,8 @@ where
                     key_selector.get(keys).clone()
                 };
                 let new_value = (value_generator)(&key.key, params, state);
-                let write_guard = lock_guards.write_guard(&key);
-                ShardOps::insert::<K, V, S>(
-                    write_guard,
-                    key.hash_code,
-                    key.key,
-                    new_value,
-                    indexer,
-                );
+                let shard = lock_guards.shard_for_key(&key);
+                ShardOps::insert::<K, V, S>(shard, key.hash_code, key.key, new_value, indexer);
             }
             Self::InsertWithIfAbsent {
                 key_selector,
@@ -194,9 +182,9 @@ where
                 } else {
                     key_selector.get(keys).clone()
                 };
-                let write_guard = lock_guards.write_guard(&key);
+                let shard = lock_guards.shard_for_key(&key);
                 ShardOps::insert_if_absent::<K, V, S>(
-                    write_guard,
+                    shard,
                     key.hash_code,
                     key.key,
                     |k| (value_generator)(k, params, state),
@@ -208,7 +196,7 @@ where
                 mutate,
             } => {
                 let key = key_selector.get(keys);
-                let shard = lock_guards.write_guard(key);
+                let shard = lock_guards.shard_for_key(key);
                 ShardOps::modify(shard, key.hash_code, &key.key, |k, v| {
                     mutate(k, v, params, state)
                 });
@@ -223,7 +211,7 @@ where
             }
             Self::Remove { key_selector } => {
                 let key = key_selector.get(keys);
-                let shard = lock_guards.write_guard(key);
+                let shard = lock_guards.shard_for_key(key);
                 ShardOps::remove_entry::<K, V>(shard, key.hash_code, &key.key);
             }
             Self::RemoveIf {
@@ -231,7 +219,7 @@ where
                 condition,
             } => {
                 let key = key_selector.get(keys);
-                let shard = lock_guards.write_guard(key);
+                let shard = lock_guards.shard_for_key(key);
                 ShardOps::remove_if(shard, key.hash_code, &key.key, |k, v| {
                     condition(k, v, params, state)
                 });
@@ -254,7 +242,7 @@ where
                 } else {
                     key_selector.get(keys).clone()
                 };
-                let shard = lock_guards.write_guard(&key);
+                let shard = lock_guards.shard_for_key(&key);
                 ShardOps::update(
                     shard,
                     key.hash_code,

@@ -100,21 +100,13 @@ impl<K, V> Custodian<K, V> {
         self.locked_mask.fetch_and(!mask, Ordering::AcqRel);
     }
 
-    /// Acquires every shard named by `read` or `write` and returns a guard
-    /// that releases them on drop.
-    pub fn lock_guards(&self, read: BitMask, write: BitMask) -> LockGuard<'_, K, V> {
-        self.guard((read | write).0)
+    /// Acquires every shard named by `mask` and returns a guard that releases
+    /// them on drop.
+    pub fn lock_guards(&self, mask: BitMask) -> LockGuard<'_, K, V> {
+        self.guard(mask.0)
     }
 
-    pub(crate) fn write_guards(&self, write: BitMask) -> LockGuard<'_, K, V> {
-        self.guard(write.0)
-    }
-
-    pub(crate) fn read_guard_at(&self, shard_index: ShardIndex) -> LockGuard<'_, K, V> {
-        self.guard(shard_index.bitmask().0)
-    }
-
-    pub(crate) fn write_guard_at(&self, shard_index: ShardIndex) -> LockGuard<'_, K, V> {
+    pub(crate) fn guard_at(&self, shard_index: ShardIndex) -> LockGuard<'_, K, V> {
         self.guard(shard_index.bitmask().0)
     }
 

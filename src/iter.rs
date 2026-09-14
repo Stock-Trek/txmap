@@ -3,7 +3,7 @@ use hashbrown::hash_table::{Drain as ShardDrain, Iter as ShardIter};
 
 /// An iterator over all key-value pairs in a [`TxMap`].
 ///
-/// Read guards are acquired lazily, one shard at a time, as iteration
+/// Guards are acquired lazily, one shard at a time, as iteration
 /// progresses. Guards for shards already visited are held until the
 /// iterator is dropped, so entries yielded remain valid for the lifetime
 /// of the iterator.
@@ -12,9 +12,9 @@ where
     K: 'a,
     V: 'a,
 {
-    /// The shard custodian, used to acquire read guards lazily.
+    /// The shard custodian, used to acquire guards lazily.
     pub(crate) custodian: &'a Custodian<K, V>,
-    /// Read guards keeping every shard locked (and alive) for `'a`.
+    /// Guards keeping every shard locked (and alive) for `'a`.
     pub(crate) _guards: Vec<LockGuard<'a, K, V>>,
     /// One `hashbrown` iterator per shard, aligned with shard indices.
     pub(crate) shard_iters: Vec<ShardIter<'a, (K, V)>>,
@@ -48,14 +48,12 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            // Lazily acquire the read guard for the next shard on first visit.
+            // Lazily acquire the guard for the next shard on first visit.
             if self.shard_index == self.shard_iters.len() {
                 if self.shard_index >= self.custodian.shard_count.0 as usize {
                     return None;
                 }
-                let guard = self
-                    .custodian
-                    .read_guard_at(ShardIndex(self.shard_index as u8));
+                let guard = self.custodian.guard_at(ShardIndex(self.shard_index as u8));
                 self.remaining += guard.len();
                 // SAFETY: `hashbrown`'s `Iter` stores only raw pointers into
                 // the shard's heap-allocated buckets plus a `PhantomData`
@@ -110,7 +108,7 @@ where
 
 /// An iterator over all the keys in a [`TxMap`].
 ///
-/// Created by [`TxMap::keys`]. Acquires read guards lazily, one shard at a
+/// Created by [`TxMap::keys`]. Acquires guards lazily, one shard at a
 /// time, holding them until the iterator is dropped.
 pub struct Keys<'a, K, V>(pub(crate) Iter<'a, K, V>)
 where
@@ -135,7 +133,7 @@ where
 
 /// An iterator over all the values in a [`TxMap`].
 ///
-/// Created by [`TxMap::values`]. Acquires read guards lazily, one shard at a
+/// Created by [`TxMap::values`]. Acquires guards lazily, one shard at a
 /// time, holding them until the iterator is dropped.
 pub struct Values<'a, K, V>(pub(crate) Iter<'a, K, V>)
 where
@@ -161,7 +159,7 @@ where
 /// An owning iterator over all key-value pairs in a [`TxMap`], removing
 /// each entry as it is yielded.
 ///
-/// Created by [`TxMap::drain`]. Write guards are acquired lazily, one shard
+/// Created by [`TxMap::drain`]. Guards are acquired lazily, one shard
 /// at a time, as iteration progresses and held until the iterator is
 /// dropped. Dropping the iterator without fully consuming it removes all
 /// remaining entries.
@@ -170,15 +168,15 @@ where
     K: 'a,
     V: 'a,
 {
-    /// The shard custodian, used to acquire write guards lazily.
+    /// The shard custodian, used to acquire guards lazily.
     pub(crate) custodian: &'a Custodian<K, V>,
     /// One `hashbrown` drain per visited shard, aligned with shard indices.
     ///
     /// Declared before `_guards` so it is dropped first: on drop each
-    /// drain clears its table while the corresponding write lock is still
+    /// drain clears its table while the corresponding lock is still
     /// held.
     pub(crate) shard_drains: Vec<ShardDrain<'a, (K, V)>>,
-    /// Write guards keeping every visited shard locked (and alive) for `'a`.
+    /// Guards keeping every visited shard locked (and alive) for `'a`.
     pub(crate) _guards: Vec<LockGuard<'a, K, V>>,
     pub(crate) shard_index: usize,
     /// Entries remaining in shards visited so far (an exact lower bound).
@@ -210,15 +208,13 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            // Lazily acquire the write guard and drain for the next shard on
+            // Lazily acquire the guard and drain for the next shard on
             // first visit.
             if self.shard_index == self.shard_drains.len() {
                 if self.shard_index >= self.custodian.shard_count.0 as usize {
                     return None;
                 }
-                let mut guard = self
-                    .custodian
-                    .write_guard_at(ShardIndex(self.shard_index as u8));
+                let mut guard = self.custodian.guard_at(ShardIndex(self.shard_index as u8));
                 self.remaining += guard.len();
                 // SAFETY: `hashbrown`'s `Drain` stores only raw pointers into
                 // the shard's heap-allocated buckets plus a `PhantomData`
@@ -256,11 +252,11 @@ where
         // are dropped (fields drop after this method, drains before guards).
         // Shards not yet visited are cleared here so that dropping the
         // iterator removes every remaining entry. Only shards beyond the ones
-        // already locked are touched; the visited shards' write guards are
+        // already locked are touched; the visited shards' guards are
         // still held and must not be re-acquired.
         let mut shard_index = self.shard_drains.len();
         while shard_index < self.custodian.shard_count.0 as usize {
-            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index as u8));
+            let mut guard = self.custodian.guard_at(ShardIndex(shard_index as u8));
             guard.clear();
             shard_index += 1;
         }

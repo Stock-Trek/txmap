@@ -434,24 +434,16 @@ macro_rules! tx_schema {
                     ) -> $crate::TxResult<[<$name State>]>
                     {
                         let mut indexed_keys = keys.into_indexed(self.shard_count, self.indexer);
-                        let mut total_read_bitmask = $crate::new_types::BitMask::ZERO;
-                        let mut total_write_bitmask = $crate::new_types::BitMask::ZERO;
+                        let mut total_bitmask = $crate::new_types::BitMask::ZERO;
 
-                        // get all bitmasks
                         for guard in self.guards.iter() {
-                            total_read_bitmask |= guard.read_bitmask(&indexed_keys);
+                            total_bitmask |= guard.bitmask(&indexed_keys);
                         }
                         for op in self.ops.iter() {
-                            let (read_bitmask, write_bitmask) = op.read_write_bitmasks(&indexed_keys);
-                            total_read_bitmask |= read_bitmask;
-                            total_write_bitmask |= write_bitmask;
+                            total_bitmask |= op.bitmask(&indexed_keys);
                         }
-                        // ensure locks are either read or write, not both
-                        total_read_bitmask &= !total_write_bitmask;
 
-                        let mut lock_guards = self
-                            .custodian
-                            .lock_guards(total_read_bitmask, total_write_bitmask);
+                        let mut lock_guards = self.custodian.lock_guards(total_bitmask);
                         let mut state = [<$name State>]::default();
                         for (index, guard) in self.guards.iter().enumerate() {
                             if !guard.is_condition_met(&mut lock_guards, &indexed_keys, &params, &mut state)

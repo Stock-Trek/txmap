@@ -9,7 +9,7 @@
 //! - [`IntoParallelIterator`] for owned `TxMap` yields `(K, V)` (eager,
 //!   matching the serial owned `IntoIterator`).
 //!
-//! Parallel iterators acquire a read guard on every shard up front and hold
+//! Parallel iterators acquire a guard on every shard up front and hold
 //! all guards until iteration completes, so the map is observed as a
 //! consistent snapshot and cannot be mutated while a parallel iteration is
 //! running.
@@ -23,7 +23,7 @@ use std::hash::BuildHasher;
 /// Parallel iterator over all key-value pairs in a [`TxMap`].
 ///
 /// Created by [`TxMap::par_iter`] or by calling `into_par_iter` on a
-/// `&TxMap` / `&mut TxMap`. Acquires a read guard on every shard up front
+/// `&TxMap` / `&mut TxMap`. Acquires a guard on every shard up front
 /// and holds all guards for the duration of iteration, so the map is a
 /// consistent snapshot while it runs.
 pub struct ParIter<'a, K, V>
@@ -59,15 +59,15 @@ where
         C: UnindexedConsumer<Self::Item>,
     {
         let shard_count = self.custodian.shard_count.0 as usize;
-        // Acquire a read guard on every shard and hold all of them until the
+        // Acquire a guard on every shard and hold all of them until the
         // parallel iteration below completes, giving a consistent snapshot.
         let mut guards: Vec<LockGuard<'_, K, V>> = Vec::with_capacity(shard_count);
         let mut shard_iters: Vec<ShardIter<'a, (K, V)>> = Vec::with_capacity(shard_count);
         for shard_index in 0..shard_count {
-            let guard = self.custodian.read_guard_at(ShardIndex(shard_index as u8));
+            let guard = self.custodian.guard_at(ShardIndex(shard_index as u8));
             // SAFETY: `ShardIter` stores only raw pointers into the shard's
             // heap-allocated buckets plus a `PhantomData` marker; the lifetime
-            // is not tracked at runtime. The read guards keep the shard data
+            // is not tracked at runtime. The guards keep the shard data
             // alive and immutable for the entire `bridge_unindexed` call below
             // (they are dropped only after it returns), so the iterators can
             // never outlive the data they reference.
@@ -125,7 +125,7 @@ where
 
 /// Parallel iterator over all the keys in a [`TxMap`].
 ///
-/// Created by [`TxMap::par_keys`]. Acquires read guards on all shards for
+/// Created by [`TxMap::par_keys`]. Acquires guards on all shards for
 /// the duration of iteration.
 pub struct ParKeys<'a, K, V>
 where
@@ -153,7 +153,7 @@ where
 
 /// Parallel iterator over all the values in a [`TxMap`].
 ///
-/// Created by [`TxMap::par_values`]. Acquires read guards on all shards for
+/// Created by [`TxMap::par_values`]. Acquires guards on all shards for
 /// the duration of iteration.
 pub struct ParValues<'a, K, V>
 where
@@ -195,7 +195,7 @@ where
 {
     /// Returns a parallel iterator over all key-value pairs.
     ///
-    /// Acquires read guards on all shards for the duration of iteration.
+    /// Acquires guards on all shards for the duration of iteration.
     #[must_use]
     pub fn par_iter(&self) -> ParIter<'_, K, V> {
         ParIter {
@@ -205,7 +205,7 @@ where
 
     /// Returns a parallel iterator over all the keys.
     ///
-    /// Acquires read guards on all shards for the duration of iteration.
+    /// Acquires guards on all shards for the duration of iteration.
     #[must_use]
     pub fn par_keys(&self) -> ParKeys<'_, K, V> {
         ParKeys {
@@ -215,7 +215,7 @@ where
 
     /// Returns a parallel iterator over all the values.
     ///
-    /// Acquires read guards on all shards for the duration of iteration.
+    /// Acquires guards on all shards for the duration of iteration.
     #[must_use]
     pub fn par_values(&self) -> ParValues<'_, K, V> {
         ParValues {

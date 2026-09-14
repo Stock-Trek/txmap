@@ -19,7 +19,7 @@ pub struct PreparedGuard<'tx, K, V, KEYS, PARAMS, STATE> {
 
 impl<'tx, K, V, KEYS, PARAMS, STATE> PreparedGuard<'tx, K, V, KEYS, PARAMS, STATE> {
     /// Bitmask of the shard the guard's key lives on.
-    pub fn read_bitmask(&self, keys: &KEYS) -> BitMask {
+    pub fn bitmask(&self, keys: &KEYS) -> BitMask {
         let key = self.key_selector.get(keys);
         key.shard_index.bitmask()
     }
@@ -38,7 +38,7 @@ where
         state: &mut STATE,
     ) -> bool {
         let key = self.key_selector.get(keys);
-        let shard = lock_guards.read_guard(key);
+        let shard = lock_guards.shard_for_key(key);
         let value_ref = ShardOps::value_ref(shard, key.hash_code, &key.key);
         (self.condition)(&key.key, value_ref, params, state)
     }

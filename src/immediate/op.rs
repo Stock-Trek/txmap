@@ -54,27 +54,23 @@ pub(crate) enum ImmediateOp<'tx, K, V, STATE> {
 }
 
 impl<'tx, K, V, STATE> ImmediateOp<'tx, K, V, STATE> {
-    pub fn read_write_bitmasks(&self) -> (BitMask, BitMask) {
+    pub fn bitmask(&self) -> BitMask {
         match self {
-            Self::Get { key, .. } => (key.shard_index.bitmask(), BitMask::ZERO),
-            Self::GetOrInsert { key, .. }
+            Self::Get { key, .. }
+            | Self::GetOrInsert { key, .. }
             | Self::GetOrInsertWith { key, .. }
             | Self::InsertWith { key, .. }
             | Self::InsertWithIfAbsent { key, .. }
             | Self::Modify { key, .. }
             | Self::Remove { key, .. }
             | Self::RemoveIf { key, .. }
-            | Self::Update { key, .. } => (BitMask::ZERO, key.shard_index.bitmask()),
+            | Self::Update { key, .. } => key.shard_index.bitmask(),
             Self::MoveValue {
                 key_from, key_to, ..
-            } => (
-                BitMask::ZERO,
-                key_from.shard_index.bitmask() | key_to.shard_index.bitmask(),
-            ),
-            Self::SwapValue { key_a, key_b, .. } => (
-                BitMask::ZERO,
-                key_a.shard_index.bitmask() | key_b.shard_index.bitmask(),
-            ),
+            } => key_from.shard_index.bitmask() | key_to.shard_index.bitmask(),
+            Self::SwapValue { key_a, key_b, .. } => {
+                key_a.shard_index.bitmask() | key_b.shard_index.bitmask()
+            }
         }
     }
 }
@@ -93,12 +89,12 @@ where
     {
         match self {
             Self::Get { key, get } => {
-                let shard = lock_guards.read_guard(&key);
+                let shard = lock_guards.shard_for_key(&key);
                 let value_ref = ShardOps::value_ref(shard, key.hash_code, &key.key);
                 (get)(&key.key, value_ref, state)
             }
             Self::GetOrInsert { key, value, get } => {
-                let shard = lock_guards.write_guard(&key);
+                let shard = lock_guards.shard_for_key(&key);
                 let value_ref = ShardOps::get_or_insert::<K, V, S>(
                     shard,
                     key.hash_code,
@@ -113,7 +109,7 @@ where
                 value_generator,
                 get,
             } => {
-                let shard = lock_guards.write_guard(&key);
+                let shard = lock_guards.shard_for_key(&key);
                 let value_ref = ShardOps::get_or_insert_with(
                     shard,
                     key.hash_code,
@@ -128,22 +124,16 @@ where
                 value_generator,
             } => {
                 let new_value = (value_generator)(&key.key, state);
-                let write_guard = lock_guards.write_guard(&key);
-                ShardOps::insert::<K, V, S>(
-                    write_guard,
-                    key.hash_code,
-                    key.key,
-                    new_value,
-                    indexer,
-                );
+                let shard = lock_guards.shard_for_key(&key);
+                ShardOps::insert::<K, V, S>(shard, key.hash_code, key.key, new_value, indexer);
             }
             Self::InsertWithIfAbsent {
                 key,
                 value_generator,
             } => {
-                let write_guard = lock_guards.write_guard(&key);
+                let shard = lock_guards.shard_for_key(&key);
                 ShardOps::insert_if_absent::<K, V, S>(
-                    write_guard,
+                    shard,
                     key.hash_code,
                     key.key,
                     |k| (value_generator)(k, state),
@@ -151,18 +141,18 @@ where
                 );
             }
             Self::Modify { key, mutate } => {
-                let shard = lock_guards.write_guard(&key);
+                let shard = lock_guards.shard_for_key(&key);
                 ShardOps::modify(shard, key.hash_code, &key.key, |k, v| mutate(k, v, state));
             }
             Self::MoveValue { key_from, key_to } => {
                 MultiShardOps::move_value::<K, V, S>(lock_guards, &key_from, &key_to, indexer);
             }
             Self::Remove { key } => {
-                let shard = lock_guards.write_guard(&key);
+                let shard = lock_guards.shard_for_key(&key);
                 ShardOps::remove_entry::<K, V>(shard, key.hash_code, &key.key);
             }
             Self::RemoveIf { key, condition } => {
-                let shard = lock_guards.write_guard(&key);
+                let shard = lock_guards.shard_for_key(&key);
                 ShardOps::remove_if(shard, key.hash_code, &key.key, |k, v| {
                     condition(k, v, state)
                 });
@@ -171,7 +161,7 @@ where
                 MultiShardOps::swap_value::<K, V, S>(lock_guards, &key_a, &key_b, indexer);
             }
             Self::Update { key, transform } => {
-                let shard = lock_guards.write_guard(&key);
+                let shard = lock_guards.shard_for_key(&key);
                 ShardOps::update(
                     shard,
                     key.hash_code,

@@ -4,12 +4,12 @@
 [![docs.rs](https://img.shields.io/docsrs/txmap)](https://docs.rs/txmap)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A concurrent transactional hash map for Rust with fine-grained user-defined locking, internal mutability for easy sharing, and composable transactions.
+A concurrent transactional hash map for Rust with fine-grained shard locking, internal mutability for easy sharing, and composable transactions.
 
 ## Features
 
 - [**Proven performance**](https://github.com/Stock-Trek/map-benchmarks) One of the fastest concurrent maps available
-- [**Customizable**](#creating-a-txmap) Choose the number of shards, shard locking policy (Mutex, RwLock or bring your own) and capacity
+- [**Customizable**](#creating-a-txmap) Choose the number of shards and capacity
 - [**Immediate Transactions**](#immediate-transactions) Immediately execute an atomic, composable batch of modifications
 - [**Parameterized Transactions**](#parameterized-transactions) Create re-usable transactions for faster parameterized execution
 - [**Guards/conditions**](#transaction-with-guards-preconditions) Declarative preconditions that must hold before a transaction runs

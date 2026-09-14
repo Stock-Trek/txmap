@@ -10,7 +10,7 @@ pub(crate) struct ImmediateGuard<'tx, K, V, STATE> {
 }
 
 impl<'tx, K, V, STATE> ImmediateGuard<'tx, K, V, STATE> {
-    pub fn read_bitmask(&self) -> BitMask {
+    pub fn bitmask(&self) -> BitMask {
         self.key.shard_index.bitmask()
     }
 }
@@ -29,7 +29,7 @@ where
             .take()
             .expect("guard condition already evaluated");
         let key = &self.key;
-        let shard = lock_guards.read_guard(key);
+        let shard = lock_guards.shard_for_key(key);
         let value_ref = ShardOps::value_ref(shard, key.hash_code, &key.key);
         (condition)(&key.key, value_ref, state)
     }

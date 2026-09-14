@@ -79,9 +79,6 @@ where
     STATE: 'tx,
 {
     /// Reads a value and passes it (or `None`) to the callback.
-    ///
-    /// Acquires either a read or write lock depending on whether the
-    /// shard is already write-locked by a previous operation.
     pub fn get(
         mut self,
         key: K,

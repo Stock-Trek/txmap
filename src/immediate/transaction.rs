@@ -32,7 +32,7 @@ where
     #[must_use]
     /// Consumes self and executes the transaction.
     ///
-    /// Acquires read/write locks for all involved shards, verifies
+    /// Acquires locks for all involved shards, verifies
     /// all guard conditions, applies the operations, and returns
     /// the final state wrapped in [`TxResult`].
     pub fn execute(self) -> TxResult<STATE> {
@@ -43,22 +43,16 @@ where
             ops,
         } = self;
 
-        let mut total_read_bitmask = BitMask::ZERO;
-        let mut total_write_bitmask = BitMask::ZERO;
+        let mut total_bitmask = BitMask::ZERO;
 
-        // get all bitmasks
         for guard in guards.iter() {
-            total_read_bitmask |= guard.read_bitmask();
+            total_bitmask |= guard.bitmask();
         }
         for op in ops.iter() {
-            let (read_bitmask, write_bitmask) = op.read_write_bitmasks();
-            total_read_bitmask |= read_bitmask;
-            total_write_bitmask |= write_bitmask;
+            total_bitmask |= op.bitmask();
         }
-        // ensure locks are either read or write, not both
-        total_read_bitmask &= !total_write_bitmask;
 
-        let mut lock_guards = custodian.lock_guards(total_read_bitmask, total_write_bitmask);
+        let mut lock_guards = custodian.lock_guards(total_bitmask);
         let mut state = STATE::default();
         for (i, mut guard) in guards.into_iter().enumerate() {
             if !guard.condition_is_met(&mut lock_guards, &mut state) {

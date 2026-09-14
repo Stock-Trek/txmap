@@ -15,10 +15,10 @@ impl MultiShardOps {
         S: BuildHasher,
     {
         let removed = {
-            let shard = lock_guard.write_guard(key_from);
+            let shard = lock_guard.shard_for_key(key_from);
             ShardOps::remove_entry::<K, V>(shard, key_from.hash_code, &key_from.key)
         };
-        let shard_to = lock_guard.write_guard(key_to);
+        let shard_to = lock_guard.shard_for_key(key_to);
         if let Some(entry) = removed {
             ShardOps::insert::<K, V, S>(
                 shard_to,
@@ -43,18 +43,18 @@ impl MultiShardOps {
         S: BuildHasher,
     {
         let a = {
-            let shard = lock_guard.write_guard(key_a);
+            let shard = lock_guard.shard_for_key(key_a);
             ShardOps::remove_entry::<K, V>(shard, key_a.hash_code, &key_a.key)
         };
         let b = {
-            let shard = lock_guard.write_guard(key_b);
+            let shard = lock_guard.shard_for_key(key_b);
             ShardOps::remove_entry::<K, V>(shard, key_b.hash_code, &key_b.key)
         };
         match a {
             Some((a_key, a_value)) => match b {
                 Some((b_key, b_value)) => {
                     {
-                        let shard = lock_guard.write_guard(key_a);
+                        let shard = lock_guard.shard_for_key(key_a);
                         ShardOps::insert_with_duplicate_key(
                             shard,
                             key_a.hash_code,
@@ -65,7 +65,7 @@ impl MultiShardOps {
                         );
                     }
                     {
-                        let shard = lock_guard.write_guard(key_b);
+                        let shard = lock_guard.shard_for_key(key_b);
                         ShardOps::insert_with_duplicate_key(
                             shard,
                             key_b.hash_code,
@@ -77,7 +77,7 @@ impl MultiShardOps {
                     }
                 }
                 None => {
-                    let shard = lock_guard.write_guard(key_b);
+                    let shard = lock_guard.shard_for_key(key_b);
                     ShardOps::insert::<K, V, S>(
                         shard,
                         key_b.hash_code,
@@ -90,7 +90,7 @@ impl MultiShardOps {
             None => {
                 if let Some((_, b_value)) = b {
                     {
-                        let shard = lock_guard.write_guard(key_a);
+                        let shard = lock_guard.shard_for_key(key_a);
                         ShardOps::insert::<K, V, S>(
                             shard,
                             key_a.hash_code,

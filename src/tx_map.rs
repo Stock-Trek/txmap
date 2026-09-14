@@ -68,7 +68,7 @@ where
     pub fn get_with_or_insert<R>(&self, key: &K, transform: impl FnOnce(&V) -> R, value: V) -> R {
         let hash_code = self.indexer.hash(key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.guard_at(shard_index);
         let value =
             ShardOps::get_or_insert::<K, V, S>(&mut shard, hash_code, key, value, &self.indexer);
         transform(value)
@@ -90,7 +90,7 @@ where
     ) -> R {
         let hash_code = self.indexer.hash(key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.guard_at(shard_index);
         let value = ShardOps::get_or_insert_with::<K, V, S>(
             &mut shard,
             hash_code,
@@ -104,25 +104,25 @@ where
     /// Moves a value from one key to another atomically.
     ///
     /// If the source key was absent the destination key is removed.
-    /// Acquires write locks on both shards involved.
+    /// Acquires locks on both shards involved.
     pub fn move_value(&self, key_from: K, key_to: K) {
         let tx_key_from = self.indexer.indexed_key(self.shard_count, key_from);
         let tx_key_to = self.indexer.indexed_key(self.shard_count, key_to);
         let mut shards = self
             .custodian
-            .write_guards(tx_key_from.shard_index.bitmask() | tx_key_to.shard_index.bitmask());
+            .lock_guards(tx_key_from.shard_index.bitmask() | tx_key_to.shard_index.bitmask());
         MultiShardOps::move_value::<K, V, S>(&mut shards, &tx_key_from, &tx_key_to, &self.indexer);
     }
 
     /// Swaps the values of two keys atomically.
     ///
-    /// Acquires write locks on both shards involved.
+    /// Acquires locks on both shards involved.
     pub fn swap_value(&self, key_a: K, key_b: K) {
         let tx_key_a = self.indexer.indexed_key(self.shard_count, key_a);
         let tx_key_b = self.indexer.indexed_key(self.shard_count, key_b);
         let mut shards = self
             .custodian
-            .write_guards(tx_key_a.shard_index.bitmask() | tx_key_b.shard_index.bitmask());
+            .lock_guards(tx_key_a.shard_index.bitmask() | tx_key_b.shard_index.bitmask());
         MultiShardOps::swap_value::<K, V, S>(&mut shards, &tx_key_a, &tx_key_b, &self.indexer);
     }
 }
@@ -135,12 +135,12 @@ where
     #[must_use]
     /// Reads the value for `key` and applies a transformation.
     ///
-    /// Acquires only a read lock on the relevant shard. Returns `None`
+    /// Acquires only a lock on the relevant shard. Returns `None`
     /// if the key is absent.
     pub fn get_with<R>(&self, key: &K, transform: impl FnOnce(&V) -> R) -> Option<R> {
         let hash_code = self.indexer.hash(key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let shard = self.custodian.read_guard_at(shard_index);
+        let shard = self.custodian.guard_at(shard_index);
         let entry = shard.find(hash_code.0, |entry| entry.0 == *key);
         entry.map(|e| transform(&e.1))
     }
@@ -151,7 +151,7 @@ where
     pub fn insert(&self, key: K, value: V) -> Option<V> {
         let hash_code = self.indexer.hash(&key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.guard_at(shard_index);
         ShardOps::insert::<K, V, S>(&mut shard, hash_code, key, value, &self.indexer)
     }
 
@@ -162,7 +162,7 @@ where
     pub fn insert_with_if_absent(&self, key: K, value_generator: impl FnOnce() -> V) -> bool {
         let hash_code = self.indexer.hash(&key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.guard_at(shard_index);
         ShardOps::insert_if_absent::<K, V, S>(
             &mut shard,
             hash_code,
@@ -179,7 +179,7 @@ where
     pub fn modify(&self, key: &K, mutate: impl FnOnce(&K, &mut V)) -> bool {
         let hash_code = self.indexer.hash(key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.guard_at(shard_index);
         ShardOps::modify::<K, V>(&mut shard, hash_code, key, mutate)
     }
 
@@ -189,7 +189,7 @@ where
     pub fn remove(&self, key: &K) -> Option<V> {
         let hash_code = self.indexer.hash(key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.guard_at(shard_index);
         ShardOps::remove_entry::<K, V>(&mut shard, hash_code, key).map(|removed| removed.1)
     }
 
@@ -199,7 +199,7 @@ where
     pub fn remove_if(&self, key: &K, condition: impl FnOnce(&K, &V) -> bool) -> Option<V> {
         let hash_code = self.indexer.hash(key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.guard_at(shard_index);
         ShardOps::remove_if::<K, V>(&mut shard, hash_code, key, condition)
     }
 
@@ -208,7 +208,7 @@ where
     pub fn contains_key(&self, key: &K) -> bool {
         let hash_code = self.indexer.hash(key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let shard = self.custodian.read_guard_at(shard_index);
+        let shard = self.custodian.guard_at(shard_index);
         shard.find(hash_code.0, |entry| entry.0 == *key).is_some()
     }
 
@@ -219,7 +219,7 @@ where
     pub fn remove_entry(&self, key: &K) -> Option<(K, V)> {
         let hash_code = self.indexer.hash(key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.guard_at(shard_index);
         ShardOps::remove_entry::<K, V>(&mut shard, hash_code, key)
     }
 
@@ -230,7 +230,7 @@ where
     pub fn update(&self, key: K, transform: impl FnOnce(&K, Option<&V>) -> Option<V>) {
         let hash_code = self.indexer.hash(&key);
         let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.guard_at(shard_index);
         ShardOps::update::<K, V, S>(&mut shard, hash_code, key, transform, &self.indexer)
     }
 }
@@ -247,7 +247,7 @@ where
         let per_shard = additional.div_ceil(self.shard_count.0 as usize);
         let mut guards = Vec::new();
         for shard_index in 0..self.shard_count.0 {
-            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index));
+            let mut guard = self.custodian.guard_at(ShardIndex(shard_index));
             guard.reserve(per_shard, |entry| self.indexer.hash(&entry.0).0);
             guards.push(guard);
         }
@@ -260,7 +260,7 @@ where
         let per_shard = additional.div_ceil(self.shard_count.0 as usize);
         let mut guards = Vec::new();
         for shard_index in 0..self.shard_count.0 {
-            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index));
+            let mut guard = self.custodian.guard_at(ShardIndex(shard_index));
             guard
                 .try_reserve(per_shard, |entry| self.indexer.hash(&entry.0).0)
                 .map_err(|error| match error {
@@ -280,7 +280,7 @@ where
     pub fn shrink_to_fit(&self) {
         let mut guards = Vec::new();
         for shard_index in 0..self.shard_count.0 {
-            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index));
+            let mut guard = self.custodian.guard_at(ShardIndex(shard_index));
             guard.shrink_to_fit(|entry| self.indexer.hash(&entry.0).0);
             guards.push(guard);
         }
@@ -293,7 +293,7 @@ where
         let per_shard = min_capacity.div_ceil(self.shard_count.0 as usize);
         let mut guards = Vec::new();
         for shard_index in 0..self.shard_count.0 {
-            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index));
+            let mut guard = self.custodian.guard_at(ShardIndex(shard_index));
             guard.shrink_to(per_shard, |entry| self.indexer.hash(&entry.0).0);
             guards.push(guard);
         }
@@ -345,15 +345,15 @@ where
 
     /// Removes all entries from the map.
     ///
-    /// Acquires each shard's write lock lazily, one at a time, and holds all
+    /// Acquires each shard's lock lazily, one at a time, and holds all
     /// acquired locks until every shard has been cleared so the operation is
     /// a consistent snapshot.
     pub fn clear(&self) {
         let mut guards = Vec::new();
         for shard_index in 0..self.shard_count.0 {
-            let mut write_guard = self.custodian.write_guard_at(ShardIndex(shard_index));
-            write_guard.clear();
-            guards.push(write_guard);
+            let mut guard = self.custodian.guard_at(ShardIndex(shard_index));
+            guard.clear();
+            guards.push(guard);
         }
     }
 
@@ -361,12 +361,12 @@ where
     #[must_use]
     pub fn len(&self) -> usize {
         let mut total_length = 0;
-        // Acquire each shard's read lock lazily, one at a time, and hold all
+        // Acquire each shard's lock lazily, one at a time, and hold all
         // acquired locks until the count is complete so the result is a
         // consistent snapshot.
         let mut guards = Vec::new();
         for shard_index in 0..self.shard_count.0 {
-            let guard = self.custodian.read_guard_at(ShardIndex(shard_index));
+            let guard = self.custodian.guard_at(ShardIndex(shard_index));
             total_length += guard.len();
             guards.push(guard);
         }
@@ -382,7 +382,7 @@ where
     pub fn is_empty(&self) -> bool {
         let mut guards = Vec::new();
         for shard_index in 0..self.shard_count.0 {
-            let guard = self.custodian.read_guard_at(ShardIndex(shard_index));
+            let guard = self.custodian.guard_at(ShardIndex(shard_index));
             if !guard.is_empty() {
                 return false;
             }
@@ -401,7 +401,7 @@ where
         let mut total_capacity = 0;
         let mut guards = Vec::new();
         for shard_index in 0..self.shard_count.0 {
-            let guard = self.custodian.read_guard_at(ShardIndex(shard_index));
+            let guard = self.custodian.guard_at(ShardIndex(shard_index));
             total_capacity += guard.capacity();
             guards.push(guard);
         }
@@ -419,7 +419,7 @@ where
     ///
     /// Each entry is optionally converted to an intermediate value via
     /// `convert`, then accumulated with `accumulate`. Iteration order
-    /// is not guaranteed. Read locks are acquired lazily, one shard at a
+    /// is not guaranteed. Locks are acquired lazily, one shard at a
     /// time, and held until the fold completes.
     pub fn fold<T, R>(
         &self,
@@ -428,11 +428,11 @@ where
         accumulate: impl Fn(R, T) -> R,
     ) -> R {
         let mut result = initial;
-        // Acquire each shard's read lock lazily, one at a time, and hold all
+        // Acquire each shard's lock lazily, one at a time, and hold all
         // acquired locks until the fold is complete.
         let mut guards = Vec::new();
         for shard_index in 0..self.shard_count.0 {
-            let guard = self.custodian.read_guard_at(ShardIndex(shard_index));
+            let guard = self.custodian.guard_at(ShardIndex(shard_index));
             for (key, value) in guard.iter() {
                 if let Some(intermediate) = convert(key, value) {
                     result = accumulate(result, intermediate);
@@ -446,7 +446,7 @@ where
     #[must_use]
     /// Returns an iterator over all key-value pairs.
     ///
-    /// Acquires read locks lazily, one shard at a time, as iteration
+    /// Acquires locks lazily, one shard at a time, as iteration
     /// progresses. Acquired locks are held until the iterator is dropped.
     pub fn iter(&self) -> Iter<'_, K, V> {
         Iter::new(&self.custodian)
@@ -455,7 +455,7 @@ where
     #[must_use]
     /// Returns an iterator over all the keys.
     ///
-    /// Acquires read locks on all shards for the duration of iteration.
+    /// Acquires locks on all shards for the duration of iteration.
     pub fn keys(&self) -> Keys<'_, K, V> {
         Keys(self.iter())
     }
@@ -463,7 +463,7 @@ where
     #[must_use]
     /// Returns an iterator over all the values.
     ///
-    /// Acquires read locks on all shards for the duration of iteration.
+    /// Acquires locks on all shards for the duration of iteration.
     pub fn values(&self) -> Values<'_, K, V> {
         Values(self.iter())
     }
@@ -472,7 +472,7 @@ where
     ///
     /// Entries are removed as the iterator is consumed; dropping the
     /// iterator without fully consuming it removes all remaining entries.
-    /// Acquires write locks lazily, one shard at a time, as iteration
+    /// Acquires locks lazily, one shard at a time, as iteration
     /// progresses. Acquired locks are held until the iterator is dropped.
     pub fn drain(&self) -> Drain<'_, K, V> {
         Drain::new(&self.custodian)
@@ -499,12 +499,12 @@ where
     /// Retains only entries satisfying `condition`.
     ///
     /// Removes all entries for which `condition` returns `false`. Acquires
-    /// each shard's write lock lazily, one at a time, and holds all acquired
+    /// each shard's lock lazily, one at a time, and holds all acquired
     /// locks until every shard has been processed.
     pub fn retain(&self, condition: impl Fn(&K, &V) -> bool) {
         let mut guards = Vec::new();
         for shard_index in 0..self.shard_count.0 {
-            let mut shard = self.custodian.write_guard_at(ShardIndex(shard_index));
+            let mut shard = self.custodian.guard_at(ShardIndex(shard_index));
             shard.retain(|entry| condition(&entry.0, &entry.1));
             guards.push(shard);
         }
@@ -546,11 +546,11 @@ where
     fn clone(&self) -> Self {
         let shard_count = self.shard_count;
         let mut shards = Vec::with_capacity(shard_count.0 as usize);
-        // Acquire each shard's read lock lazily, one at a time, and hold all
+        // Acquire each shard's lock lazily, one at a time, and hold all
         // acquired locks until every shard has been cloned.
         let mut guards = Vec::new();
         for shard_index in 0..self.shard_count.0 {
-            let shard = self.custodian.read_guard_at(ShardIndex(shard_index));
+            let shard = self.custodian.guard_at(ShardIndex(shard_index));
             let cloned_shard = shard.clone();
             shards.push(CachePadded::new(UnsafeCell::new(cloned_shard)));
             guards.push(shard);

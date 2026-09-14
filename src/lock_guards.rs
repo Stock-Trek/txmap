@@ -34,17 +34,8 @@ where
     K: 'ex,
     V: 'ex,
 {
-    /// Immutably fetches the shard at `shard_index` from the custodian.
-    pub fn read_shard(&self, shard_index: ShardIndex) -> &Shard<K, V> {
-        debug_assert!(self.locked_mask & (1u128 << shard_index.0) != 0);
-        // SAFETY: the index is part of `locked_mask`, which the custodian
-        // acquired exclusively, so no other thread can access this shard
-        // while the guard is alive.
-        unsafe { &*self.custodian.shards[shard_index.0 as usize].get() }
-    }
-
-    /// Mutably fetches the shard at `shard_index` from the custodian.
-    pub fn write_shard(&mut self, shard_index: ShardIndex) -> &mut Shard<K, V> {
+    /// Fetches the shard at `shard_index` from the custodian.
+    pub fn shard(&mut self, shard_index: ShardIndex) -> &mut Shard<K, V> {
         debug_assert!(self.locked_mask & (1u128 << shard_index.0) != 0);
         // SAFETY: the index is part of `locked_mask`, which the custodian
         // acquired exclusively, and `&mut self` prevents aliasing borrows
@@ -52,14 +43,9 @@ where
         unsafe { &mut *self.custodian.shards[shard_index.0 as usize].get() }
     }
 
-    /// Immutably fetches the shard the key lives on.
-    pub fn read_guard(&self, key: &TxKey<K>) -> &Shard<K, V> {
-        self.read_shard(key.shard_index)
-    }
-
-    /// Mutably fetches the shard the key lives on.
-    pub fn write_guard(&mut self, key: &TxKey<K>) -> &mut Shard<K, V> {
-        self.write_shard(key.shard_index)
+    /// Fetches the shard the key lives on.
+    pub fn shard_for_key(&mut self, key: &TxKey<K>) -> &mut Shard<K, V> {
+        self.shard(key.shard_index)
     }
 
     /// The index of the single shard held by a per-shard guard.
@@ -77,7 +63,12 @@ where
 
     /// Fetches the single shard held by this guard.
     fn deref(&self) -> &Self::Target {
-        self.read_shard(self.single_shard_index())
+        let shard_index = self.single_shard_index();
+        debug_assert!(self.locked_mask & (1u128 << shard_index.0) != 0);
+        // SAFETY: the index is part of `locked_mask`, which the custodian
+        // acquired exclusively, so no other thread can access this shard
+        // while the guard is alive.
+        unsafe { &*self.custodian.shards[shard_index.0 as usize].get() }
     }
 }
 
@@ -88,6 +79,7 @@ where
 {
     /// Fetches the single shard held by this guard.
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.write_shard(self.single_shard_index())
+        let shard_index = self.single_shard_index();
+        self.shard(shard_index)
     }
 }
