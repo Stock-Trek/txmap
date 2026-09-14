@@ -14,7 +14,7 @@
 //! consistent snapshot and cannot be mutated while a parallel iteration is
 //! running.
 
-use crate::{custodian::Custodian, lock_guards::LockGuard, new_types::ShardIndex, tx_map::TxMap};
+use crate::{custodian::Custodian, lock_guard::LockGuard, new_types::ShardIndex, tx_map::TxMap};
 use hashbrown::hash_table::Iter as ShardIter;
 use rayon::iter::plumbing::{Folder, UnindexedConsumer, UnindexedProducer, bridge_unindexed};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};

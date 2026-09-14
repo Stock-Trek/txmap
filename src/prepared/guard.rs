@@ -32,13 +32,13 @@ where
     /// Checks the guard's condition against the locked shards.
     pub fn is_condition_met(
         &self,
-        lock_guards: &mut LockGuard<'_, K, V>,
+        lock_guard: &mut LockGuard<'_, K, V>,
         keys: &KEYS,
         params: &PARAMS,
         state: &mut STATE,
     ) -> bool {
         let key = self.key_selector.get(keys);
-        let shard = lock_guards.shard_for_key(key);
+        let shard = lock_guard.shard_for_key(key);
         let value_ref = ShardOps::value_ref(shard, key.hash_code, &key.key);
         (self.condition)(&key.key, value_ref, params, state)
     }

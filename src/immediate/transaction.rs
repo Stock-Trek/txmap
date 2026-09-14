@@ -52,10 +52,10 @@ where
             total_bitmask |= op.bitmask();
         }
 
-        let mut lock_guards = custodian.lock_guard(total_bitmask);
+        let mut lock_guard = custodian.lock_guard(total_bitmask);
         let mut state = STATE::default();
         for (i, mut guard) in guards.into_iter().enumerate() {
-            if !guard.condition_is_met(&mut lock_guards, &mut state) {
+            if !guard.condition_is_met(&mut lock_guard, &mut state) {
                 return TxResult::RequirementNotMet {
                     index: i,
                     requirement: guard.name,
@@ -64,7 +64,7 @@ where
             }
         }
         for op in ops {
-            op.apply::<S>(&mut lock_guards, indexer, &mut state);
+            op.apply::<S>(&mut lock_guard, indexer, &mut state);
         }
         TxResult::Completed { state }
     }

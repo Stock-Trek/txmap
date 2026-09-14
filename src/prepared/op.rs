@@ -127,7 +127,7 @@ where
     /// Applies the operation against the locked shards.
     pub fn apply<S>(
         &self,
-        lock_guards: &mut LockGuard<'_, K, V>,
+        lock_guard: &mut LockGuard<'_, K, V>,
         keys: &mut KEYS,
         params: &PARAMS,
         indexer: &Indexer<S>,
@@ -138,7 +138,7 @@ where
         match self {
             Self::Get { key_selector, get } => {
                 let key = key_selector.get(keys);
-                let shard = lock_guards.shard_for_key(key);
+                let shard = lock_guard.shard_for_key(key);
                 let value_ref = ShardOps::value_ref(shard, key.hash_code, &key.key);
                 (get)(&key.key, value_ref, params, state)
             }
@@ -148,7 +148,7 @@ where
                 get,
             } => {
                 let key = key_selector.get(keys);
-                let shard = lock_guards.shard_for_key(key);
+                let shard = lock_guard.shard_for_key(key);
                 let value_ref = ShardOps::get_or_insert_with(
                     shard,
                     key.hash_code,
@@ -169,7 +169,7 @@ where
                     key_selector.get(keys).clone()
                 };
                 let new_value = (value_generator)(&key.key, params, state);
-                let shard = lock_guards.shard_for_key(&key);
+                let shard = lock_guard.shard_for_key(&key);
                 ShardOps::insert::<K, V, S>(shard, key.hash_code, key.key, new_value, indexer);
             }
             Self::InsertWithIfAbsent {
@@ -182,7 +182,7 @@ where
                 } else {
                     key_selector.get(keys).clone()
                 };
-                let shard = lock_guards.shard_for_key(&key);
+                let shard = lock_guard.shard_for_key(&key);
                 ShardOps::insert_if_absent::<K, V, S>(
                     shard,
                     key.hash_code,
@@ -196,7 +196,7 @@ where
                 mutate,
             } => {
                 let key = key_selector.get(keys);
-                let shard = lock_guards.shard_for_key(key);
+                let shard = lock_guard.shard_for_key(key);
                 ShardOps::modify(shard, key.hash_code, &key.key, |k, v| {
                     mutate(k, v, params, state)
                 });
@@ -207,11 +207,11 @@ where
             } => {
                 let key_from = key_selector_from.get(keys);
                 let key_to = key_selector_to.get(keys);
-                MultiShardOps::move_value::<K, V, S>(lock_guards, key_from, key_to, indexer);
+                MultiShardOps::move_value::<K, V, S>(lock_guard, key_from, key_to, indexer);
             }
             Self::Remove { key_selector } => {
                 let key = key_selector.get(keys);
-                let shard = lock_guards.shard_for_key(key);
+                let shard = lock_guard.shard_for_key(key);
                 ShardOps::remove_entry::<K, V>(shard, key.hash_code, &key.key);
             }
             Self::RemoveIf {
@@ -219,7 +219,7 @@ where
                 condition,
             } => {
                 let key = key_selector.get(keys);
-                let shard = lock_guards.shard_for_key(key);
+                let shard = lock_guard.shard_for_key(key);
                 ShardOps::remove_if(shard, key.hash_code, &key.key, |k, v| {
                     condition(k, v, params, state)
                 });
@@ -230,7 +230,7 @@ where
             } => {
                 let key_a = key_selector_a.get(keys);
                 let key_b = key_selector_b.get(keys);
-                MultiShardOps::swap_value::<K, V, S>(lock_guards, key_a, key_b, indexer);
+                MultiShardOps::swap_value::<K, V, S>(lock_guard, key_a, key_b, indexer);
             }
             Self::Update {
                 key_selector,
@@ -242,7 +242,7 @@ where
                 } else {
                     key_selector.get(keys).clone()
                 };
-                let shard = lock_guards.shard_for_key(&key);
+                let shard = lock_guard.shard_for_key(&key);
                 ShardOps::update(
                     shard,
                     key.hash_code,

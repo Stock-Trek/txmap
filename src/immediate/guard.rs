@@ -21,7 +21,7 @@ where
 {
     pub fn condition_is_met(
         &mut self,
-        lock_guards: &mut LockGuard<'_, K, V>,
+        lock_guard: &mut LockGuard<'_, K, V>,
         state: &mut STATE,
     ) -> bool {
         let condition = self
@@ -29,7 +29,7 @@ where
             .take()
             .expect("guard condition already evaluated");
         let key = &self.key;
-        let shard = lock_guards.shard_for_key(key);
+        let shard = lock_guard.shard_for_key(key);
         let value_ref = ShardOps::value_ref(shard, key.hash_code, &key.key);
         (condition)(&key.key, value_ref, state)
     }
