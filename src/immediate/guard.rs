@@ -1,4 +1,4 @@
-use crate::{key::TxKey, lock_guards::LockGuard, new_types::BitMask, shard_ops::ShardOps};
+use crate::{key::TxKey, lock_guard::LockGuard, new_types::BitMask, shard_ops::ShardOps};
 use std::marker::PhantomData;
 
 pub(crate) struct ImmediateGuard<'tx, K, V, STATE> {

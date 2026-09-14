@@ -1,4 +1,9 @@
-use crate::{custodian::Custodian, key::TxKey, new_types::ShardIndex, shard::Shard};
+use crate::{
+    custodian::Custodian,
+    key::TxKey,
+    new_types::{BitMask, ShardIndex},
+    shard::Shard,
+};
 use std::ops::{Deref, DerefMut};
 
 /// RAII guard for the shards locked during a transaction execution.
@@ -15,7 +20,7 @@ where
     K: 'ex,
     V: 'ex,
 {
-    pub(crate) locked_mask: u128,
+    pub(crate) locked_mask: BitMask,
     pub(crate) custodian: &'ex Custodian<K, V>,
 }
 
@@ -36,7 +41,7 @@ where
 {
     /// Fetches the shard at `shard_index` from the custodian.
     pub fn shard(&self, shard_index: ShardIndex) -> &mut Shard<K, V> {
-        debug_assert!(self.locked_mask & (1u128 << shard_index.0) != 0);
+        debug_assert!(self.locked_mask & shard_index.bitmask() != BitMask::ZERO);
         // SAFETY: the index is part of `locked_mask`, which the custodian
         // acquired exclusively, and `&mut self` prevents aliasing borrows
         // through this guard for the lifetime of the returned reference.
@@ -64,7 +69,7 @@ where
     /// Fetches the single shard held by this guard.
     fn deref(&self) -> &Self::Target {
         let shard_index = self.single_shard_index();
-        debug_assert!(self.locked_mask & (1u128 << shard_index.0) != 0);
+        debug_assert!(self.locked_mask & shard_index.bitmask() != BitMask::ZERO);
         // SAFETY: the index is part of `locked_mask`, which the custodian
         // acquired exclusively, so no other thread can access this shard
         // while the guard is alive.

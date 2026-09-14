@@ -52,7 +52,7 @@ where
             total_bitmask |= op.bitmask();
         }
 
-        let mut lock_guards = custodian.lock_guards(total_bitmask);
+        let mut lock_guards = custodian.lock_guard(total_bitmask);
         let mut state = STATE::default();
         for (i, mut guard) in guards.into_iter().enumerate() {
             if !guard.condition_is_met(&mut lock_guards, &mut state) {

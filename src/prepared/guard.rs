@@ -1,5 +1,5 @@
 use crate::{
-    key::TxKey, lock_guards::LockGuard, new_types::BitMask, prepared::schema::TxKeySelector,
+    key::TxKey, lock_guard::LockGuard, new_types::BitMask, prepared::schema::TxKeySelector,
     shard_ops::ShardOps,
 };
 use std::marker::PhantomData;

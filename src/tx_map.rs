@@ -110,7 +110,7 @@ where
         let tx_key_to = self.indexer.indexed_key(self.shard_count, key_to);
         let mut shards = self
             .custodian
-            .lock_guards(tx_key_from.shard_index.bitmask() | tx_key_to.shard_index.bitmask());
+            .lock_guard(tx_key_from.shard_index.bitmask() | tx_key_to.shard_index.bitmask());
         MultiShardOps::move_value::<K, V, S>(&mut shards, &tx_key_from, &tx_key_to, &self.indexer);
     }
 
@@ -122,7 +122,7 @@ where
         let tx_key_b = self.indexer.indexed_key(self.shard_count, key_b);
         let mut shards = self
             .custodian
-            .lock_guards(tx_key_a.shard_index.bitmask() | tx_key_b.shard_index.bitmask());
+            .lock_guard(tx_key_a.shard_index.bitmask() | tx_key_b.shard_index.bitmask());
         MultiShardOps::swap_value::<K, V, S>(&mut shards, &tx_key_a, &tx_key_b, &self.indexer);
     }
 }

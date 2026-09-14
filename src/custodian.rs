@@ -1,5 +1,5 @@
 use crate::{
-    lock_guards::LockGuard,
+    lock_guard::LockGuard,
     new_types::{BitMask, MAX_SHARDS, ShardCount, ShardIndex},
     shard::Shard,
 };
@@ -74,17 +74,22 @@ impl<K, V> Custodian<K, V> {
     }
 
     /// Acquires every shard named in `needed`, all-or-nothing.
-    pub(crate) fn acquire(&self, needed: u128) {
-        if needed == 0 {
+    pub(crate) fn acquire(&self, needed: BitMask) {
+        if needed == BitMask::ZERO {
             return;
         }
         let mut spins = 0u32;
         loop {
-            let cur = self.locked_mask.load(Ordering::Acquire);
-            if cur & needed == 0
+            let cur = BitMask(self.locked_mask.load(Ordering::Acquire));
+            if cur & needed == BitMask::ZERO
                 && self
                     .locked_mask
-                    .compare_exchange_weak(cur, cur | needed, Ordering::AcqRel, Ordering::Acquire)
+                    .compare_exchange_weak(
+                        cur.0,
+                        (cur | needed).0,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    )
                     .is_ok()
             {
                 return;
@@ -93,25 +98,20 @@ impl<K, V> Custodian<K, V> {
         }
     }
 
-    pub(crate) fn release(&self, mask: u128) {
-        if mask == 0 {
+    pub(crate) fn release(&self, mask: BitMask) {
+        if mask == BitMask::ZERO {
             return;
         }
-        self.locked_mask.fetch_and(!mask, Ordering::AcqRel);
+        self.locked_mask.fetch_and(!mask.0, Ordering::AcqRel);
+    }
+
+    pub(crate) fn guard_at(&self, shard_index: ShardIndex) -> LockGuard<'_, K, V> {
+        self.lock_guard(shard_index.bitmask())
     }
 
     /// Acquires every shard named by `mask` and returns a guard that releases
     /// them on drop.
-    pub fn lock_guards(&self, mask: BitMask) -> LockGuard<'_, K, V> {
-        self.guard(mask.0)
-    }
-
-    pub(crate) fn guard_at(&self, shard_index: ShardIndex) -> LockGuard<'_, K, V> {
-        self.guard(shard_index.bitmask().0)
-    }
-
-    /// Acquires `mask` and wraps it in an RAII guard.
-    fn guard(&self, mask: u128) -> LockGuard<'_, K, V> {
+    pub fn lock_guard(&self, mask: BitMask) -> LockGuard<'_, K, V> {
         self.acquire(mask);
         LockGuard {
             locked_mask: mask,

@@ -443,10 +443,10 @@ macro_rules! tx_schema {
                             total_bitmask |= op.bitmask(&indexed_keys);
                         }
 
-                        let mut lock_guards = self.custodian.lock_guards(total_bitmask);
+                        let mut lock_guard = self.custodian.lock_guard(total_bitmask);
                         let mut state = [<$name State>]::default();
                         for (index, guard) in self.guards.iter().enumerate() {
-                            if !guard.is_condition_met(&mut lock_guards, &indexed_keys, &params, &mut state)
+                            if !guard.is_condition_met(&mut lock_guard, &indexed_keys, &params, &mut state)
                             {
                                 return $crate::TxResult::RequirementNotMet {
                                     index,
@@ -457,7 +457,7 @@ macro_rules! tx_schema {
                         }
                         for op in self.ops.iter() {
                             op.apply::<S>(
-                                &mut lock_guards,
+                                &mut lock_guard,
                                 &mut indexed_keys,
                                 &params,
                                 self.indexer,

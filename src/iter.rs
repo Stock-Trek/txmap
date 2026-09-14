@@ -1,4 +1,4 @@
-use crate::{custodian::Custodian, lock_guards::LockGuard, new_types::ShardIndex, tx_map::TxMap};
+use crate::{custodian::Custodian, lock_guard::LockGuard, new_types::ShardIndex, tx_map::TxMap};
 use hashbrown::hash_table::{Drain as ShardDrain, Iter as ShardIter};
 
 /// An iterator over all key-value pairs in a [`TxMap`].

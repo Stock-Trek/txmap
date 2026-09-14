@@ -7,7 +7,7 @@ pub mod immediate;
 pub mod indexer;
 pub mod iter;
 pub mod key;
-pub mod lock_guards;
+pub mod lock_guard;
 pub mod multi_shard_ops;
 pub mod new_types;
 pub mod prepared;
