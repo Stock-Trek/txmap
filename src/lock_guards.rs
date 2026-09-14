@@ -1,6 +1,6 @@
 use crate::{
     key::TxKey, lock_policies::lock_policy::LockPolicy, new_types::BitMask, new_types::MAX_SHARDS,
-    result::MISSING_LOCK_GUARD_ERROR, shard::Shard,
+    result::MISSING_LOCK_GUARD_ERROR, shard::Shard, shard_map::MaskGuard,
 };
 
 /// Guards for the shards locked during a prepared transaction execution.
@@ -13,10 +13,14 @@ where
     K: 'ex,
     V: 'ex,
     L: LockPolicy + 'ex,
+    L::Lock<Shard<K, V>>: 'ex,
 {
     pub read: [Option<L::ReadGuard<'ex, Shard<K, V>>>; MAX_SHARDS],
     pub write: [Option<L::WriteGuard<'ex, Shard<K, V>>>; MAX_SHARDS],
     pub write_bitmask: BitMask,
+    /// Keeps the leaf mask acquired by the transaction alive until the guards
+    /// are dropped.
+    pub(crate) _mask: MaskGuard<'ex, L::Lock<Shard<K, V>>>,
 }
 
 impl<'ex, K, V, L> LockGuards<'ex, K, V, L>
@@ -24,6 +28,7 @@ where
     K: 'ex,
     V: 'ex,
     L: LockPolicy + 'ex,
+    L::Lock<Shard<K, V>>: 'ex,
 {
     pub fn read_guard(&self, key: &TxKey<K>) -> &L::ReadGuard<'ex, Shard<K, V>> {
         self.read[key.shard_index.0 as usize]

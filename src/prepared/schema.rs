@@ -451,45 +451,70 @@ macro_rules! tx_schema {
                     ) -> $crate::TxResult<[<$name State>]>
                     {
                         let mut indexed_keys = keys.into_indexed(self.shard_count, self.indexer);
-                        let mut total_read_bitmask = $crate::new_types::BitMask::ZERO;
-                        let mut total_write_bitmask = $crate::new_types::BitMask::ZERO;
+                        loop {
+                            // Route (or re-route after a concurrent split/merge)
+                            // every key through the live routing trie.
+                            $(
+                                if let std::option::Option::Some(tx_key) = indexed_keys.$key.as_mut() {
+                                    tx_key.shard_index = self.custodian.route(tx_key.hash_code);
+                                    tx_key.version = self.custodian.version(tx_key.shard_index);
+                                }
+                            )*
 
-                        // get all bitmasks
-                        for guard in self.guards.iter() {
-                            total_read_bitmask |= guard.read_bitmask(&indexed_keys);
-                        }
-                        for op in self.ops.iter() {
-                            let (read_bitmask, write_bitmask) = op.read_write_bitmasks(&indexed_keys);
-                            total_read_bitmask |= read_bitmask;
-                            total_write_bitmask |= write_bitmask;
-                        }
-                        // ensure locks are either read or write, not both
-                        total_read_bitmask &= !total_write_bitmask;
+                            let mut total_read_bitmask = $crate::new_types::BitMask::ZERO;
+                            let mut total_write_bitmask = $crate::new_types::BitMask::ZERO;
 
-                        let mut lock_guards = self
-                            .custodian
-                            .lock_guards(total_read_bitmask, total_write_bitmask);
-                        let mut state = [<$name State>]::default();
-                        for (index, guard) in self.guards.iter().enumerate() {
-                            if !guard.is_condition_met::<L>(&mut lock_guards, &indexed_keys, &params, &mut state)
-                            {
-                                return $crate::TxResult::RequirementNotMet {
-                                    index,
-                                    requirement: guard.name.clone(),
-                                    state,
-                                };
+                            // get all bitmasks
+                            for guard in self.guards.iter() {
+                                total_read_bitmask |= guard.read_bitmask(&indexed_keys);
                             }
+                            for op in self.ops.iter() {
+                                let (read_bitmask, write_bitmask) = op.read_write_bitmasks(&indexed_keys);
+                                total_read_bitmask |= read_bitmask;
+                                total_write_bitmask |= write_bitmask;
+                            }
+                            // ensure locks are either read or write, not both
+                            total_read_bitmask &= !total_write_bitmask;
+
+                            // Snapshot the versions so a routing change that raced
+                            // with us can be detected after locking.
+                            let mut versions = std::vec::Vec::new();
+                            $(
+                                if let std::option::Option::Some(tx_key) = indexed_keys.$key.as_ref() {
+                                    versions.push((*tx_key.shard_index, tx_key.version));
+                                }
+                            )*
+
+                            let mut lock_guards = match self.custodian.try_lock_guards(
+                                total_read_bitmask,
+                                total_write_bitmask,
+                                &versions,
+                            ) {
+                                std::option::Option::Some(lock_guards) => lock_guards,
+                                std::option::Option::None => continue,
+                            };
+                            let mut state = [<$name State>]::default();
+                            for (index, guard) in self.guards.iter().enumerate() {
+                                if !guard.is_condition_met::<L>(&mut lock_guards, &indexed_keys, &params, &mut state)
+                                {
+                                    return $crate::TxResult::RequirementNotMet {
+                                        index,
+                                        requirement: guard.name.clone(),
+                                        state,
+                                    };
+                                }
+                            }
+                            for op in self.ops.iter() {
+                                op.apply::<L, S>(
+                                    &mut lock_guards,
+                                    &mut indexed_keys,
+                                    &params,
+                                    self.indexer,
+                                    &mut state,
+                                );
+                            }
+                            return $crate::TxResult::Completed { state };
                         }
-                        for op in self.ops.iter() {
-                            op.apply::<L, S>(
-                                &mut lock_guards,
-                                &mut indexed_keys,
-                                &params,
-                                self.indexer,
-                                &mut state,
-                            );
-                        }
-                        $crate::TxResult::Completed { state }
                     }
                 }
             }

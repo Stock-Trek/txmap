@@ -9,7 +9,8 @@ use hashbrown::hash_table::{Drain as ShardDrain, Iter as ShardIter};
 /// Read guards are acquired lazily, one shard at a time, as iteration
 /// progresses. Guards for shards already visited are held until the
 /// iterator is dropped, so entries yielded remain valid for the lifetime
-/// of the iterator.
+/// of the iterator. The set of active leaves is snapshotted when the
+/// iterator is created.
 pub struct Iter<'a, K, V, L>
 where
     K: 'a,
@@ -22,6 +23,8 @@ where
     pub(crate) _guards: Vec<L::ReadGuard<'a, Shard<K, V>>>,
     /// One `hashbrown` iterator per shard, aligned with shard indices.
     pub(crate) shard_iters: Vec<ShardIter<'a, (K, V)>>,
+    /// Snapshot of the active leaf ids to visit, in routing order.
+    pub(crate) ids: Vec<u8>,
     pub(crate) shard_index: usize,
     /// Entries remaining in shards visited so far (an exact lower bound).
     pub(crate) remaining: usize,
@@ -34,10 +37,12 @@ where
     L: LockPolicy + 'a,
 {
     pub(crate) fn new(custodian: &'a Custodian<K, V, L>) -> Self {
+        let ids = custodian.active_ids();
         Self {
             custodian,
-            _guards: Vec::with_capacity(custodian.shard_count.0 as usize),
-            shard_iters: Vec::with_capacity(custodian.shard_count.0 as usize),
+            _guards: Vec::with_capacity(ids.len()),
+            shard_iters: Vec::with_capacity(ids.len()),
+            ids,
             shard_index: 0,
             remaining: 0,
         }
@@ -56,12 +61,12 @@ where
         loop {
             // Lazily acquire the read guard for the next shard on first visit.
             if self.shard_index == self.shard_iters.len() {
-                if self.shard_index >= self.custodian.shard_count.0 as usize {
+                if self.shard_index >= self.ids.len() {
                     return None;
                 }
                 let guard = self
                     .custodian
-                    .read_guard_at(ShardIndex(self.shard_index as u8));
+                    .read_guard_at(ShardIndex(self.ids[self.shard_index]));
                 self.remaining += guard.len();
                 // SAFETY: `hashbrown`'s `Iter` stores only raw pointers into
                 // the shard's heap-allocated buckets plus a `PhantomData`
@@ -70,7 +75,7 @@ where
                 // is stored alongside the iterators in this struct, so the
                 // iterators can never outlive the data they reference.
                 let iter: ShardIter<'a, (K, V)> = unsafe { std::mem::transmute(guard.iter()) };
-                self._guards.insert(self.shard_index, guard);
+                self._guards.push(guard);
                 self.shard_iters.push(iter);
             }
             let shard = &mut self.shard_iters[self.shard_index];
@@ -83,7 +88,7 @@ where
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let exact = self.shard_index >= self.custodian.shard_count.0 as usize;
+        let exact = self.shard_index >= self.ids.len();
         (self.remaining, exact.then_some(self.remaining))
     }
 }
@@ -193,6 +198,8 @@ where
     pub(crate) shard_drains: Vec<ShardDrain<'a, (K, V)>>,
     /// Write guards keeping every visited shard locked (and alive) for `'a`.
     pub(crate) _guards: Vec<L::WriteGuard<'a, Shard<K, V>>>,
+    /// Snapshot of the active leaf ids to visit, in routing order.
+    pub(crate) ids: Vec<u8>,
     pub(crate) shard_index: usize,
     /// Entries remaining in shards visited so far (an exact lower bound).
     pub(crate) remaining: usize,
@@ -205,10 +212,12 @@ where
     L: LockPolicy + 'a,
 {
     pub(crate) fn new(custodian: &'a Custodian<K, V, L>) -> Self {
+        let ids = custodian.active_ids();
         Self {
             custodian,
-            shard_drains: Vec::with_capacity(custodian.shard_count.0 as usize),
-            _guards: Vec::with_capacity(custodian.shard_count.0 as usize),
+            shard_drains: Vec::with_capacity(ids.len()),
+            _guards: Vec::with_capacity(ids.len()),
+            ids,
             shard_index: 0,
             remaining: 0,
         }
@@ -228,12 +237,12 @@ where
             // Lazily acquire the write guard and drain for the next shard on
             // first visit.
             if self.shard_index == self.shard_drains.len() {
-                if self.shard_index >= self.custodian.shard_count.0 as usize {
+                if self.shard_index >= self.ids.len() {
                     return None;
                 }
                 let mut guard = self
                     .custodian
-                    .write_guard_at(ShardIndex(self.shard_index as u8));
+                    .write_guard_at(ShardIndex(self.ids[self.shard_index]));
                 self.remaining += guard.len();
                 // SAFETY: `hashbrown`'s `Drain` stores only raw pointers into
                 // the shard's heap-allocated buckets plus a `PhantomData`
@@ -256,7 +265,7 @@ where
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let exact = self.shard_index >= self.custodian.shard_count.0 as usize;
+        let exact = self.shard_index >= self.ids.len();
         (self.remaining, exact.then_some(self.remaining))
     }
 }
@@ -275,8 +284,10 @@ where
         // already locked are touched; the visited shards' write guards are
         // still held and must not be re-acquired.
         let mut shard_index = self.shard_drains.len();
-        while shard_index < self.custodian.shard_count.0 as usize {
-            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index as u8));
+        while shard_index < self.ids.len() {
+            let mut guard = self
+                .custodian
+                .write_guard_at(ShardIndex(self.ids[shard_index]));
             guard.clear();
             shard_index += 1;
         }

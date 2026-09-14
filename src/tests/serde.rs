@@ -21,7 +21,7 @@ fn serde_roundtrip_shards() {
     let map: TxMap<String, u64> = TxMapBuilder::default().with_shards(Shards::_64).build();
     let json = serde_json::to_string(&map).unwrap();
     let deserialized: TxMap<String, u64> = serde_json::from_str(&json).unwrap();
-    assert_eq!(deserialized.custodian.shard_count, ShardCount(64));
+    assert_eq!(deserialized.shard_count, ShardCount(64));
 }
 
 #[test]
