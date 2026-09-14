@@ -1,11 +1,8 @@
 use crate::{
-    key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
-    new_types::BitMask, prepared::schema::TxKeySelector, shard_ops::ShardOps,
+    key::TxKey, lock_guards::LockGuard, lock_policies::lock_policy::LockPolicy, new_types::BitMask,
+    prepared::schema::TxKeySelector, shard_ops::ShardOps,
 };
-use std::{
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-};
+use std::marker::PhantomData;
 
 /// Internal guard precondition for a prepared transaction.
 ///
@@ -35,7 +32,7 @@ where
     /// Checks the guard's condition against the locked shards.
     pub fn is_condition_met<L>(
         &self,
-        lock_guards: &mut LockGuards<'_, K, V, L>,
+        lock_guards: &mut LockGuard<'_, K, V, L>,
         keys: &KEYS,
         params: &PARAMS,
         state: &mut STATE,
@@ -44,11 +41,7 @@ where
         L: LockPolicy,
     {
         let key = self.key_selector.get(keys);
-        let shard = if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
-            lock_guards.write_guard(key).deref_mut()
-        } else {
-            lock_guards.read_guard(key).deref()
-        };
+        let shard = lock_guards.read_guard(key);
         let value_ref = ShardOps::value_ref(shard, key.hash_code, &key.key);
         (self.condition)(&key.key, value_ref, params, state)
     }

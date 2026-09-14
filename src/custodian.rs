@@ -1,5 +1,5 @@
 use crate::{
-    lock_guards::LockGuards,
+    lock_guards::LockGuard,
     lock_policies::lock_policy::LockPolicy,
     new_types::{BitMask, MAX_SHARDS, ShardCount, ShardIndex},
     shard::Shard,
@@ -7,10 +7,7 @@ use crate::{
 use crossbeam_utils::CachePadded;
 use hashbrown::HashTable;
 use portable_atomic::{AtomicU128, Ordering};
-use std::{
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-};
+use std::marker::PhantomData;
 
 /// Internal store of the map's shards.
 ///
@@ -111,139 +108,30 @@ where
         self.locked_mask.fetch_and(!mask, Ordering::AcqRel);
     }
 
-    /// Acquires read/write guards for the given shard bitmasks.
-    pub fn lock_guards(&self, read: BitMask, write: BitMask) -> LockGuards<'_, K, V, L> {
-        let needed = (read | write).0;
-        self.acquire(needed);
-
-        let mut read_guards = std::array::from_fn(|_| None);
-        let mut write_guards = std::array::from_fn(|_| None);
-
-        let mut bits = needed;
-        while bits != 0 {
-            let i = bits.trailing_zeros() as usize;
-            bits &= bits - 1;
-            let shard_lock = &self.shards[i];
-            let bit = BitMask(1u128 << i);
-            if (write & bit) != BitMask::ZERO {
-                write_guards[i] = Some(L::write(shard_lock));
-            } else {
-                read_guards[i] = Some(L::read(shard_lock));
-            }
-        }
-        LockGuards {
-            read: read_guards,
-            write: write_guards,
-            write_bitmask: write,
-            custodian: self,
-            locked_mask: needed,
-        }
+    /// Acquires every shard named by `read` or `write` and returns a guard
+    /// that releases them on drop.
+    pub fn lock_guards(&self, read: BitMask, write: BitMask) -> LockGuard<'_, K, V, L> {
+        self.guard((read | write).0)
     }
 
-    pub(crate) fn write_guards(&self, write: BitMask) -> LockGuards<'_, K, V, L> {
-        self.lock_guards(BitMask::ZERO, write)
+    pub(crate) fn write_guards(&self, write: BitMask) -> LockGuard<'_, K, V, L> {
+        self.guard(write.0)
     }
 
-    pub(crate) fn read_guard_at(&self, shard_index: ShardIndex) -> ReadGuardAt<'_, K, V, L> {
-        let mask = shard_index.bitmask().0;
+    pub(crate) fn read_guard_at(&self, shard_index: ShardIndex) -> LockGuard<'_, K, V, L> {
+        self.guard(shard_index.bitmask().0)
+    }
+
+    pub(crate) fn write_guard_at(&self, shard_index: ShardIndex) -> LockGuard<'_, K, V, L> {
+        self.guard(shard_index.bitmask().0)
+    }
+
+    /// Acquires `mask` and wraps it in an RAII guard.
+    fn guard(&self, mask: u128) -> LockGuard<'_, K, V, L> {
         self.acquire(mask);
-        let shard_lock = &self.shards[shard_index.0 as usize];
-        ReadGuardAt {
+        LockGuard {
+            locked_mask: mask,
             custodian: self,
-            mask,
-            guard: L::read(shard_lock),
         }
-    }
-
-    pub(crate) fn write_guard_at(&self, shard_index: ShardIndex) -> WriteGuardAt<'_, K, V, L> {
-        let mask = shard_index.bitmask().0;
-        self.acquire(mask);
-        let shard_lock = &self.shards[shard_index.0 as usize];
-        WriteGuardAt {
-            custodian: self,
-            mask,
-            guard: L::write(shard_lock),
-        }
-    }
-}
-
-pub(crate) struct ReadGuardAt<'a, K, V, L>
-where
-    K: 'a,
-    V: 'a,
-    L: LockPolicy + 'a,
-{
-    custodian: &'a Custodian<K, V, L>,
-    mask: u128,
-    guard: L::ReadGuard<'a, Shard<K, V>>,
-}
-
-impl<'a, K, V, L> Drop for ReadGuardAt<'a, K, V, L>
-where
-    K: 'a,
-    V: 'a,
-    L: LockPolicy + 'a,
-{
-    fn drop(&mut self) {
-        self.custodian.release(self.mask);
-    }
-}
-
-impl<'a, K, V, L> Deref for ReadGuardAt<'a, K, V, L>
-where
-    K: 'a,
-    V: 'a,
-    L: LockPolicy + 'a,
-{
-    type Target = Shard<K, V>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.guard
-    }
-}
-
-pub(crate) struct WriteGuardAt<'a, K, V, L>
-where
-    K: 'a,
-    V: 'a,
-    L: LockPolicy + 'a,
-{
-    custodian: &'a Custodian<K, V, L>,
-    mask: u128,
-    guard: L::WriteGuard<'a, Shard<K, V>>,
-}
-
-impl<'a, K, V, L> Drop for WriteGuardAt<'a, K, V, L>
-where
-    K: 'a,
-    V: 'a,
-    L: LockPolicy + 'a,
-{
-    fn drop(&mut self) {
-        self.custodian.release(self.mask);
-    }
-}
-
-impl<'a, K, V, L> Deref for WriteGuardAt<'a, K, V, L>
-where
-    K: 'a,
-    V: 'a,
-    L: LockPolicy + 'a,
-{
-    type Target = Shard<K, V>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.guard
-    }
-}
-
-impl<'a, K, V, L> DerefMut for WriteGuardAt<'a, K, V, L>
-where
-    K: 'a,
-    V: 'a,
-    L: LockPolicy + 'a,
-{
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.guard
     }
 }

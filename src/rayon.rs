@@ -15,10 +15,8 @@
 //! running.
 
 use crate::{
-    custodian::{Custodian, ReadGuardAt},
-    lock_policies::lock_policy::LockPolicy,
-    new_types::ShardIndex,
-    tx_map::TxMap,
+    custodian::Custodian, lock_guards::LockGuard, lock_policies::lock_policy::LockPolicy,
+    new_types::ShardIndex, tx_map::TxMap,
 };
 use hashbrown::hash_table::Iter as ShardIter;
 use rayon::iter::plumbing::{Folder, UnindexedConsumer, UnindexedProducer, bridge_unindexed};
@@ -69,7 +67,7 @@ where
         let shard_count = self.custodian.shard_count.0 as usize;
         // Acquire a read guard on every shard and hold all of them until the
         // parallel iteration below completes, giving a consistent snapshot.
-        let mut guards: Vec<ReadGuardAt<'_, K, V, L>> = Vec::with_capacity(shard_count);
+        let mut guards: Vec<LockGuard<'_, K, V, L>> = Vec::with_capacity(shard_count);
         let mut shard_iters: Vec<ShardIter<'a, (K, V)>> = Vec::with_capacity(shard_count);
         for shard_index in 0..shard_count {
             let guard = self.custodian.read_guard_at(ShardIndex(shard_index as u8));

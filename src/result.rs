@@ -1,5 +1,3 @@
-pub(crate) const MISSING_LOCK_GUARD_ERROR: &str = "Missing lock guard";
-
 /// The error type returned by [`TxMap::try_reserve`](crate::tx_map::TxMap::try_reserve).
 ///
 /// Mirrors the shape of `std::collections::TryReserveError`.

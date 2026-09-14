@@ -1,6 +1,6 @@
 use crate::{
-    indexer::Indexer, key::TxKey, lock_policies::lock_policy::LockPolicy,
-    result::MISSING_LOCK_GUARD_ERROR, shard::Shard, shard_ops::ShardOps,
+    indexer::Indexer, key::TxKey, lock_guards::LockGuard, lock_policies::lock_policy::LockPolicy,
+    shard_ops::ShardOps,
 };
 use std::hash::{BuildHasher, Hash};
 
@@ -9,7 +9,7 @@ pub(crate) struct MultiShardOps;
 impl MultiShardOps {
     #[inline]
     pub fn move_value<K, V, L, S>(
-        write_guards: &mut [Option<L::WriteGuard<'_, Shard<K, V>>>],
+        lock_guard: &mut LockGuard<'_, K, V, L>,
         key_from: &TxKey<K>,
         key_to: &TxKey<K>,
         indexer: &Indexer<S>,
@@ -19,12 +19,10 @@ impl MultiShardOps {
         S: BuildHasher,
     {
         let removed = {
-            let shard = Self::shard::<K, V, L>(write_guards, key_from);
+            let shard = lock_guard.write_guard(key_from);
             ShardOps::remove_entry::<K, V>(shard, key_from.hash_code, &key_from.key)
         };
-        let shard_to = write_guards[key_to.shard_index.0 as usize]
-            .as_mut()
-            .expect(MISSING_LOCK_GUARD_ERROR);
+        let shard_to = lock_guard.write_guard(key_to);
         if let Some(entry) = removed {
             ShardOps::insert::<K, V, S>(
                 shard_to,
@@ -40,7 +38,7 @@ impl MultiShardOps {
 
     #[inline]
     pub fn swap_value<K, V, L, S>(
-        write_guards: &mut [Option<L::WriteGuard<'_, Shard<K, V>>>],
+        lock_guard: &mut LockGuard<'_, K, V, L>,
         key_a: &TxKey<K>,
         key_b: &TxKey<K>,
         indexer: &Indexer<S>,
@@ -50,18 +48,18 @@ impl MultiShardOps {
         S: BuildHasher,
     {
         let a = {
-            let shard = Self::shard::<K, V, L>(write_guards, key_a);
+            let shard = lock_guard.write_guard(key_a);
             ShardOps::remove_entry::<K, V>(shard, key_a.hash_code, &key_a.key)
         };
         let b = {
-            let shard = Self::shard::<K, V, L>(write_guards, key_b);
+            let shard = lock_guard.write_guard(key_b);
             ShardOps::remove_entry::<K, V>(shard, key_b.hash_code, &key_b.key)
         };
         match a {
             Some((a_key, a_value)) => match b {
                 Some((b_key, b_value)) => {
                     {
-                        let shard = Self::shard::<K, V, L>(write_guards, key_a);
+                        let shard = lock_guard.write_guard(key_a);
                         ShardOps::insert_with_duplicate_key(
                             shard,
                             key_a.hash_code,
@@ -72,7 +70,7 @@ impl MultiShardOps {
                         );
                     }
                     {
-                        let shard = Self::shard::<K, V, L>(write_guards, key_b);
+                        let shard = lock_guard.write_guard(key_b);
                         ShardOps::insert_with_duplicate_key(
                             shard,
                             key_b.hash_code,
@@ -84,7 +82,7 @@ impl MultiShardOps {
                     }
                 }
                 None => {
-                    let shard = Self::shard::<K, V, L>(write_guards, key_b);
+                    let shard = lock_guard.write_guard(key_b);
                     ShardOps::insert::<K, V, S>(
                         shard,
                         key_b.hash_code,
@@ -97,7 +95,7 @@ impl MultiShardOps {
             None => {
                 if let Some((_, b_value)) = b {
                     {
-                        let shard = Self::shard::<K, V, L>(write_guards, key_a);
+                        let shard = lock_guard.write_guard(key_a);
                         ShardOps::insert::<K, V, S>(
                             shard,
                             key_a.hash_code,
@@ -109,18 +107,5 @@ impl MultiShardOps {
                 }
             }
         }
-    }
-
-    #[inline]
-    fn shard<'ex, K, V, L>(
-        write_guards: &'ex mut [Option<L::WriteGuard<'_, Shard<K, V>>>],
-        key: &TxKey<K>,
-    ) -> &'ex mut Shard<K, V>
-    where
-        L: LockPolicy,
-    {
-        write_guards[key.shard_index.0 as usize]
-            .as_mut()
-            .expect(MISSING_LOCK_GUARD_ERROR)
     }
 }

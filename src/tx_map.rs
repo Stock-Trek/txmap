@@ -113,7 +113,7 @@ where
             .custodian
             .write_guards(tx_key_from.shard_index.bitmask() | tx_key_to.shard_index.bitmask());
         MultiShardOps::move_value::<K, V, L, S>(
-            &mut shards.write,
+            &mut shards,
             &tx_key_from,
             &tx_key_to,
             &self.indexer,
@@ -129,12 +129,7 @@ where
         let mut shards = self
             .custodian
             .write_guards(tx_key_a.shard_index.bitmask() | tx_key_b.shard_index.bitmask());
-        MultiShardOps::swap_value::<K, V, L, S>(
-            &mut shards.write,
-            &tx_key_a,
-            &tx_key_b,
-            &self.indexer,
-        );
+        MultiShardOps::swap_value::<K, V, L, S>(&mut shards, &tx_key_a, &tx_key_b, &self.indexer);
     }
 }
 

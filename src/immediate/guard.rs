@@ -1,11 +1,8 @@
 use crate::{
-    key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
-    new_types::BitMask, shard_ops::ShardOps,
+    key::TxKey, lock_guards::LockGuard, lock_policies::lock_policy::LockPolicy, new_types::BitMask,
+    shard_ops::ShardOps,
 };
-use std::{
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-};
+use std::marker::PhantomData;
 
 pub(crate) struct ImmediateGuard<'tx, K, V, STATE> {
     pub name: String,
@@ -27,7 +24,7 @@ where
 {
     pub fn condition_is_met<L>(
         &mut self,
-        lock_guards: &mut LockGuards<'_, K, V, L>,
+        lock_guards: &mut LockGuard<'_, K, V, L>,
         state: &mut STATE,
     ) -> bool
     where
@@ -38,11 +35,7 @@ where
             .take()
             .expect("guard condition already evaluated");
         let key = &self.key;
-        let shard = if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
-            lock_guards.write_guard(key).deref_mut()
-        } else {
-            lock_guards.read_guard(key).deref()
-        };
+        let shard = lock_guards.read_guard(key);
         let value_ref = ShardOps::value_ref(shard, key.hash_code, &key.key);
         (condition)(&key.key, value_ref, state)
     }

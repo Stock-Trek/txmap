@@ -15,27 +15,15 @@ impl Default for RwLockPolicy {
 impl LockPolicy for RwLockPolicy {
     type Lock<T> = UnsafeCell<T>;
 
-    type ReadGuard<'guard, T>
-        = &'guard T
-    where
-        Self: 'guard,
-        T: 'guard;
-
-    type WriteGuard<'guard, T>
-        = &'guard mut T
-    where
-        Self: 'guard,
-        T: 'guard;
-
     fn new<T>(value: T) -> Self::Lock<T> {
         UnsafeCell::new(value)
     }
 
-    fn read<'lock, T>(lock: &'lock Self::Lock<T>) -> Self::ReadGuard<'lock, T> {
-        unsafe { &*lock.get() }
+    fn as_ptr<T>(lock: &Self::Lock<T>) -> *const T {
+        lock.get()
     }
 
-    fn write<'lock, T>(lock: &'lock Self::Lock<T>) -> Self::WriteGuard<'lock, T> {
-        unsafe { &mut *lock.get() }
+    fn as_mut_ptr<T>(lock: &Self::Lock<T>) -> *mut T {
+        lock.get()
     }
 }
