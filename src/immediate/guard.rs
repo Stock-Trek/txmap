@@ -1,6 +1,6 @@
 use crate::{
-    key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
-    new_types::BitMask, shard_ops::ShardOps,
+    custodian::Custodian, key::TxKey, lock_guards::LockGuards,
+    lock_policies::lock_policy::LockPolicy, new_types::BitMask, shard_ops::ShardOps,
 };
 use std::{
     marker::PhantomData,
@@ -18,6 +18,15 @@ pub(crate) struct ImmediateGuard<'tx, K, V, STATE> {
 impl<'tx, K, V, STATE> ImmediateGuard<'tx, K, V, STATE> {
     pub fn read_bitmask(&self) -> BitMask {
         self.key.shard_index.bitmask()
+    }
+
+    /// Re-routes the guard key after a routing change.
+    pub fn reroute<L>(&mut self, custodian: &Custodian<K, V, L>)
+    where
+        L: LockPolicy,
+    {
+        self.key.shard_index = custodian.route(self.key.hash_code);
+        self.key.version = custodian.version(self.key.shard_index);
     }
 }
 

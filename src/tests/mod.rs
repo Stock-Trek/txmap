@@ -48,5 +48,8 @@ pub mod map {
     pub mod indexer;
     pub mod insert;
     pub mod iterator;
+    #[cfg(loom)]
+    pub mod loom_model;
     pub mod shard_counts;
+    pub mod trie;
 }

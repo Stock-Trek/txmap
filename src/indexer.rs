@@ -36,6 +36,7 @@ impl<S: BuildHasher> Indexer<S> {
         TxKey {
             hash_code,
             shard_index,
+            version: 0,
             key,
         }
     }

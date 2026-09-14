@@ -59,7 +59,7 @@ where
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuilderPhase> {
         let guard = ImmediateGuard {
             name: name.as_ref().into(),
-            key: self.indexer.indexed_key(self.custodian.shard_count, key),
+            key: self.custodian.indexed_key(self.indexer, key),
             condition: Some(Box::new(condition)),
             _phantom: PhantomData,
         };
@@ -92,7 +92,7 @@ where
         get: impl FnOnce(&K, Option<&V>, &mut STATE) + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::Get {
-            key: self.indexer.indexed_key(self.custodian.shard_count, key),
+            key: self.custodian.indexed_key(self.indexer, key),
             get: Box::new(get),
         });
         ImmediateTxBuilder {
@@ -117,7 +117,7 @@ where
         get: impl FnOnce(&K, &V, &mut STATE) + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::GetOrInsert {
-            key: self.indexer.indexed_key(self.custodian.shard_count, key),
+            key: self.custodian.indexed_key(self.indexer, key),
             value,
             get: Box::new(get),
         });
@@ -144,7 +144,7 @@ where
         get: impl FnOnce(&K, &V, &mut STATE) + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::GetOrInsertWith {
-            key: self.indexer.indexed_key(self.custodian.shard_count, key),
+            key: self.custodian.indexed_key(self.indexer, key),
             value_generator: Box::new(value_generator),
             get: Box::new(get),
         });
@@ -164,7 +164,7 @@ where
         value_generator: impl FnOnce(&K, &mut STATE) -> V + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::InsertWith {
-            key: self.indexer.indexed_key(self.custodian.shard_count, key),
+            key: self.custodian.indexed_key(self.indexer, key),
             value_generator: Box::new(value_generator),
         });
         ImmediateTxBuilder {
@@ -183,7 +183,7 @@ where
         value_generator: impl FnOnce(&K, &mut STATE) -> V + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::InsertWithIfAbsent {
-            key: self.indexer.indexed_key(self.custodian.shard_count, key),
+            key: self.custodian.indexed_key(self.indexer, key),
             value_generator: Box::new(value_generator),
         });
         ImmediateTxBuilder {
@@ -202,7 +202,7 @@ where
         mutate: impl FnOnce(&K, &mut V, &mut STATE) + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::Modify {
-            key: self.indexer.indexed_key(self.custodian.shard_count, key),
+            key: self.custodian.indexed_key(self.indexer, key),
             mutate: Box::new(mutate),
         });
         ImmediateTxBuilder {
@@ -221,10 +221,8 @@ where
         key_to: K,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::MoveValue {
-            key_from: self
-                .indexer
-                .indexed_key(self.custodian.shard_count, key_from),
-            key_to: self.indexer.indexed_key(self.custodian.shard_count, key_to),
+            key_from: self.custodian.indexed_key(self.indexer, key_from),
+            key_to: self.custodian.indexed_key(self.indexer, key_to),
         });
         ImmediateTxBuilder {
             custodian: self.custodian,
@@ -241,7 +239,7 @@ where
         key: K,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::Remove {
-            key: self.indexer.indexed_key(self.custodian.shard_count, key),
+            key: self.custodian.indexed_key(self.indexer, key),
         });
         ImmediateTxBuilder {
             custodian: self.custodian,
@@ -259,7 +257,7 @@ where
         condition: impl FnOnce(&K, &V, &mut STATE) -> bool + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::RemoveIf {
-            key: self.indexer.indexed_key(self.custodian.shard_count, key),
+            key: self.custodian.indexed_key(self.indexer, key),
             condition: Box::new(condition),
         });
         ImmediateTxBuilder {
@@ -278,8 +276,8 @@ where
         key_b: K,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::SwapValue {
-            key_a: self.indexer.indexed_key(self.custodian.shard_count, key_a),
-            key_b: self.indexer.indexed_key(self.custodian.shard_count, key_b),
+            key_a: self.custodian.indexed_key(self.indexer, key_a),
+            key_b: self.custodian.indexed_key(self.indexer, key_b),
         });
         ImmediateTxBuilder {
             custodian: self.custodian,
@@ -297,7 +295,7 @@ where
         transform: impl FnOnce(&K, Option<&V>, &mut STATE) -> Option<V> + 'tx,
     ) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE, ImmediateBuildablePhase> {
         self.ops.push(ImmediateOp::Update {
-            key: self.indexer.indexed_key(self.custodian.shard_count, key),
+            key: self.custodian.indexed_key(self.indexer, key),
             transform: Box::new(transform),
         });
         ImmediateTxBuilder {

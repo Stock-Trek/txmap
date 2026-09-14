@@ -14,6 +14,11 @@ pub struct TxKey<K> {
     pub hash_code: HashCode,
     /// The shard this key belongs to.
     pub shard_index: ShardIndex,
+    /// Version of the routed leaf at the time the key was indexed.
+    ///
+    /// Used as a staleness check: if the leaf's version changed before the
+    /// transaction acquired its locks, the routing is retried.
+    pub version: u32,
     /// The original key value.
     pub key: K,
 }
