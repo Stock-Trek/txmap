@@ -1,6 +1,9 @@
 use crate::{
-    key::TxKey, lock_policies::lock_policy::LockPolicy, new_types::BitMask, new_types::MAX_SHARDS,
-    result::MISSING_LOCK_GUARD_ERROR, shard::Shard,
+    custodian::Custodian,
+    key::TxKey,
+    lock_policies::lock_policy::LockPolicy,
+    new_types::{BitMask, MAX_SHARDS},
+    shard::Shard,
 };
 
 /// Guards for the shards locked during a prepared transaction execution.
@@ -17,6 +20,19 @@ where
     pub read: [Option<L::ReadGuard<'ex, Shard<K, V>>>; MAX_SHARDS],
     pub write: [Option<L::WriteGuard<'ex, Shard<K, V>>>; MAX_SHARDS],
     pub write_bitmask: BitMask,
+    pub(crate) custodian: &'ex Custodian<K, V, L>,
+    pub(crate) locked_mask: u128,
+}
+
+impl<'ex, K, V, L> Drop for LockGuards<'ex, K, V, L>
+where
+    K: 'ex,
+    V: 'ex,
+    L: LockPolicy + 'ex,
+{
+    fn drop(&mut self) {
+        self.custodian.release(self.locked_mask);
+    }
 }
 
 impl<'ex, K, V, L> LockGuards<'ex, K, V, L>
@@ -28,11 +44,11 @@ where
     pub fn read_guard(&self, key: &TxKey<K>) -> &L::ReadGuard<'ex, Shard<K, V>> {
         self.read[key.shard_index.0 as usize]
             .as_ref()
-            .expect(MISSING_LOCK_GUARD_ERROR)
+            .expect(crate::result::MISSING_LOCK_GUARD_ERROR)
     }
     pub fn write_guard(&mut self, key: &TxKey<K>) -> &mut L::WriteGuard<'ex, Shard<K, V>> {
         self.write[key.shard_index.0 as usize]
             .as_mut()
-            .expect(MISSING_LOCK_GUARD_ERROR)
+            .expect(crate::result::MISSING_LOCK_GUARD_ERROR)
     }
 }

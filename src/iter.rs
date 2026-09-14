@@ -1,6 +1,8 @@
 use crate::{
-    custodian::Custodian, lock_policies::lock_policy::LockPolicy, new_types::ShardIndex,
-    shard::Shard, tx_map::TxMap,
+    custodian::{Custodian, ReadGuardAt, WriteGuardAt},
+    lock_policies::lock_policy::LockPolicy,
+    new_types::ShardIndex,
+    tx_map::TxMap,
 };
 use hashbrown::hash_table::{Drain as ShardDrain, Iter as ShardIter};
 
@@ -19,7 +21,7 @@ where
     /// The shard custodian, used to acquire read guards lazily.
     pub(crate) custodian: &'a Custodian<K, V, L>,
     /// Read guards keeping every shard locked (and alive) for `'a`.
-    pub(crate) _guards: Vec<L::ReadGuard<'a, Shard<K, V>>>,
+    pub(crate) _guards: Vec<ReadGuardAt<'a, K, V, L>>,
     /// One `hashbrown` iterator per shard, aligned with shard indices.
     pub(crate) shard_iters: Vec<ShardIter<'a, (K, V)>>,
     pub(crate) shard_index: usize,
@@ -192,7 +194,7 @@ where
     /// held.
     pub(crate) shard_drains: Vec<ShardDrain<'a, (K, V)>>,
     /// Write guards keeping every visited shard locked (and alive) for `'a`.
-    pub(crate) _guards: Vec<L::WriteGuard<'a, Shard<K, V>>>,
+    pub(crate) _guards: Vec<WriteGuardAt<'a, K, V, L>>,
     pub(crate) shard_index: usize,
     /// Entries remaining in shards visited so far (an exact lower bound).
     pub(crate) remaining: usize,
