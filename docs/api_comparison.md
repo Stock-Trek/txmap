@@ -90,5 +90,5 @@ Because `TxMap` is internally mutable and lock-based, it can never return refere
 | `fold`                                                  | Accumulate over all entries with a conversion step                     |
 | `remove_if`                                             | Stable equivalent of std's nightly `remove_if`                         |
 | `immediate_tx`, `prepared_tx`                           | Composable, atomic, multi-key transactions with guards                 |
-| `TxMapBuilder`, `Shards`, `MutexPolicy`, `RwLockPolicy` | Configuration: shard count, lock policy, capacity, hasher              |
+| `TxMapBuilder`, `Shards`                                | Configuration: shard count, capacity, hasher                            |
 | All operations take `&self`                             | Shared references suffice; no `&mut` needed, maps can be shared freely |

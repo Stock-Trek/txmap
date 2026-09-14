@@ -1,6 +1,6 @@
 use crate::{
-    indexer::Indexer, key::TxKey, lock_guards::LockGuard, lock_policies::lock_policy::LockPolicy,
-    multi_shard_ops::MultiShardOps, new_types::BitMask, shard_ops::ShardOps,
+    indexer::Indexer, key::TxKey, lock_guards::LockGuard, multi_shard_ops::MultiShardOps,
+    new_types::BitMask, shard_ops::ShardOps,
 };
 use std::hash::{BuildHasher, Hash};
 
@@ -83,13 +83,12 @@ impl<'tx, K, V, STATE> ImmediateOp<'tx, K, V, STATE>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn apply<L, S>(
+    pub fn apply<S>(
         self,
-        lock_guards: &mut LockGuard<'_, K, V, L>,
+        lock_guards: &mut LockGuard<'_, K, V>,
         indexer: &Indexer<S>,
         state: &mut STATE,
     ) where
-        L: LockPolicy,
         S: BuildHasher,
     {
         match self {
@@ -156,7 +155,7 @@ where
                 ShardOps::modify(shard, key.hash_code, &key.key, |k, v| mutate(k, v, state));
             }
             Self::MoveValue { key_from, key_to } => {
-                MultiShardOps::move_value::<K, V, L, S>(lock_guards, &key_from, &key_to, indexer);
+                MultiShardOps::move_value::<K, V, S>(lock_guards, &key_from, &key_to, indexer);
             }
             Self::Remove { key } => {
                 let shard = lock_guards.write_guard(&key);
@@ -169,7 +168,7 @@ where
                 });
             }
             Self::SwapValue { key_a, key_b } => {
-                MultiShardOps::swap_value::<K, V, L, S>(lock_guards, &key_a, &key_b, indexer);
+                MultiShardOps::swap_value::<K, V, S>(lock_guards, &key_a, &key_b, indexer);
             }
             Self::Update { key, transform } => {
                 let shard = lock_guards.write_guard(&key);

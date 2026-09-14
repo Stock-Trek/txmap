@@ -4,7 +4,6 @@ use crate::{
     immediate::tx_builder::ImmediateTxBuilder,
     indexer::Indexer,
     iter::{Drain, Iter, Keys, Values},
-    lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
     multi_shard_ops::MultiShardOps,
     new_types::{ShardCount, ShardIndex},
     prepared::schema::TxSchema,
@@ -12,52 +11,52 @@ use crate::{
     tx_map_builder::TxMapBuilder,
 };
 use crossbeam_utils::CachePadded;
+use std::cell::UnsafeCell;
 use std::hash::{BuildHasher, Hash};
 
 /// A concurrent transactional hash map.
 ///
-/// Entries are distributed across shards, each protected by a configurable
-/// lock policy. All mutating operations are atomic per shard; multi-shard
-/// operations (e.g. [`move_value`](TxMap::move_value)) acquire locks on
-/// all involved shards to remain atomic.
+/// Entries are distributed across shards. Shard exclusion is enforced by an
+/// atomic shard mask using a compare-and-swap mechanism. All mutating
+/// operations are atomic per shard; multi-shard operations (e.g.
+/// [`move_value`](TxMap::move_value)) acquire locks on all involved shards to
+/// remain atomic.
 ///
 /// The map supports both immediate one-shot transactions and prepared
 /// re-usable transactions. Guard-based preconditions can veto a transaction.
 ///
 /// The key type is only required to be `Clone + Hash + Eq` (in addition to
-/// the `LockPolicy` and `BuildHasher` bounds below) by the individual
-/// operations; the map type itself can be named for any `K`.
-pub struct TxMap<K, V, L = MutexPolicy, S = DefaultBuildHasher>
+/// the `BuildHasher` bound below) by the individual operations; the map type
+/// itself can be named for any `K`.
+pub struct TxMap<K, V, S = DefaultBuildHasher>
 where
-    L: LockPolicy,
     S: BuildHasher,
 {
     pub(crate) shard_count: ShardCount,
-    pub(crate) custodian: Custodian<K, V, L>,
+    pub(crate) custodian: Custodian<K, V>,
     pub(crate) indexer: Indexer<S>,
 }
 
-impl<K, V> TxMap<K, V, MutexPolicy, DefaultBuildHasher> {
+impl<K, V> TxMap<K, V, DefaultBuildHasher> {
     #[must_use]
     /// Creates an empty `TxMap` with default configuration.
     ///
-    /// Equivalent to `TxMap::default()`. Uses 32 shards, `MutexPolicy`,
-    /// and the default hasher.
-    pub fn new() -> TxMap<K, V, MutexPolicy, DefaultBuildHasher> {
+    /// Equivalent to `TxMap::default()`. Uses 32 shards and the default
+    /// hasher.
+    pub fn new() -> TxMap<K, V, DefaultBuildHasher> {
         TxMap::default()
     }
 }
 
-impl<K, V> Default for TxMap<K, V, MutexPolicy, DefaultBuildHasher> {
+impl<K, V> Default for TxMap<K, V, DefaultBuildHasher> {
     fn default() -> Self {
         TxMapBuilder::default().build()
     }
 }
 
-impl<K, V, L, S> TxMap<K, V, L, S>
+impl<K, V, S> TxMap<K, V, S>
 where
     K: Clone + Hash + Eq,
-    L: LockPolicy,
     S: BuildHasher,
 {
     /// Reads the value for `key`, inserting `value` if the key is absent and returns a transformated value.
@@ -112,12 +111,7 @@ where
         let mut shards = self
             .custodian
             .write_guards(tx_key_from.shard_index.bitmask() | tx_key_to.shard_index.bitmask());
-        MultiShardOps::move_value::<K, V, L, S>(
-            &mut shards,
-            &tx_key_from,
-            &tx_key_to,
-            &self.indexer,
-        );
+        MultiShardOps::move_value::<K, V, S>(&mut shards, &tx_key_from, &tx_key_to, &self.indexer);
     }
 
     /// Swaps the values of two keys atomically.
@@ -129,14 +123,13 @@ where
         let mut shards = self
             .custodian
             .write_guards(tx_key_a.shard_index.bitmask() | tx_key_b.shard_index.bitmask());
-        MultiShardOps::swap_value::<K, V, L, S>(&mut shards, &tx_key_a, &tx_key_b, &self.indexer);
+        MultiShardOps::swap_value::<K, V, S>(&mut shards, &tx_key_a, &tx_key_b, &self.indexer);
     }
 }
 
-impl<K, V, L, S> TxMap<K, V, L, S>
+impl<K, V, S> TxMap<K, V, S>
 where
     K: Hash + Eq,
-    L: LockPolicy,
     S: BuildHasher,
 {
     #[must_use]
@@ -242,10 +235,9 @@ where
     }
 }
 
-impl<K, V, L, S> TxMap<K, V, L, S>
+impl<K, V, S> TxMap<K, V, S>
 where
     K: Hash,
-    L: LockPolicy,
     S: BuildHasher,
 {
     /// Reserves capacity for at least `additional` more entries.
@@ -308,9 +300,8 @@ where
     }
 }
 
-impl<K, V, L, S> TxMap<K, V, L, S>
+impl<K, V, S> TxMap<K, V, S>
 where
-    L: LockPolicy,
     S: BuildHasher,
 {
     #[must_use]
@@ -318,7 +309,7 @@ where
     ///
     /// The type parameter `STATE` defines the mutable working state
     /// for the transaction and must implement `Default`.
-    pub fn immediate_tx<'tx, STATE>(&'tx self) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE>
+    pub fn immediate_tx<'tx, STATE>(&'tx self) -> ImmediateTxBuilder<'tx, K, V, S, STATE>
     where
         K: 'tx,
         V: 'tx,
@@ -339,11 +330,10 @@ where
     /// `schema` is a schema constant created via the [`tx_schema`](macro@crate::tx_schema) macro.
     /// The returned builder can be turned into a transaction that can be
     /// executed many times with different keys/parameters.
-    pub fn prepared_tx<'tx, SCHEMA>(&'tx self, schema: &SCHEMA) -> SCHEMA::Builder<'tx, V, L, S>
+    pub fn prepared_tx<'tx, SCHEMA>(&'tx self, schema: &SCHEMA) -> SCHEMA::Builder<'tx, V, S>
     where
         K: 'tx,
         V: 'tx,
-        L: LockPolicy + 'tx,
         S: BuildHasher + 'tx,
         SCHEMA: TxSchema<K> + 'tx,
         SCHEMA::IndexedKeys: 'tx,
@@ -458,7 +448,7 @@ where
     ///
     /// Acquires read locks lazily, one shard at a time, as iteration
     /// progresses. Acquired locks are held until the iterator is dropped.
-    pub fn iter(&self) -> Iter<'_, K, V, L> {
+    pub fn iter(&self) -> Iter<'_, K, V> {
         Iter::new(&self.custodian)
     }
 
@@ -466,7 +456,7 @@ where
     /// Returns an iterator over all the keys.
     ///
     /// Acquires read locks on all shards for the duration of iteration.
-    pub fn keys(&self) -> Keys<'_, K, V, L> {
+    pub fn keys(&self) -> Keys<'_, K, V> {
         Keys(self.iter())
     }
 
@@ -474,7 +464,7 @@ where
     /// Returns an iterator over all the values.
     ///
     /// Acquires read locks on all shards for the duration of iteration.
-    pub fn values(&self) -> Values<'_, K, V, L> {
+    pub fn values(&self) -> Values<'_, K, V> {
         Values(self.iter())
     }
 
@@ -484,7 +474,7 @@ where
     /// iterator without fully consuming it removes all remaining entries.
     /// Acquires write locks lazily, one shard at a time, as iteration
     /// progresses. Acquired locks are held until the iterator is dropped.
-    pub fn drain(&self) -> Drain<'_, K, V, L> {
+    pub fn drain(&self) -> Drain<'_, K, V> {
         Drain::new(&self.custodian)
     }
 
@@ -521,11 +511,10 @@ where
     }
 }
 
-impl<K, V, L, S> TxMap<K, V, L, S>
+impl<K, V, S> TxMap<K, V, S>
 where
     K: Hash + Eq,
     V: Copy,
-    L: LockPolicy,
     S: BuildHasher,
 {
     /// Returns a copy of the value for `key` (`V: Copy`).
@@ -535,11 +524,10 @@ where
     }
 }
 
-impl<K, V, L, S> TxMap<K, V, L, S>
+impl<K, V, S> TxMap<K, V, S>
 where
     K: Hash + Eq,
     V: Clone,
-    L: LockPolicy,
     S: BuildHasher,
 {
     /// Returns a clone of the value for `key` (`V: Clone`).
@@ -549,11 +537,10 @@ where
     }
 }
 
-impl<K, V, L, S> Clone for TxMap<K, V, L, S>
+impl<K, V, S> Clone for TxMap<K, V, S>
 where
     K: Clone,
     V: Clone,
-    L: LockPolicy,
     S: Clone + BuildHasher,
 {
     fn clone(&self) -> Self {
@@ -565,7 +552,7 @@ where
         for shard_index in 0..self.shard_count.0 {
             let shard = self.custodian.read_guard_at(ShardIndex(shard_index));
             let cloned_shard = shard.clone();
-            shards.push(CachePadded::new(L::new(cloned_shard)));
+            shards.push(CachePadded::new(UnsafeCell::new(cloned_shard)));
             guards.push(shard);
         }
         let custodian = Custodian::from_shards(shard_count, shards);
@@ -577,11 +564,10 @@ where
     }
 }
 
-impl<K, V, L, S> PartialEq for TxMap<K, V, L, S>
+impl<K, V, S> PartialEq for TxMap<K, V, S>
 where
     K: Hash + Eq,
     V: PartialEq,
-    L: LockPolicy,
     S: BuildHasher,
 {
     /// Two maps are equal if they contain the same key-value pairs.
@@ -597,20 +583,18 @@ where
     }
 }
 
-impl<K, V, L, S> Eq for TxMap<K, V, L, S>
+impl<K, V, S> Eq for TxMap<K, V, S>
 where
     K: Hash + Eq,
     V: Eq,
-    L: LockPolicy,
     S: BuildHasher,
 {
 }
 
-impl<K, V, L, S> std::fmt::Debug for TxMap<K, V, L, S>
+impl<K, V, S> std::fmt::Debug for TxMap<K, V, S>
 where
     K: std::fmt::Debug,
     V: std::fmt::Debug,
-    L: LockPolicy,
     S: BuildHasher,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -618,10 +602,9 @@ where
     }
 }
 
-impl<K, V, L, S> Extend<(K, V)> for TxMap<K, V, L, S>
+impl<K, V, S> Extend<(K, V)> for TxMap<K, V, S>
 where
     K: Hash + Eq,
-    L: LockPolicy,
     S: BuildHasher,
 {
     fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
@@ -631,11 +614,10 @@ where
     }
 }
 
-impl<'a, K, V, L, S> Extend<(&'a K, &'a V)> for TxMap<K, V, L, S>
+impl<'a, K, V, S> Extend<(&'a K, &'a V)> for TxMap<K, V, S>
 where
     K: Clone + Hash + Eq + 'a,
     V: Clone + 'a,
-    L: LockPolicy,
     S: BuildHasher,
 {
     fn extend<T: IntoIterator<Item = (&'a K, &'a V)>>(&mut self, iter: T) {
@@ -645,33 +627,25 @@ where
     }
 }
 
-impl<K, V, L, S> FromIterator<(K, V)> for TxMap<K, V, L, S>
+impl<K, V, S> FromIterator<(K, V)> for TxMap<K, V, S>
 where
     K: Hash + Eq,
-    L: LockPolicy,
     S: BuildHasher + Default,
 {
     fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
-        let mut map: TxMap<K, V, L, S> = TxMapBuilder::default()
-            .with_lock_policy::<L>()
-            .with_hasher(S::default())
-            .build();
+        let mut map: TxMap<K, V, S> = TxMapBuilder::default().with_hasher(S::default()).build();
         map.extend(iter);
         map
     }
 }
 
-impl<K, V, L, S, const N: usize> From<[(K, V); N]> for TxMap<K, V, L, S>
+impl<K, V, S, const N: usize> From<[(K, V); N]> for TxMap<K, V, S>
 where
     K: Hash + Eq,
-    L: LockPolicy,
     S: BuildHasher + Default,
 {
     fn from(array: [(K, V); N]) -> Self {
-        let map: TxMap<K, V, L, S> = TxMapBuilder::default()
-            .with_lock_policy::<L>()
-            .with_hasher(S::default())
-            .build();
+        let map: TxMap<K, V, S> = TxMapBuilder::default().with_hasher(S::default()).build();
         for (key, value) in array {
             map.insert(key, value);
         }
@@ -679,9 +653,8 @@ where
     }
 }
 
-impl<K, V, L, S> IntoIterator for TxMap<K, V, L, S>
+impl<K, V, S> IntoIterator for TxMap<K, V, S>
 where
-    L: LockPolicy,
     S: BuildHasher,
 {
     type Item = (K, V);

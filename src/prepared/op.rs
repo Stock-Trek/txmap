@@ -1,7 +1,6 @@
 use crate::{
-    indexer::Indexer, key::TxKey, lock_guards::LockGuard, lock_policies::lock_policy::LockPolicy,
-    multi_shard_ops::MultiShardOps, new_types::BitMask, prepared::schema::TxKeySelector,
-    shard_ops::ShardOps,
+    indexer::Indexer, key::TxKey, lock_guards::LockGuard, multi_shard_ops::MultiShardOps,
+    new_types::BitMask, prepared::schema::TxKeySelector, shard_ops::ShardOps,
 };
 use hashbrown::HashSet;
 use std::hash::{BuildHasher, Hash};
@@ -132,15 +131,14 @@ where
     K: Clone + Hash + Eq,
 {
     /// Applies the operation against the locked shards.
-    pub fn apply<L, S>(
+    pub fn apply<S>(
         &self,
-        lock_guards: &mut LockGuard<'_, K, V, L>,
+        lock_guards: &mut LockGuard<'_, K, V>,
         keys: &mut KEYS,
         params: &PARAMS,
         indexer: &Indexer<S>,
         state: &mut STATE,
     ) where
-        L: LockPolicy,
         S: BuildHasher,
     {
         match self {
@@ -221,7 +219,7 @@ where
             } => {
                 let key_from = key_selector_from.get(keys);
                 let key_to = key_selector_to.get(keys);
-                MultiShardOps::move_value::<K, V, L, S>(lock_guards, key_from, key_to, indexer);
+                MultiShardOps::move_value::<K, V, S>(lock_guards, key_from, key_to, indexer);
             }
             Self::Remove { key_selector } => {
                 let key = key_selector.get(keys);
@@ -244,7 +242,7 @@ where
             } => {
                 let key_a = key_selector_a.get(keys);
                 let key_b = key_selector_b.get(keys);
-                MultiShardOps::swap_value::<K, V, L, S>(lock_guards, key_a, key_b, indexer);
+                MultiShardOps::swap_value::<K, V, S>(lock_guards, key_a, key_b, indexer);
             }
             Self::Update {
                 key_selector,

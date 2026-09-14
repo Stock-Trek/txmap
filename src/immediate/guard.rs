@@ -1,7 +1,4 @@
-use crate::{
-    key::TxKey, lock_guards::LockGuard, lock_policies::lock_policy::LockPolicy, new_types::BitMask,
-    shard_ops::ShardOps,
-};
+use crate::{key::TxKey, lock_guards::LockGuard, new_types::BitMask, shard_ops::ShardOps};
 use std::marker::PhantomData;
 
 pub(crate) struct ImmediateGuard<'tx, K, V, STATE> {
@@ -22,14 +19,11 @@ impl<'tx, K, V, STATE> ImmediateGuard<'tx, K, V, STATE>
 where
     K: Eq,
 {
-    pub fn condition_is_met<L>(
+    pub fn condition_is_met(
         &mut self,
-        lock_guards: &mut LockGuard<'_, K, V, L>,
+        lock_guards: &mut LockGuard<'_, K, V>,
         state: &mut STATE,
-    ) -> bool
-    where
-        L: LockPolicy,
-    {
+    ) -> bool {
         let condition = self
             .condition
             .take()

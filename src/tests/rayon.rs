@@ -1,9 +1,4 @@
-use crate::{
-    lock_policies::rwlock_policy::RwLockPolicy,
-    tests::{creators::*, data::*},
-    tx_map::TxMap,
-    tx_map_builder::TxMapBuilder,
-};
+use crate::tests::{creators::*, data::*};
 use rayon::prelude::*;
 
 #[test]
@@ -92,15 +87,4 @@ fn into_par_iter_consumes_map() {
     let mut entries: Vec<(String, u64)> = map.into_par_iter().collect();
     entries.sort();
     assert_eq!(entries, vec![(ALICE.into(), 100), (BOB.into(), 200),]);
-}
-
-#[test]
-fn par_iter_with_rwlock_policy() {
-    let map: TxMap<String, u64, RwLockPolicy> = TxMapBuilder::default()
-        .with_lock_policy::<RwLockPolicy>()
-        .build();
-    map.insert(ALICE.into(), 1);
-    map.insert(BOB.into(), 2);
-    let sum: u64 = map.par_iter().map(|(_, v)| *v).sum();
-    assert_eq!(sum, 3);
 }

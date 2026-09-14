@@ -1,6 +1,6 @@
 use crate::{
-    key::TxKey, lock_guards::LockGuard, lock_policies::lock_policy::LockPolicy, new_types::BitMask,
-    prepared::schema::TxKeySelector, shard_ops::ShardOps,
+    key::TxKey, lock_guards::LockGuard, new_types::BitMask, prepared::schema::TxKeySelector,
+    shard_ops::ShardOps,
 };
 use std::marker::PhantomData;
 
@@ -30,16 +30,13 @@ where
     K: Eq,
 {
     /// Checks the guard's condition against the locked shards.
-    pub fn is_condition_met<L>(
+    pub fn is_condition_met(
         &self,
-        lock_guards: &mut LockGuard<'_, K, V, L>,
+        lock_guards: &mut LockGuard<'_, K, V>,
         keys: &KEYS,
         params: &PARAMS,
         state: &mut STATE,
-    ) -> bool
-    where
-        L: LockPolicy,
-    {
+    ) -> bool {
         let key = self.key_selector.get(keys);
         let shard = lock_guards.read_guard(key);
         let value_ref = ShardOps::value_ref(shard, key.hash_code, &key.key);

@@ -1,21 +1,17 @@
-use crate::{
-    indexer::Indexer, key::TxKey, lock_guards::LockGuard, lock_policies::lock_policy::LockPolicy,
-    shard_ops::ShardOps,
-};
+use crate::{indexer::Indexer, key::TxKey, lock_guards::LockGuard, shard_ops::ShardOps};
 use std::hash::{BuildHasher, Hash};
 
 pub(crate) struct MultiShardOps;
 
 impl MultiShardOps {
     #[inline]
-    pub fn move_value<K, V, L, S>(
-        lock_guard: &mut LockGuard<'_, K, V, L>,
+    pub fn move_value<K, V, S>(
+        lock_guard: &mut LockGuard<'_, K, V>,
         key_from: &TxKey<K>,
         key_to: &TxKey<K>,
         indexer: &Indexer<S>,
     ) where
         K: Clone + Hash + Eq,
-        L: LockPolicy,
         S: BuildHasher,
     {
         let removed = {
@@ -37,14 +33,13 @@ impl MultiShardOps {
     }
 
     #[inline]
-    pub fn swap_value<K, V, L, S>(
-        lock_guard: &mut LockGuard<'_, K, V, L>,
+    pub fn swap_value<K, V, S>(
+        lock_guard: &mut LockGuard<'_, K, V>,
         key_a: &TxKey<K>,
         key_b: &TxKey<K>,
         indexer: &Indexer<S>,
     ) where
         K: Clone + Hash + Eq,
-        L: LockPolicy,
         S: BuildHasher,
     {
         let a = {

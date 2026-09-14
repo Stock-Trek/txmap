@@ -1,7 +1,4 @@
-use crate::{
-    lock_policies::lock_policy::LockPolicy, result::TxResult, shards::Shards, tx_map::TxMap,
-    tx_map_builder::TxMapBuilder,
-};
+use crate::{result::TxResult, shards::Shards, tx_map::TxMap, tx_map_builder::TxMapBuilder};
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
     de::{self, SeqAccess, Visitor},
@@ -78,11 +75,10 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for TxResult<T> {
     }
 }
 
-impl<K, V, L, S> Serialize for TxMap<K, V, L, S>
+impl<K, V, S> Serialize for TxMap<K, V, S>
 where
     K: Serialize,
     V: Serialize,
-    L: LockPolicy,
     S: BuildHasher,
 {
     fn serialize<SER: Serializer>(&self, serializer: SER) -> Result<SER::Ok, SER::Error> {
@@ -102,17 +98,16 @@ fn shard_count_to_shards(count: u8) -> Result<Shards, String> {
     }
 }
 
-struct TxMapVisitor<K, V, L> {
-    _marker: PhantomData<(K, V, L)>,
+struct TxMapVisitor<K, V> {
+    _marker: PhantomData<(K, V)>,
 }
 
-impl<'de, K, V, L> Visitor<'de> for TxMapVisitor<K, V, L>
+impl<'de, K, V> Visitor<'de> for TxMapVisitor<K, V>
 where
     K: Hash + Eq + Deserialize<'de>,
     V: Deserialize<'de>,
-    L: LockPolicy,
 {
-    type Value = TxMap<K, V, L>;
+    type Value = TxMap<K, V>;
 
     fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("a shard count followed by a sequence of key-value pairs")
@@ -123,10 +118,7 @@ where
             .next_element()?
             .ok_or_else(|| de::Error::invalid_length(0, &self))?;
         let shards = shard_count_to_shards(shard_count).map_err(de::Error::custom)?;
-        let txmap = TxMapBuilder::default()
-            .with_lock_policy::<L>()
-            .with_shards(shards)
-            .build();
+        let txmap = TxMapBuilder::default().with_shards(shards).build();
         let entries: Option<Vec<(K, V)>> = seq.next_element()?;
         if let Some(entries) = entries {
             for (key, value) in entries {
@@ -137,14 +129,13 @@ where
     }
 }
 
-impl<'de, K, V, L> Deserialize<'de> for TxMap<K, V, L>
+impl<'de, K, V> Deserialize<'de> for TxMap<K, V>
 where
     K: Hash + Eq + Deserialize<'de>,
     V: Deserialize<'de>,
-    L: LockPolicy,
 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_seq(TxMapVisitor::<K, V, L> {
+        deserializer.deserialize_seq(TxMapVisitor::<K, V> {
             _marker: PhantomData,
         })
     }

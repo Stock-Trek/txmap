@@ -2,7 +2,6 @@ use crate::{
     custodian::Custodian,
     immediate::{guard::ImmediateGuard, op::ImmediateOp},
     indexer::Indexer,
-    lock_policies::lock_policy::LockPolicy,
     new_types::BitMask,
     result::TxResult,
 };
@@ -13,22 +12,20 @@ use std::hash::{BuildHasher, Hash};
 /// Built via [`ImmediateTxBuilder`](crate::immediate::tx_builder::ImmediateTxBuilder) and executed immediately.
 /// Acquires all needed locks, checks guards, applies operations,
 /// then releases locks and returns the final state.
-pub struct ImmediateTx<'tx, K, V, L, S, STATE>
+pub struct ImmediateTx<'tx, K, V, S, STATE>
 where
-    L: LockPolicy,
     S: BuildHasher,
 {
-    pub(crate) custodian: &'tx Custodian<K, V, L>,
+    pub(crate) custodian: &'tx Custodian<K, V>,
     pub(crate) indexer: &'tx Indexer<S>,
     pub(crate) guards: Vec<ImmediateGuard<'tx, K, V, STATE>>,
     #[allow(clippy::type_complexity)]
     pub(crate) ops: Vec<ImmediateOp<'tx, K, V, STATE>>,
 }
 
-impl<'tx, K, V, L, S, STATE> ImmediateTx<'tx, K, V, L, S, STATE>
+impl<'tx, K, V, S, STATE> ImmediateTx<'tx, K, V, S, STATE>
 where
     K: Clone + Hash + Eq,
-    L: LockPolicy,
     S: BuildHasher,
     STATE: Default,
 {
@@ -64,7 +61,7 @@ where
         let mut lock_guards = custodian.lock_guards(total_read_bitmask, total_write_bitmask);
         let mut state = STATE::default();
         for (i, mut guard) in guards.into_iter().enumerate() {
-            if !guard.condition_is_met::<L>(&mut lock_guards, &mut state) {
+            if !guard.condition_is_met(&mut lock_guards, &mut state) {
                 return TxResult::RequirementNotMet {
                     index: i,
                     requirement: guard.name,
@@ -73,7 +70,7 @@ where
             }
         }
         for op in ops {
-            op.apply::<L, S>(&mut lock_guards, indexer, &mut state);
+            op.apply::<S>(&mut lock_guards, indexer, &mut state);
         }
         TxResult::Completed { state }
     }

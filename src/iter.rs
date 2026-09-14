@@ -1,7 +1,4 @@
-use crate::{
-    custodian::Custodian, lock_guards::LockGuard, lock_policies::lock_policy::LockPolicy,
-    new_types::ShardIndex, tx_map::TxMap,
-};
+use crate::{custodian::Custodian, lock_guards::LockGuard, new_types::ShardIndex, tx_map::TxMap};
 use hashbrown::hash_table::{Drain as ShardDrain, Iter as ShardIter};
 
 /// An iterator over all key-value pairs in a [`TxMap`].
@@ -10,16 +7,15 @@ use hashbrown::hash_table::{Drain as ShardDrain, Iter as ShardIter};
 /// progresses. Guards for shards already visited are held until the
 /// iterator is dropped, so entries yielded remain valid for the lifetime
 /// of the iterator.
-pub struct Iter<'a, K, V, L>
+pub struct Iter<'a, K, V>
 where
     K: 'a,
     V: 'a,
-    L: LockPolicy + 'a,
 {
     /// The shard custodian, used to acquire read guards lazily.
-    pub(crate) custodian: &'a Custodian<K, V, L>,
+    pub(crate) custodian: &'a Custodian<K, V>,
     /// Read guards keeping every shard locked (and alive) for `'a`.
-    pub(crate) _guards: Vec<LockGuard<'a, K, V, L>>,
+    pub(crate) _guards: Vec<LockGuard<'a, K, V>>,
     /// One `hashbrown` iterator per shard, aligned with shard indices.
     pub(crate) shard_iters: Vec<ShardIter<'a, (K, V)>>,
     pub(crate) shard_index: usize,
@@ -27,13 +23,12 @@ where
     pub(crate) remaining: usize,
 }
 
-impl<'a, K, V, L> Iter<'a, K, V, L>
+impl<'a, K, V> Iter<'a, K, V>
 where
     K: 'a,
     V: 'a,
-    L: LockPolicy + 'a,
 {
-    pub(crate) fn new(custodian: &'a Custodian<K, V, L>) -> Self {
+    pub(crate) fn new(custodian: &'a Custodian<K, V>) -> Self {
         Self {
             custodian,
             _guards: Vec::with_capacity(custodian.shard_count.0 as usize),
@@ -44,11 +39,10 @@ where
     }
 }
 
-impl<'a, K, V, L> Iterator for Iter<'a, K, V, L>
+impl<'a, K, V> Iterator for Iter<'a, K, V>
 where
     K: 'a,
     V: 'a,
-    L: LockPolicy + 'a,
 {
     type Item = (&'a K, &'a V);
 
@@ -88,28 +82,26 @@ where
     }
 }
 
-impl<'a, K, V, L> IntoIterator for &'a TxMap<K, V, L>
+impl<'a, K, V> IntoIterator for &'a TxMap<K, V>
 where
     K: 'a,
     V: 'a,
-    L: LockPolicy + 'a,
 {
     type Item = (&'a K, &'a V);
-    type IntoIter = Iter<'a, K, V, L>;
+    type IntoIter = Iter<'a, K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
         Iter::new(&self.custodian)
     }
 }
 
-impl<'a, K, V, L> IntoIterator for &'a mut TxMap<K, V, L>
+impl<'a, K, V> IntoIterator for &'a mut TxMap<K, V>
 where
     K: 'a,
     V: 'a,
-    L: LockPolicy + 'a,
 {
     type Item = (&'a K, &'a V);
-    type IntoIter = Iter<'a, K, V, L>;
+    type IntoIter = Iter<'a, K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
         Iter::new(&self.custodian)
@@ -120,17 +112,15 @@ where
 ///
 /// Created by [`TxMap::keys`]. Acquires read guards lazily, one shard at a
 /// time, holding them until the iterator is dropped.
-pub struct Keys<'a, K, V, L>(pub(crate) Iter<'a, K, V, L>)
+pub struct Keys<'a, K, V>(pub(crate) Iter<'a, K, V>)
 where
     K: 'a,
-    V: 'a,
-    L: LockPolicy + 'a;
+    V: 'a;
 
-impl<'a, K, V, L> Iterator for Keys<'a, K, V, L>
+impl<'a, K, V> Iterator for Keys<'a, K, V>
 where
     K: 'a,
     V: 'a,
-    L: LockPolicy + 'a,
 {
     type Item = &'a K;
 
@@ -147,17 +137,15 @@ where
 ///
 /// Created by [`TxMap::values`]. Acquires read guards lazily, one shard at a
 /// time, holding them until the iterator is dropped.
-pub struct Values<'a, K, V, L>(pub(crate) Iter<'a, K, V, L>)
+pub struct Values<'a, K, V>(pub(crate) Iter<'a, K, V>)
 where
     K: 'a,
-    V: 'a,
-    L: LockPolicy + 'a;
+    V: 'a;
 
-impl<'a, K, V, L> Iterator for Values<'a, K, V, L>
+impl<'a, K, V> Iterator for Values<'a, K, V>
 where
     K: 'a,
     V: 'a,
-    L: LockPolicy + 'a,
 {
     type Item = &'a V;
 
@@ -177,14 +165,13 @@ where
 /// at a time, as iteration progresses and held until the iterator is
 /// dropped. Dropping the iterator without fully consuming it removes all
 /// remaining entries.
-pub struct Drain<'a, K, V, L>
+pub struct Drain<'a, K, V>
 where
     K: 'a,
     V: 'a,
-    L: LockPolicy + 'a,
 {
     /// The shard custodian, used to acquire write guards lazily.
-    pub(crate) custodian: &'a Custodian<K, V, L>,
+    pub(crate) custodian: &'a Custodian<K, V>,
     /// One `hashbrown` drain per visited shard, aligned with shard indices.
     ///
     /// Declared before `_guards` so it is dropped first: on drop each
@@ -192,19 +179,18 @@ where
     /// held.
     pub(crate) shard_drains: Vec<ShardDrain<'a, (K, V)>>,
     /// Write guards keeping every visited shard locked (and alive) for `'a`.
-    pub(crate) _guards: Vec<LockGuard<'a, K, V, L>>,
+    pub(crate) _guards: Vec<LockGuard<'a, K, V>>,
     pub(crate) shard_index: usize,
     /// Entries remaining in shards visited so far (an exact lower bound).
     pub(crate) remaining: usize,
 }
 
-impl<'a, K, V, L> Drain<'a, K, V, L>
+impl<'a, K, V> Drain<'a, K, V>
 where
     K: 'a,
     V: 'a,
-    L: LockPolicy + 'a,
 {
-    pub(crate) fn new(custodian: &'a Custodian<K, V, L>) -> Self {
+    pub(crate) fn new(custodian: &'a Custodian<K, V>) -> Self {
         Self {
             custodian,
             shard_drains: Vec::with_capacity(custodian.shard_count.0 as usize),
@@ -215,11 +201,10 @@ where
     }
 }
 
-impl<'a, K, V, L> Iterator for Drain<'a, K, V, L>
+impl<'a, K, V> Iterator for Drain<'a, K, V>
 where
     K: 'a,
     V: 'a,
-    L: LockPolicy + 'a,
 {
     type Item = (K, V);
 
@@ -261,11 +246,10 @@ where
     }
 }
 
-impl<'a, K, V, L> Drop for Drain<'a, K, V, L>
+impl<'a, K, V> Drop for Drain<'a, K, V>
 where
     K: 'a,
     V: 'a,
-    L: LockPolicy + 'a,
 {
     fn drop(&mut self) {
         // Shards already visited are cleared when their `ShardDrain` fields

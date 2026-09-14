@@ -1,32 +1,24 @@
 use crate::{
-    custodian::Custodian,
-    hasher::DefaultBuildHasher,
-    indexer::Indexer,
-    lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
-    new_types::ShardCount,
-    shards::Shards,
-    tx_map::TxMap,
+    custodian::Custodian, hasher::DefaultBuildHasher, indexer::Indexer, new_types::ShardCount,
+    shards::Shards, tx_map::TxMap,
 };
-use std::{hash::BuildHasher, marker::PhantomData};
+use std::hash::BuildHasher;
 
 /// Builder for configuring and constructing a [`TxMap`].
 ///
 /// Use [`TxMapBuilder::default`] to get a builder with sensible defaults
-/// (32 shards, `MutexPolicy`, default hasher), then customise as needed.
-pub struct TxMapBuilder<L = MutexPolicy, S = DefaultBuildHasher>
+/// (32 shards, default hasher), then customise as needed.
+pub struct TxMapBuilder<S = DefaultBuildHasher>
 where
-    L: LockPolicy,
     S: BuildHasher,
 {
     shards: Shards,
     capacity: usize,
     hasher_builder: S,
-    _phantom_l: PhantomData<L>,
 }
 
-impl<L, S> TxMapBuilder<L, S>
+impl<S> TxMapBuilder<S>
 where
-    L: LockPolicy,
     S: BuildHasher,
 {
     #[must_use]
@@ -45,47 +37,23 @@ where
 
     #[must_use]
     /// Replaces the hasher builder.
-    pub fn with_hasher<BH>(self, hasher_builder: BH) -> TxMapBuilder<L, BH>
+    pub fn with_hasher<BH>(self, hasher_builder: BH) -> TxMapBuilder<BH>
     where
         BH: BuildHasher,
     {
         let Self {
-            capacity,
-            shards,
-            _phantom_l,
-            ..
+            capacity, shards, ..
         } = self;
-        TxMapBuilder::<L, BH> {
+        TxMapBuilder::<BH> {
             capacity,
             shards,
             hasher_builder,
-            _phantom_l,
-        }
-    }
-
-    #[must_use]
-    /// Replaces the lock policy.
-    pub fn with_lock_policy<LP>(self) -> TxMapBuilder<LP, S>
-    where
-        LP: LockPolicy,
-    {
-        let Self {
-            capacity,
-            shards,
-            hasher_builder,
-            ..
-        } = self;
-        TxMapBuilder::<LP, S> {
-            capacity,
-            shards,
-            hasher_builder,
-            _phantom_l: PhantomData,
         }
     }
 
     #[must_use]
     /// Consumes the builder and returns a [`TxMap`].
-    pub fn build<K, V>(self) -> TxMap<K, V, L, S> {
+    pub fn build<K, V>(self) -> TxMap<K, V, S> {
         let shard_count: ShardCount = self.shards.into();
         TxMap {
             shard_count,
@@ -95,12 +63,11 @@ where
     }
 }
 
-impl Default for TxMapBuilder<MutexPolicy, DefaultBuildHasher> {
+impl Default for TxMapBuilder<DefaultBuildHasher> {
     fn default() -> Self {
         Self {
             capacity: 0,
             shards: Shards::_32,
-            _phantom_l: PhantomData,
             hasher_builder: DefaultBuildHasher::default(),
         }
     }
