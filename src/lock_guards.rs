@@ -35,7 +35,7 @@ where
     V: 'ex,
 {
     /// Fetches the shard at `shard_index` from the custodian.
-    pub fn shard(&mut self, shard_index: ShardIndex) -> &mut Shard<K, V> {
+    pub fn shard(&self, shard_index: ShardIndex) -> &mut Shard<K, V> {
         debug_assert!(self.locked_mask & (1u128 << shard_index.0) != 0);
         // SAFETY: the index is part of `locked_mask`, which the custodian
         // acquired exclusively, and `&mut self` prevents aliasing borrows
@@ -44,7 +44,7 @@ where
     }
 
     /// Fetches the shard the key lives on.
-    pub fn shard_for_key(&mut self, key: &TxKey<K>) -> &mut Shard<K, V> {
+    pub fn shard_for_key(&self, key: &TxKey<K>) -> &mut Shard<K, V> {
         self.shard(key.shard_index)
     }
 
