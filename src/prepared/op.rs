@@ -1,13 +1,9 @@
 use crate::{
-    indexer::Indexer, key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
-    multi_shard_ops::MultiShardOps, new_types::BitMask, prepared::schema::TxKeySelector,
-    shard_ops::ShardOps,
+    indexer::Indexer, key::TxKey, lock_guards::LockGuards, multi_shard_ops::MultiShardOps,
+    new_types::BitMask, prepared::schema::TxKeySelector, shard_ops::ShardOps,
 };
 use hashbrown::HashSet;
-use std::{
-    hash::{BuildHasher, Hash},
-    ops::{Deref, DerefMut},
-};
+use std::hash::{BuildHasher, Hash};
 
 /// Internal operation of a prepared transaction.
 ///
@@ -135,25 +131,24 @@ where
     K: Clone + Hash + Eq,
 {
     /// Applies the operation against the locked shards.
-    pub fn apply<L, S>(
+    pub fn apply<S>(
         &self,
-        lock_guards: &mut LockGuards<'_, K, V, L>,
+        lock_guards: &mut LockGuards<'_, K, V>,
         keys: &mut KEYS,
         params: &PARAMS,
         indexer: &Indexer<S>,
         state: &mut STATE,
     ) where
-        L: LockPolicy,
         S: BuildHasher,
     {
         match self {
             Self::Get { key_selector, get } => {
                 let key = key_selector.get(keys);
-                let shard =
+                let shard: &_ =
                     if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
-                        lock_guards.write_guard(key).deref_mut()
+                        &*lock_guards.write_guard(key)
                     } else {
-                        lock_guards.read_guard(key).deref()
+                        lock_guards.read_guard(key)
                     };
                 let value_ref = ShardOps::value_ref(shard, key.hash_code, &key.key);
                 (get)(&key.key, value_ref, params, state)
@@ -229,7 +224,7 @@ where
             } => {
                 let key_from = key_selector_from.get(keys);
                 let key_to = key_selector_to.get(keys);
-                MultiShardOps::move_value::<K, V, L, S>(
+                MultiShardOps::move_value::<K, V, S>(
                     &mut lock_guards.write,
                     key_from,
                     key_to,
@@ -257,12 +252,7 @@ where
             } => {
                 let key_a = key_selector_a.get(keys);
                 let key_b = key_selector_b.get(keys);
-                MultiShardOps::swap_value::<K, V, L, S>(
-                    &mut lock_guards.write,
-                    key_a,
-                    key_b,
-                    indexer,
-                );
+                MultiShardOps::swap_value::<K, V, S>(&mut lock_guards.write, key_a, key_b, indexer);
             }
             Self::Update {
                 key_selector,

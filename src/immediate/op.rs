@@ -1,12 +1,8 @@
 use crate::{
     custodian::Custodian, indexer::Indexer, key::TxKey, lock_guards::LockGuards,
-    lock_policies::lock_policy::LockPolicy, multi_shard_ops::MultiShardOps, new_types::BitMask,
-    shard_ops::ShardOps,
+    multi_shard_ops::MultiShardOps, new_types::BitMask, shard_ops::ShardOps,
 };
-use std::{
-    hash::{BuildHasher, Hash},
-    ops::{Deref, DerefMut},
-};
+use std::hash::{BuildHasher, Hash};
 
 #[allow(clippy::type_complexity)]
 pub(crate) enum ImmediateOp<'tx, K, V, STATE> {
@@ -84,10 +80,7 @@ impl<'tx, K, V, STATE> ImmediateOp<'tx, K, V, STATE> {
 
     /// Re-routes every key after a routing change, refreshing the leaf ids
     /// and versions that were captured at build time.
-    pub fn reroute<L>(&mut self, custodian: &Custodian<K, V, L>)
-    where
-        L: LockPolicy,
-    {
+    pub fn reroute(&mut self, custodian: &Custodian<K, V>) {
         let rekey = |key: &mut TxKey<K>| {
             key.shard_index = custodian.route(key.hash_code);
             key.version = custodian.version(key.shard_index);
@@ -144,22 +137,21 @@ impl<'tx, K, V, STATE> ImmediateOp<'tx, K, V, STATE>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn apply<L, S>(
+    pub fn apply<S>(
         self,
-        lock_guards: &mut LockGuards<'_, K, V, L>,
+        lock_guards: &mut LockGuards<'_, K, V>,
         indexer: &Indexer<S>,
         state: &mut STATE,
     ) where
-        L: LockPolicy,
         S: BuildHasher,
     {
         match self {
             Self::Get { key, get } => {
-                let shard =
+                let shard: &_ =
                     if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
-                        lock_guards.write_guard(&key).deref_mut()
+                        &*lock_guards.write_guard(&key)
                     } else {
-                        lock_guards.read_guard(&key).deref()
+                        lock_guards.read_guard(&key)
                     };
                 let value_ref = ShardOps::value_ref(shard, key.hash_code, &key.key);
                 (get)(&key.key, value_ref, state)
@@ -222,7 +214,7 @@ where
                 ShardOps::modify(shard, key.hash_code, &key.key, |k, v| mutate(k, v, state));
             }
             Self::MoveValue { key_from, key_to } => {
-                MultiShardOps::move_value::<K, V, L, S>(
+                MultiShardOps::move_value::<K, V, S>(
                     &mut lock_guards.write,
                     &key_from,
                     &key_to,
@@ -240,7 +232,7 @@ where
                 });
             }
             Self::SwapValue { key_a, key_b } => {
-                MultiShardOps::swap_value::<K, V, L, S>(
+                MultiShardOps::swap_value::<K, V, S>(
                     &mut lock_guards.write,
                     &key_a,
                     &key_b,

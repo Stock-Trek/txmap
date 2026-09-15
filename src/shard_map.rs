@@ -331,6 +331,11 @@ impl<'a, T> MaskGuard<'a, T> {
     pub(crate) fn new(map: &'a ShardMap<T>, mask: u128) -> Self {
         Self { map, mask }
     }
+
+    /// The leaf bitmask held by this guard.
+    pub(crate) fn mask(&self) -> u128 {
+        self.mask
+    }
 }
 
 impl<T> Drop for MaskGuard<'_, T> {

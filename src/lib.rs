@@ -8,7 +8,6 @@ pub mod indexer;
 pub mod iter;
 pub mod key;
 pub mod lock_guards;
-pub mod lock_policies;
 pub mod multi_shard_ops;
 pub mod new_types;
 pub mod prepared;
@@ -34,9 +33,6 @@ pub use immediate::{
 };
 pub use iter::Iter;
 pub use key::TxKey;
-pub use lock_policies::{
-    lock_policy::LockPolicy, mutex_policy::MutexPolicy, rwlock_policy::RwLockPolicy,
-};
 pub use new_types::{HashCode, ShardCount, ShardIndex};
 pub use prepared::{
     schema::{TxKeySelector, TxKeys, TxSchema},
@@ -50,10 +46,9 @@ pub use tx_map_builder::TxMapBuilder;
 pub mod prelude {
     pub use crate::{
         HashCode, ImmediateBuildablePhase, ImmediateBuilderPhase, ImmediateTx, ImmediateTxBuilder,
-        LockPolicy, MutexPolicy, PreparedTxBuilder, PreparedTxOperationsBuilder,
-        PreparedTxRequirementsBuilder, RwLockPolicy, ShardCount, ShardIndex, Shards,
-        TryReserveError, TxKey, TxKeySelector, TxKeys, TxMap, TxMapBuilder, TxResult, TxSchema,
-        tx_schema,
+        PreparedTxBuilder, PreparedTxOperationsBuilder, PreparedTxRequirementsBuilder, ShardCount,
+        ShardIndex, Shards, TryReserveError, TxKey, TxKeySelector, TxKeys, TxMap, TxMapBuilder,
+        TxResult, TxSchema, tx_schema,
     };
 }
 pub use pastey::paste as _paste;
