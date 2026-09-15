@@ -53,3 +53,7 @@ harness = false
 [[bench]]
 name = "workload"
 harness = false
+
+[[bench]]
+name = "zipf"
+harness = false
