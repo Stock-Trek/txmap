@@ -196,10 +196,10 @@ fn zipfian_transactions_with_topology_churn() {
         let mut state = 0x1234_5678_9ABC_DEF0;
         while !churn_done.load(Ordering::Relaxed) {
             let key = zipfian_key(&mut state, KEYS, HOT);
+            let _ = churn_map.custodian.merge_leaves(&churn_map.indexer, None);
             let hash = churn_map.indexer.hash(&key);
-            let _ = churn_map.merge_leaves(hash);
-            let hash = churn_map.indexer.hash(&key);
-            let _ = churn_map.split_leaf(hash);
+            let leaf = churn_map.custodian.route(hash).0;
+            let _ = churn_map.custodian.split_leaf(&churn_map.indexer, leaf);
             thread::yield_now();
         }
     });

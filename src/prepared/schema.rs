@@ -486,6 +486,7 @@ macro_rules! tx_schema {
                             )*
 
                             let mut lock_guards = match self.custodian.try_lock_guards(
+                                self.indexer,
                                 total_read_bitmask,
                                 total_write_bitmask,
                                 &versions,

@@ -21,7 +21,6 @@ pub mod shard;
 mod shard_map;
 pub mod shard_ops;
 pub mod shards;
-mod split_merge;
 #[cfg(test)]
 pub mod tests;
 mod trie;

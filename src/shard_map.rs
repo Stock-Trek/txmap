@@ -32,6 +32,9 @@ pub(crate) struct ShardMap<T> {
     locked_mask: AtomicU128,
     /// Bumped whenever the routing for leaf `i` changes.
     versions: [AtomicU32; MAX_LEAVES],
+    /// Counts how often an acquisition had to back off because leaf `i` was
+    /// already locked. Used to detect hot leaves and drive adaptive splits.
+    contention: [AtomicU32; MAX_LEAVES],
     /// Hash prefix to leaf id mapping.
     pub(crate) routing: RoutingTrie,
     /// Maximum number of active leaves (the configured shard count).
@@ -58,6 +61,7 @@ impl<T> ShardMap<T> {
             ready_mask: AtomicU128::new(0),
             locked_mask: AtomicU128::new(0),
             versions: std::array::from_fn(|_| AtomicU32::new(0)),
+            contention: std::array::from_fn(|_| AtomicU32::new(0)),
             routing: RoutingTrie::new(0),
             budget: budget.min(MAX_LEAVES as u32),
         };
@@ -104,9 +108,20 @@ impl<T> ShardMap<T> {
 
     /// Bumps the version of leaf `id`.
     #[inline]
-    #[allow(dead_code)]
     pub(crate) fn bump_version(&self, id: u8) {
         self.versions[id as usize].fetch_add(1, Ordering::AcqRel);
+    }
+
+    /// Number of times an acquisition backed off because leaf `id` was held.
+    #[inline]
+    pub(crate) fn contention(&self, id: u8) -> u32 {
+        self.contention[id as usize].load(Ordering::Relaxed)
+    }
+
+    /// Clears the contention counter for leaf `id`.
+    #[inline]
+    pub(crate) fn reset_contention(&self, id: u8) {
+        self.contention[id as usize].store(0, Ordering::Relaxed);
     }
 
     /// Acquires every leaf named in `needed`, all-or-nothing.
@@ -115,15 +130,29 @@ impl<T> ShardMap<T> {
             return;
         }
         let mut spins = 0u32;
+        // Only record a leaf once per acquisition, even if the CAS loop
+        // retries: a single transaction waiting on a leaf is one contention
+        // event, not one per spin.
+        let mut recorded = 0u128;
         loop {
             let cur = self.locked_mask.load(Ordering::Acquire);
-            if cur & needed == 0
-                && self
+            let conflict = cur & needed;
+            if conflict == 0 {
+                if self
                     .locked_mask
                     .compare_exchange_weak(cur, cur | needed, Ordering::AcqRel, Ordering::Acquire)
                     .is_ok()
-            {
-                return;
+                {
+                    return;
+                }
+            } else {
+                let mut bits = conflict & !recorded;
+                recorded |= conflict;
+                while bits != 0 {
+                    let id = bits.trailing_zeros() as usize;
+                    bits &= bits - 1;
+                    self.contention[id].fetch_add(1, Ordering::Relaxed);
+                }
             }
             backoff(&mut spins);
         }
@@ -198,13 +227,18 @@ impl<T> ShardMap<T> {
     }
 
     /// Frees the given leaf ids.
-    #[allow(dead_code)]
     pub(crate) fn free_ids(&self, ids: &[u8]) {
         let mut mask = 0u128;
         for &id in ids {
             mask |= 1u128 << id;
         }
         self.active_mask.fetch_and(!mask, Ordering::Release);
+    }
+
+    /// Whether leaf `id` has been initialised and not torn down.
+    #[inline]
+    pub(crate) fn is_ready(&self, id: u8) -> bool {
+        self.ready_mask.load(Ordering::Acquire) & (1u128 << id) != 0
     }
 
     /// Initialises leaf `id` and marks it active.
@@ -259,7 +293,9 @@ impl<T> ShardMap<T> {
 
 impl<T> Drop for ShardMap<T> {
     fn drop(&mut self) {
-        let mut mask = *self.active_mask.get_mut();
+        // Empty but reused slots stay initialised, so every ready slot must
+        // be dropped, not just the currently active ones.
+        let mut mask = *self.ready_mask.get_mut();
         while mask != 0 {
             let id = mask.trailing_zeros() as usize;
             mask &= mask - 1;

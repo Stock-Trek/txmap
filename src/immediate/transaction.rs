@@ -72,7 +72,12 @@ where
                 op.push_versions(&mut versions);
             }
 
-            match custodian.try_lock_guards(total_read_bitmask, total_write_bitmask, &versions) {
+            match custodian.try_lock_guards(
+                indexer,
+                total_read_bitmask,
+                total_write_bitmask,
+                &versions,
+            ) {
                 Some(mut lock_guards) => {
                     let mut state = STATE::default();
                     for (i, mut guard) in std::mem::take(&mut guards).into_iter().enumerate() {

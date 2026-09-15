@@ -67,8 +67,7 @@ where
     #[must_use]
     pub fn get_with_or_insert<R>(&self, key: &K, transform: impl FnOnce(&V) -> R, value: V) -> R {
         let hash_code = self.indexer.hash(key);
-        let shard_index = self.custodian.route(hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         let value =
             ShardOps::get_or_insert::<K, V, S>(&mut shard, hash_code, key, value, &self.indexer);
         transform(value)
@@ -89,8 +88,7 @@ where
         value_generator: impl FnOnce(&K) -> V,
     ) -> R {
         let hash_code = self.indexer.hash(key);
-        let shard_index = self.custodian.route(hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         let value = ShardOps::get_or_insert_with::<K, V, S>(
             &mut shard,
             hash_code,
@@ -106,29 +104,53 @@ where
     /// If the source key was absent the destination key is removed.
     /// Acquires write locks on both shards involved.
     pub fn move_value(&self, key_from: K, key_to: K) {
-        let tx_key_from = self.custodian.indexed_key(&self.indexer, key_from);
-        let tx_key_to = self.custodian.indexed_key(&self.indexer, key_to);
-        let (mut shards, _mask) = self
-            .custodian
-            .write_guards(tx_key_from.shard_index.bitmask() | tx_key_to.shard_index.bitmask());
-        MultiShardOps::move_value::<K, V, L, S>(
-            &mut shards,
-            &tx_key_from,
-            &tx_key_to,
-            &self.indexer,
-        );
+        loop {
+            let tx_key_from = self.custodian.indexed_key(&self.indexer, key_from.clone());
+            let tx_key_to = self.custodian.indexed_key(&self.indexer, key_to.clone());
+            let (mut shards, _mask) = self
+                .custodian
+                .write_guards(tx_key_from.shard_index.bitmask() | tx_key_to.shard_index.bitmask());
+            // A split or merge may have rerouted either key while we were
+            // acquiring the mask; retry with fresh versions if so.
+            if self.custodian.version(tx_key_from.shard_index) != tx_key_from.version
+                || self.custodian.version(tx_key_to.shard_index) != tx_key_to.version
+            {
+                continue;
+            }
+            MultiShardOps::move_value::<K, V, L, S>(
+                &mut shards,
+                &tx_key_from,
+                &tx_key_to,
+                &self.indexer,
+            );
+            return;
+        }
     }
 
     /// Swaps the values of two keys atomically.
     ///
     /// Acquires write locks on both shards involved.
     pub fn swap_value(&self, key_a: K, key_b: K) {
-        let tx_key_a = self.custodian.indexed_key(&self.indexer, key_a);
-        let tx_key_b = self.custodian.indexed_key(&self.indexer, key_b);
-        let (mut shards, _mask) = self
-            .custodian
-            .write_guards(tx_key_a.shard_index.bitmask() | tx_key_b.shard_index.bitmask());
-        MultiShardOps::swap_value::<K, V, L, S>(&mut shards, &tx_key_a, &tx_key_b, &self.indexer);
+        loop {
+            let tx_key_a = self.custodian.indexed_key(&self.indexer, key_a.clone());
+            let tx_key_b = self.custodian.indexed_key(&self.indexer, key_b.clone());
+            let (mut shards, _mask) = self
+                .custodian
+                .write_guards(tx_key_a.shard_index.bitmask() | tx_key_b.shard_index.bitmask());
+            // See `move_value` for why the versions are re-checked.
+            if self.custodian.version(tx_key_a.shard_index) != tx_key_a.version
+                || self.custodian.version(tx_key_b.shard_index) != tx_key_b.version
+            {
+                continue;
+            }
+            MultiShardOps::swap_value::<K, V, L, S>(
+                &mut shards,
+                &tx_key_a,
+                &tx_key_b,
+                &self.indexer,
+            );
+            return;
+        }
     }
 }
 
@@ -145,8 +167,7 @@ where
     /// if the key is absent.
     pub fn get_with<R>(&self, key: &K, transform: impl FnOnce(&V) -> R) -> Option<R> {
         let hash_code = self.indexer.hash(key);
-        let shard_index = self.custodian.route(hash_code);
-        let shard = self.custodian.read_guard_at(shard_index);
+        let shard = self.custodian.read_guard_for(hash_code);
         let entry = shard.find(hash_code.0, |entry| entry.0 == *key);
         entry.map(|e| transform(&e.1))
     }
@@ -156,8 +177,7 @@ where
     /// Returns the previous value if the key already existed.
     pub fn insert(&self, key: K, value: V) -> Option<V> {
         let hash_code = self.indexer.hash(&key);
-        let shard_index = self.custodian.route(hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         ShardOps::insert::<K, V, S>(&mut shard, hash_code, key, value, &self.indexer)
     }
 
@@ -167,8 +187,7 @@ where
     /// if the insertion succeeded (key was absent).
     pub fn insert_with_if_absent(&self, key: K, value_generator: impl FnOnce() -> V) -> bool {
         let hash_code = self.indexer.hash(&key);
-        let shard_index = self.custodian.route(hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         ShardOps::insert_if_absent::<K, V, S>(
             &mut shard,
             hash_code,
@@ -184,8 +203,7 @@ where
     /// and the mutation was applied.
     pub fn modify(&self, key: &K, mutate: impl FnOnce(&K, &mut V)) -> bool {
         let hash_code = self.indexer.hash(key);
-        let shard_index = self.custodian.route(hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         ShardOps::modify::<K, V>(&mut shard, hash_code, key, mutate)
     }
 
@@ -194,8 +212,7 @@ where
     /// Returns `None` if the key was absent.
     pub fn remove(&self, key: &K) -> Option<V> {
         let hash_code = self.indexer.hash(key);
-        let shard_index = self.custodian.route(hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         ShardOps::remove_entry::<K, V>(&mut shard, hash_code, key).map(|removed| removed.1)
     }
 
@@ -204,8 +221,7 @@ where
     /// Returns the value if it was removed, `None` otherwise.
     pub fn remove_if(&self, key: &K, condition: impl FnOnce(&K, &V) -> bool) -> Option<V> {
         let hash_code = self.indexer.hash(key);
-        let shard_index = self.custodian.route(hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         ShardOps::remove_if::<K, V>(&mut shard, hash_code, key, condition)
     }
 
@@ -213,8 +229,7 @@ where
     #[must_use]
     pub fn contains_key(&self, key: &K) -> bool {
         let hash_code = self.indexer.hash(key);
-        let shard_index = self.custodian.route(hash_code);
-        let shard = self.custodian.read_guard_at(shard_index);
+        let shard = self.custodian.read_guard_for(hash_code);
         shard.find(hash_code.0, |entry| entry.0 == *key).is_some()
     }
 
@@ -224,8 +239,7 @@ where
     #[must_use]
     pub fn remove_entry(&self, key: &K) -> Option<(K, V)> {
         let hash_code = self.indexer.hash(key);
-        let shard_index = self.custodian.route(hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         ShardOps::remove_entry::<K, V>(&mut shard, hash_code, key)
     }
 
@@ -235,8 +249,7 @@ where
     /// if it returns `None` the entry is removed.
     pub fn update(&self, key: K, transform: impl FnOnce(&K, Option<&V>) -> Option<V>) {
         let hash_code = self.indexer.hash(&key);
-        let shard_index = self.custodian.route(hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         ShardOps::update::<K, V, S>(&mut shard, hash_code, key, transform, &self.indexer)
     }
 }

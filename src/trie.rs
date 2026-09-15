@@ -136,11 +136,12 @@ impl RoutingTrie {
     }
 
     /// Returns the level and child leaf ids of the shallowest branch whose
-    /// children are all leaves, doing a breadth-first search from the root.
+    /// children are all leaves and which does not contain `exclude`.
     ///
-    /// The `hash` argument is unused: any mergeable branch will do, and a
-    /// breadth-first search finds the one that frees the most routing depth.
-    pub(crate) fn siblings(&self, _hash: u64) -> Option<(u32, [u8; FANOUT])> {
+    /// A breadth-first search finds the branch that frees the most routing
+    /// depth. Passing `Some(leaf)` lets an adaptive merge free capacity
+    /// without disturbing the hot leaf that is about to be split.
+    pub(crate) fn mergeable_branch(&self, exclude: Option<u8>) -> Option<(u32, [u8; FANOUT])> {
         let guard = epoch::pin();
         let mut queue = std::collections::VecDeque::new();
         queue.push_back((self.root.load(Ordering::Acquire, &guard), 0u32));
@@ -157,7 +158,7 @@ impl RoutingTrie {
                             Node::Branch(_) => all_leaves = false,
                         }
                     }
-                    if all_leaves {
+                    if all_leaves && exclude.is_none_or(|excluded| !ids.contains(&excluded)) {
                         return Some((level, ids));
                     }
                     for child in children {

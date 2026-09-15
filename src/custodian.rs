@@ -6,9 +6,18 @@ use crate::{
     new_types::{BitMask, HashCode, MAX_SHARDS, ShardCount, ShardIndex},
     shard::Shard,
     shard_map::{MaskGuard, ShardMap},
+    trie::RoutingTrie,
 };
 use hashbrown::HashTable;
 use std::hash::{BuildHasher, Hash};
+
+/// Number of backed-off acquisitions that marks a leaf as hot.
+///
+/// Once a leaf is this contended, a transaction uses the retry that the
+/// contention forced to move sharding capacity towards it (see
+/// [`Custodian::rebalance`]). Kept well above one so a single collision does
+/// not reshape the trie.
+const CONTENTION_THRESHOLD: u32 = 64;
 
 /// Internal store of the map's shards.
 ///
@@ -150,13 +159,22 @@ where
     /// All leaves are acquired in one all-or-nothing atomic operation before
     /// any version is checked, which is what keeps the protocol deadlock-free.
     #[doc(hidden)]
-    pub fn try_lock_guards(
+    pub fn try_lock_guards<S>(
         &self,
+        indexer: &Indexer<S>,
         read: BitMask,
         write: BitMask,
         versions: &[(u8, u32)],
-    ) -> Option<LockGuards<'_, K, V, L>> {
+    ) -> Option<LockGuards<'_, K, V, L>>
+    where
+        K: Hash,
+        S: BuildHasher,
+    {
         let needed = read.0 | write.0;
+        // A transaction that had to wait on a leaf is evidence that the leaf
+        // is hot. Move capacity towards it before taking the locks; if that
+        // changes routing the version check below makes this attempt retry.
+        self.rebalance(indexer, needed);
         let mask = self.map.acquire_guard(needed);
         if versions
             .iter()
@@ -168,9 +186,229 @@ where
     }
 
     /// Acquires read/write guards for the given shard bitmasks.
-    pub fn lock_guards(&self, read: BitMask, write: BitMask) -> LockGuards<'_, K, V, L> {
-        self.try_lock_guards(read, write, &[])
+    pub fn lock_guards<S>(
+        &self,
+        indexer: &Indexer<S>,
+        read: BitMask,
+        write: BitMask,
+    ) -> LockGuards<'_, K, V, L>
+    where
+        K: Hash,
+        S: BuildHasher,
+    {
+        self.try_lock_guards(indexer, read, write, &[])
             .expect("empty version list never fails")
+    }
+
+    /// Splits the leaf `source` using the next three hash bits of its entries.
+    ///
+    /// Returns `false` when the budget is exhausted or the routing changed
+    /// concurrently. Leaf values never move: the source id is reused as one
+    /// of the eight children and seven fresh ids are reserved.
+    pub(crate) fn split_leaf<S>(&self, indexer: &Indexer<S>, source: u8) -> bool
+    where
+        K: Hash,
+        S: BuildHasher,
+    {
+        let map = &self.map;
+        let Some(level) = map.routing.level_of(source) else {
+            return false;
+        };
+        // Reserve the seven new children. This sets their active bits, but
+        // not their ready bits, so snapshotting code cannot observe the
+        // uninitialised slots.
+        let Some(ids) = map.allocate_ids(7) else {
+            return false;
+        };
+        let mut children = [0u8; 8];
+        children[0] = source;
+        children[1..].copy_from_slice(&ids[..7]);
+        let mut fresh = [false; 7];
+        for (i, &id) in ids[..7].iter().enumerate() {
+            if map.is_ready(id) {
+                // A reused id was drained when a merge freed it and is still
+                // initialised, so it is left untouched here and filled under
+                // its write lock below.
+                continue;
+            }
+            fresh[i] = true;
+            // SAFETY: `id` was just reserved and is not reachable from the
+            // trie yet.
+            unsafe { map.init_leaf(id, L::new(Shard::new())) };
+        }
+
+        let needed = children
+            .iter()
+            .fold(0u128, |mask, &id| mask | (1u128 << id));
+        let seen = map.acquire_guard(needed);
+
+        // Re-check that routing did not change while we waited for the mask.
+        if map.routing.level_of(source) != Some(level) {
+            drop(seen);
+            for (i, &id) in ids[..7].iter().enumerate() {
+                if fresh[i] {
+                    // SAFETY: we reserved and initialised this slot and it is
+                    // not routed to.
+                    unsafe { drop(map.take_leaf(id)) };
+                } else {
+                    // Leave the reused slot initialised so a stale single-key
+                    // operation can still lock it and observe its version.
+                    map.free_ids(&[id]);
+                }
+            }
+            return false;
+        }
+
+        let mut guards: [Option<L::WriteGuard<'_, Shard<K, V>>>; 8] = std::array::from_fn(|_| None);
+        // Take the per-leaf write locks in ascending id order. All other
+        // multi-leaf code paths also lock in ascending order, so this can
+        // never deadlock.
+        let mut order: [usize; 8] = std::array::from_fn(|i| i);
+        order.sort_by_key(|&i| children[i]);
+        for &child in &order {
+            // SAFETY: `seen` holds leaf `children[child]`.
+            let lock = unsafe { map.leaf_ref(children[child]) };
+            guards[child] = Some(L::write(lock));
+        }
+
+        // Redistribute the source leaf's entries over the eight children
+        // using the three hash bits that the new branch consumes.
+        let mut buckets: [Vec<(K, V)>; 8] = std::array::from_fn(|_| Vec::new());
+        for (key, value) in guards[0].as_mut().expect("guarded").drain() {
+            let child = RoutingTrie::child_index(indexer.hash(&key).0, level);
+            buckets[child].push((key, value));
+        }
+        for (child, bucket) in buckets.iter_mut().enumerate().skip(1) {
+            for (key, value) in bucket.drain(..) {
+                let hash = indexer.hash(&key).0;
+                guards[child].as_mut().expect("guarded").insert_unique(
+                    hash,
+                    (key, value),
+                    |entry| indexer.hash(&entry.0).0,
+                );
+            }
+        }
+        for (key, value) in buckets[0].drain(..) {
+            let hash = indexer.hash(&key).0;
+            guards[0]
+                .as_mut()
+                .expect("guarded")
+                .insert_unique(hash, (key, value), |entry| indexer.hash(&entry.0).0);
+        }
+
+        // Publish the new routing, then invalidate any transaction that
+        // routed to the old leaf.
+        let split = map.routing.split_leaf(source, children);
+        debug_assert!(split.is_some(), "split of a locked leaf must succeed");
+        map.bump_version(source);
+        drop(guards);
+        drop(seen);
+        split.is_some()
+    }
+
+    /// Merges a shallowest branch of eight sibling leaves back into one.
+    ///
+    /// `exclude` skips branches containing that leaf, which lets an adaptive
+    /// rebalance free capacity without disturbing the hot leaf being split.
+    /// Returns `false` when there is no mergeable branch or the routing
+    /// changed concurrently. Acquiring the mask is what makes the branch
+    /// quiet: no transaction can be holding any of its leaves.
+    pub(crate) fn merge_leaves<S>(&self, indexer: &Indexer<S>, exclude: Option<u8>) -> bool
+    where
+        K: Hash,
+        S: BuildHasher,
+    {
+        let map = &self.map;
+        let Some((_, children)) = map.routing.mergeable_branch(exclude) else {
+            return false;
+        };
+        let needed = children
+            .iter()
+            .fold(0u128, |mask, &id| mask | (1u128 << id));
+        let _seen = map.acquire_guard(needed);
+
+        // Re-check that the branch still has exactly these children.
+        if map.routing.mergeable_branch(exclude).map(|(_, ids)| ids) != Some(children) {
+            return false;
+        }
+
+        let mut guards: [Option<L::WriteGuard<'_, Shard<K, V>>>; 8] = std::array::from_fn(|_| None);
+        // Ascending id order, matching every other multi-leaf lock path.
+        let mut order: [usize; 8] = std::array::from_fn(|i| i);
+        order.sort_by_key(|&i| children[i]);
+        for &child in &order {
+            // SAFETY: `_seen` holds leaf `children[child]`.
+            let lock = unsafe { map.leaf_ref(children[child]) };
+            guards[child] = Some(L::write(lock));
+        }
+
+        // Everything funnels into the surviving child (child position 0).
+        let survivor = children[0];
+        let (survivor_slot, rest) = guards.split_at_mut(1);
+        let survivor_guard = survivor_slot[0].as_mut().expect("guarded");
+        for guard in rest {
+            for (key, value) in guard.as_mut().expect("guarded").drain() {
+                let hash = indexer.hash(&key).0;
+                survivor_guard.insert_unique(hash, (key, value), |entry| indexer.hash(&entry.0).0);
+            }
+        }
+
+        if map.routing.merge_children(children, survivor).is_none() {
+            debug_assert!(false, "merge of a locked branch must succeed");
+            return false;
+        }
+        // Invalidate every transaction that routed to any of the merged
+        // leaves, not just the survivor: the other seven are about to be
+        // freed and reused.
+        for &id in &children {
+            map.bump_version(id);
+        }
+        drop(guards);
+
+        // Free the seven non-surviving ids. Their slots stay initialised and
+        // empty so that a concurrent single-key operation that routed to one
+        // of them can still safely take its lock and observe the bumped
+        // version before retrying. The mask keeps transactions out while the
+        // leaves are drained and freed.
+        map.free_ids(&children[1..]);
+        true
+    }
+
+    /// Moves sharding capacity towards `leaf_id`, splitting it if there is
+    /// budget or freeing capacity from a branch first.
+    fn grow_leaf<S>(&self, indexer: &Indexer<S>, leaf_id: u8) -> bool
+    where
+        K: Hash,
+        S: BuildHasher,
+    {
+        if self.map.leaf_count() + 7 <= self.map.budget() {
+            return self.split_leaf(indexer, leaf_id);
+        }
+        // Budget exhausted: reclaim seven ids from a quiet branch that does
+        // not contain the hot leaf, then split it.
+        if !self.merge_leaves(indexer, Some(leaf_id)) {
+            return false;
+        }
+        self.split_leaf(indexer, leaf_id)
+    }
+
+    /// Splits any leaves in `needed` whose contention counter has crossed
+    /// [`CONTENTION_THRESHOLD`].
+    fn rebalance<S>(&self, indexer: &Indexer<S>, needed: u128)
+    where
+        K: Hash,
+        S: BuildHasher,
+    {
+        let mut bits = needed;
+        while bits != 0 {
+            let id = bits.trailing_zeros() as u8;
+            bits &= bits - 1;
+            if self.map.contention(id) < CONTENTION_THRESHOLD {
+                continue;
+            }
+            self.map.reset_contention(id);
+            self.grow_leaf(indexer, id);
+        }
     }
 
     fn build_lock_guards<'a>(
@@ -230,8 +468,8 @@ where
     }
 
     pub(crate) fn read_guard_at(&self, shard_index: ShardIndex) -> L::ReadGuard<'_, Shard<K, V>> {
-        // SAFETY: `shard_index` is an active leaf. Single-key operations do
-        // not change routing, so the leaf cannot disappear underneath them.
+        // SAFETY: `shard_index` is an active leaf and the caller already holds
+        // it in the topology mask (or owns the map), so it cannot disappear.
         let shard_lock = unsafe { self.map.leaf_ref(shard_index.0) };
         L::read(shard_lock)
     }
@@ -240,5 +478,42 @@ where
         // SAFETY: see `read_guard_at`.
         let shard_lock = unsafe { self.map.leaf_ref(shard_index.0) };
         L::write(shard_lock)
+    }
+
+    /// Acquires a read guard for the leaf that `hash_code` routes to.
+    ///
+    /// Unlike [`Self::read_guard_at`], this is safe for a single-key operation
+    /// that does not already hold the topology. Leaf slots are never
+    /// deallocated once initialised, so the lock is always valid; the version
+    /// and route are re-checked under the lock so a concurrent split or merge
+    /// makes the caller retry against the new routing.
+    pub(crate) fn read_guard_for(&self, hash_code: HashCode) -> L::ReadGuard<'_, Shard<K, V>> {
+        loop {
+            let id = self.map.route(hash_code.0);
+            let version = self.map.version(id);
+            // SAFETY: `id` is active, hence initialised, and a slot is never
+            // deallocated once initialised.
+            let guard = L::read(unsafe { self.map.leaf_ref(id) });
+            // A split or merge blocks on this lock, so once it is held the
+            // route and version cannot change underneath us.
+            if self.map.version(id) == version && self.map.route(hash_code.0) == id {
+                return guard;
+            }
+        }
+    }
+
+    /// Acquires a write guard for the leaf that `hash_code` routes to.
+    ///
+    /// See [`Self::read_guard_for`] for the re-routing guarantee.
+    pub(crate) fn write_guard_for(&self, hash_code: HashCode) -> L::WriteGuard<'_, Shard<K, V>> {
+        loop {
+            let id = self.map.route(hash_code.0);
+            let version = self.map.version(id);
+            // SAFETY: see `read_guard_for`.
+            let guard = L::write(unsafe { self.map.leaf_ref(id) });
+            if self.map.version(id) == version && self.map.route(hash_code.0) == id {
+                return guard;
+            }
+        }
     }
 }
