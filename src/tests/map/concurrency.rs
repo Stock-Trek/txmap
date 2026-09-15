@@ -130,3 +130,86 @@ fn atomic_transaction_isolation() {
     h2.join().unwrap();
     assert_eq!(map.get_with(&1, |v| *v), Some(LONG_LOOP * 2));
 }
+
+/// Small xorshift PRNG so the Zipfian stress test has no extra dependencies.
+fn next_rand(state: &mut u64) -> u64 {
+    let mut x = *state;
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+    *state = x;
+    x
+}
+
+/// Picks a key with an 80/20 (roughly Zipfian) distribution: most operations
+/// hit a small hot set while the rest spread over the whole key space.
+fn zipfian_key(state: &mut u64, key_count: u64, hot_count: u64) -> u64 {
+    if next_rand(state) % 100 < 80 {
+        next_rand(state) % hot_count
+    } else {
+        next_rand(state) % key_count
+    }
+}
+
+#[test]
+fn zipfian_transactions_with_topology_churn() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    const KEYS: u64 = 128;
+    const HOT: u64 = 16;
+    const WORKERS: u64 = 4;
+    const OPS: u64 = 2_000;
+
+    let map = Arc::new(
+        TxMapBuilder::default()
+            .with_shards(Shards::_128)
+            .build::<u64, u64>(),
+    );
+    for key in 0..KEYS {
+        map.insert(key, 0);
+    }
+
+    let done = Arc::new(AtomicBool::new(false));
+    let mut handles = Vec::new();
+
+    // Workers drive many small Zipfian transactions, which retry across
+    // splits and merges thanks to the version re-check.
+    for worker in 0..WORKERS {
+        let m = map.clone();
+        handles.push(thread::spawn(move || {
+            let mut state = 0x9E37_79B9_7F4A_7C15 ^ (worker + 1);
+            for _ in 0..OPS {
+                let key = zipfian_key(&mut state, KEYS, HOT);
+                let _ = m
+                    .prepared_tx(&Increment::SCHEMA)
+                    .modify(Increment::k, |_k, v, _p, _s| *v += 1)
+                    .into_transaction()
+                    .execute(IncrementKeys { k: key }, IncrementParams {});
+            }
+        }));
+    }
+
+    // Concurrently churn topology: merge a branch, then split it back.
+    let churn_map = map.clone();
+    let churn_done = done.clone();
+    let churn = thread::spawn(move || {
+        let mut state = 0x1234_5678_9ABC_DEF0;
+        while !churn_done.load(Ordering::Relaxed) {
+            let key = zipfian_key(&mut state, KEYS, HOT);
+            let _ = churn_map.custodian.merge_leaves(&churn_map.indexer, None);
+            let hash = churn_map.indexer.hash(&key);
+            let leaf = churn_map.custodian.route(hash).0;
+            let _ = churn_map.custodian.split_leaf(&churn_map.indexer, leaf);
+            thread::yield_now();
+        }
+    });
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+    done.store(true, Ordering::Relaxed);
+    churn.join().unwrap();
+
+    let total = map.fold(0u64, |_k, v| Some(*v), |acc, v| acc + v);
+    assert_eq!(total, WORKERS * OPS);
+}

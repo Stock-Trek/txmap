@@ -1,6 +1,5 @@
 use crate::{
     key::TxKey,
-    lock_policies::lock_policy::LockPolicy,
     prepared::{guard::PreparedGuard, op::PreparedOp, schema::TxKeySelector},
 };
 use std::{hash::BuildHasher, marker::PhantomData};
@@ -16,19 +15,18 @@ use std::{hash::BuildHasher, marker::PhantomData};
 ///
 /// Implemented by the `Builder` struct generated for a schema by the
 /// [`tx_schema`](macro@crate::tx_schema) macro.
-pub trait PreparedTxRequirementsBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE>
+pub trait PreparedTxRequirementsBuilder<'tx, K, V, S, KEYS, PARAMS, STATE>
 where
     Self: Sized,
     K: 'tx,
     V: 'tx,
-    L: LockPolicy + 'tx,
     S: BuildHasher + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,
     STATE: 'tx,
 {
-    type Builder: PreparedTxRequirementsBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE>
-        + PreparedTxOperationsBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE>;
+    type Builder: PreparedTxRequirementsBuilder<'tx, K, V, S, KEYS, PARAMS, STATE>
+        + PreparedTxOperationsBuilder<'tx, K, V, S, KEYS, PARAMS, STATE>;
 
     fn with_guard(self, guard: PreparedGuard<'tx, K, V, KEYS, PARAMS, STATE>) -> Self::Builder;
 
@@ -56,19 +54,18 @@ where
 ///
 /// Implemented by the `Builder` and `Buildable` structs generated for a
 /// schema by the [`tx_schema`](macro@crate::tx_schema) macro.
-pub trait PreparedTxOperationsBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE>
+pub trait PreparedTxOperationsBuilder<'tx, K, V, S, KEYS, PARAMS, STATE>
 where
     Self: Sized,
     K: 'tx,
     V: 'tx,
-    L: LockPolicy + 'tx,
     S: BuildHasher + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,
     STATE: 'tx,
 {
-    type Builder: PreparedTxOperationsBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE>
-        + PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE>;
+    type Builder: PreparedTxOperationsBuilder<'tx, K, V, S, KEYS, PARAMS, STATE>
+        + PreparedTxBuilder<'tx, K, V, S, KEYS, PARAMS, STATE>;
 
     fn with_operation(self, op: PreparedOp<'tx, K, V, KEYS, PARAMS, STATE>) -> Self::Builder;
 
@@ -220,12 +217,11 @@ where
 ///
 /// Implemented by the `Buildable` struct generated for a schema by the
 /// [`tx_schema`](macro@crate::tx_schema) macro.
-pub trait PreparedTxBuilder<'tx, K, V, L, S, KEYS, PARAMS, STATE>
+pub trait PreparedTxBuilder<'tx, K, V, S, KEYS, PARAMS, STATE>
 where
     Self: Sized,
     K: 'tx,
     V: 'tx,
-    L: LockPolicy + 'tx,
     S: BuildHasher + 'tx,
     KEYS: 'tx,
     PARAMS: 'tx,

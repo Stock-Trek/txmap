@@ -4,60 +4,55 @@ use crate::{
     immediate::tx_builder::ImmediateTxBuilder,
     indexer::Indexer,
     iter::{Drain, Iter, Keys, Values},
-    lock_policies::{lock_policy::LockPolicy, mutex_policy::MutexPolicy},
     multi_shard_ops::MultiShardOps,
     new_types::{ShardCount, ShardIndex},
     prepared::schema::TxSchema,
     shard_ops::ShardOps,
     tx_map_builder::TxMapBuilder,
 };
-use crossbeam_utils::CachePadded;
 use std::hash::{BuildHasher, Hash};
 
 /// A concurrent transactional hash map.
 ///
-/// Entries are distributed across shards, each protected by a configurable
-/// lock policy. All mutating operations are atomic per shard; multi-shard
-/// operations (e.g. [`move_value`](TxMap::move_value)) acquire locks on
-/// all involved shards to remain atomic.
+/// Entries are distributed across shards. All mutating operations are
+/// atomic per shard; multi-shard operations (e.g.
+/// [`move_value`](TxMap::move_value)) acquire the relevant leaf locks to
+/// remain atomic.
 ///
 /// The map supports both immediate one-shot transactions and prepared
 /// re-usable transactions. Guard-based preconditions can veto a transaction.
 ///
-/// The key type is only required to be `Clone + Hash + Eq` (in addition to
-/// the `LockPolicy` and `BuildHasher` bounds below) by the individual
-/// operations; the map type itself can be named for any `K`.
-pub struct TxMap<K, V, L = MutexPolicy, S = DefaultBuildHasher>
+/// The key type is only required to be `Clone + Hash + Eq` by the
+/// individual operations; the map type itself can be named for any `K`.
+pub struct TxMap<K, V, S = DefaultBuildHasher>
 where
-    L: LockPolicy,
     S: BuildHasher,
 {
     pub(crate) shard_count: ShardCount,
-    pub(crate) custodian: Custodian<K, V, L>,
+    pub(crate) custodian: Custodian<K, V>,
     pub(crate) indexer: Indexer<S>,
 }
 
-impl<K, V> TxMap<K, V, MutexPolicy, DefaultBuildHasher> {
+impl<K, V> TxMap<K, V, DefaultBuildHasher> {
     #[must_use]
     /// Creates an empty `TxMap` with default configuration.
     ///
-    /// Equivalent to `TxMap::default()`. Uses 32 shards, `MutexPolicy`,
-    /// and the default hasher.
-    pub fn new() -> TxMap<K, V, MutexPolicy, DefaultBuildHasher> {
+    /// Equivalent to `TxMap::default()`. Uses 32 shards and the default
+    /// hasher.
+    pub fn new() -> TxMap<K, V, DefaultBuildHasher> {
         TxMap::default()
     }
 }
 
-impl<K, V> Default for TxMap<K, V, MutexPolicy, DefaultBuildHasher> {
+impl<K, V> Default for TxMap<K, V, DefaultBuildHasher> {
     fn default() -> Self {
         TxMapBuilder::default().build()
     }
 }
 
-impl<K, V, L, S> TxMap<K, V, L, S>
+impl<K, V, S> TxMap<K, V, S>
 where
     K: Clone + Hash + Eq,
-    L: LockPolicy,
     S: BuildHasher,
 {
     /// Reads the value for `key`, inserting `value` if the key is absent and returns a transformated value.
@@ -68,8 +63,7 @@ where
     #[must_use]
     pub fn get_with_or_insert<R>(&self, key: &K, transform: impl FnOnce(&V) -> R, value: V) -> R {
         let hash_code = self.indexer.hash(key);
-        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         let value =
             ShardOps::get_or_insert::<K, V, S>(&mut shard, hash_code, key, value, &self.indexer);
         transform(value)
@@ -90,8 +84,7 @@ where
         value_generator: impl FnOnce(&K) -> V,
     ) -> R {
         let hash_code = self.indexer.hash(key);
-        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         let value = ShardOps::get_or_insert_with::<K, V, S>(
             &mut shard,
             hash_code,
@@ -107,36 +100,54 @@ where
     /// If the source key was absent the destination key is removed.
     /// Acquires write locks on both shards involved.
     pub fn move_value(&self, key_from: K, key_to: K) {
-        let tx_key_from = self.indexer.indexed_key(self.shard_count, key_from);
-        let tx_key_to = self.indexer.indexed_key(self.shard_count, key_to);
-        let mut shards = self
-            .custodian
-            .write_guards(tx_key_from.shard_index.bitmask() | tx_key_to.shard_index.bitmask());
-        MultiShardOps::move_value::<K, V, L, S>(
-            &mut shards,
-            &tx_key_from,
-            &tx_key_to,
-            &self.indexer,
-        );
+        loop {
+            let tx_key_from = self.custodian.indexed_key(&self.indexer, key_from.clone());
+            let tx_key_to = self.custodian.indexed_key(&self.indexer, key_to.clone());
+            let (mut shards, _mask) = self
+                .custodian
+                .write_guards(tx_key_from.shard_index.bitmask() | tx_key_to.shard_index.bitmask());
+            // A split or merge may have rerouted either key while we were
+            // acquiring the mask; retry with fresh versions if so.
+            if self.custodian.version(tx_key_from.shard_index) != tx_key_from.version
+                || self.custodian.version(tx_key_to.shard_index) != tx_key_to.version
+            {
+                continue;
+            }
+            MultiShardOps::move_value::<K, V, S>(
+                &mut shards,
+                &tx_key_from,
+                &tx_key_to,
+                &self.indexer,
+            );
+            return;
+        }
     }
 
     /// Swaps the values of two keys atomically.
     ///
     /// Acquires write locks on both shards involved.
     pub fn swap_value(&self, key_a: K, key_b: K) {
-        let tx_key_a = self.indexer.indexed_key(self.shard_count, key_a);
-        let tx_key_b = self.indexer.indexed_key(self.shard_count, key_b);
-        let mut shards = self
-            .custodian
-            .write_guards(tx_key_a.shard_index.bitmask() | tx_key_b.shard_index.bitmask());
-        MultiShardOps::swap_value::<K, V, L, S>(&mut shards, &tx_key_a, &tx_key_b, &self.indexer);
+        loop {
+            let tx_key_a = self.custodian.indexed_key(&self.indexer, key_a.clone());
+            let tx_key_b = self.custodian.indexed_key(&self.indexer, key_b.clone());
+            let (mut shards, _mask) = self
+                .custodian
+                .write_guards(tx_key_a.shard_index.bitmask() | tx_key_b.shard_index.bitmask());
+            // See `move_value` for why the versions are re-checked.
+            if self.custodian.version(tx_key_a.shard_index) != tx_key_a.version
+                || self.custodian.version(tx_key_b.shard_index) != tx_key_b.version
+            {
+                continue;
+            }
+            MultiShardOps::swap_value::<K, V, S>(&mut shards, &tx_key_a, &tx_key_b, &self.indexer);
+            return;
+        }
     }
 }
 
-impl<K, V, L, S> TxMap<K, V, L, S>
+impl<K, V, S> TxMap<K, V, S>
 where
     K: Hash + Eq,
-    L: LockPolicy,
     S: BuildHasher,
 {
     #[must_use]
@@ -146,8 +157,7 @@ where
     /// if the key is absent.
     pub fn get_with<R>(&self, key: &K, transform: impl FnOnce(&V) -> R) -> Option<R> {
         let hash_code = self.indexer.hash(key);
-        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let shard = self.custodian.read_guard_at(shard_index);
+        let shard = self.custodian.read_guard_for(hash_code);
         let entry = shard.find(hash_code.0, |entry| entry.0 == *key);
         entry.map(|e| transform(&e.1))
     }
@@ -157,8 +167,7 @@ where
     /// Returns the previous value if the key already existed.
     pub fn insert(&self, key: K, value: V) -> Option<V> {
         let hash_code = self.indexer.hash(&key);
-        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         ShardOps::insert::<K, V, S>(&mut shard, hash_code, key, value, &self.indexer)
     }
 
@@ -168,8 +177,7 @@ where
     /// if the insertion succeeded (key was absent).
     pub fn insert_with_if_absent(&self, key: K, value_generator: impl FnOnce() -> V) -> bool {
         let hash_code = self.indexer.hash(&key);
-        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         ShardOps::insert_if_absent::<K, V, S>(
             &mut shard,
             hash_code,
@@ -185,8 +193,7 @@ where
     /// and the mutation was applied.
     pub fn modify(&self, key: &K, mutate: impl FnOnce(&K, &mut V)) -> bool {
         let hash_code = self.indexer.hash(key);
-        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         ShardOps::modify::<K, V>(&mut shard, hash_code, key, mutate)
     }
 
@@ -195,8 +202,7 @@ where
     /// Returns `None` if the key was absent.
     pub fn remove(&self, key: &K) -> Option<V> {
         let hash_code = self.indexer.hash(key);
-        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         ShardOps::remove_entry::<K, V>(&mut shard, hash_code, key).map(|removed| removed.1)
     }
 
@@ -205,8 +211,7 @@ where
     /// Returns the value if it was removed, `None` otherwise.
     pub fn remove_if(&self, key: &K, condition: impl FnOnce(&K, &V) -> bool) -> Option<V> {
         let hash_code = self.indexer.hash(key);
-        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         ShardOps::remove_if::<K, V>(&mut shard, hash_code, key, condition)
     }
 
@@ -214,8 +219,7 @@ where
     #[must_use]
     pub fn contains_key(&self, key: &K) -> bool {
         let hash_code = self.indexer.hash(key);
-        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let shard = self.custodian.read_guard_at(shard_index);
+        let shard = self.custodian.read_guard_for(hash_code);
         shard.find(hash_code.0, |entry| entry.0 == *key).is_some()
     }
 
@@ -225,8 +229,7 @@ where
     #[must_use]
     pub fn remove_entry(&self, key: &K) -> Option<(K, V)> {
         let hash_code = self.indexer.hash(key);
-        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         ShardOps::remove_entry::<K, V>(&mut shard, hash_code, key)
     }
 
@@ -236,26 +239,25 @@ where
     /// if it returns `None` the entry is removed.
     pub fn update(&self, key: K, transform: impl FnOnce(&K, Option<&V>) -> Option<V>) {
         let hash_code = self.indexer.hash(&key);
-        let shard_index = Indexer::<S>::shard_index(self.shard_count, hash_code);
-        let mut shard = self.custodian.write_guard_at(shard_index);
+        let mut shard = self.custodian.write_guard_for(hash_code);
         ShardOps::update::<K, V, S>(&mut shard, hash_code, key, transform, &self.indexer)
     }
 }
 
-impl<K, V, L, S> TxMap<K, V, L, S>
+impl<K, V, S> TxMap<K, V, S>
 where
     K: Hash,
-    L: LockPolicy,
     S: BuildHasher,
 {
     /// Reserves capacity for at least `additional` more entries.
     ///
     /// The additional capacity is distributed evenly across all shards.
     pub fn reserve(&self, additional: usize) {
-        let per_shard = additional.div_ceil(self.shard_count.0 as usize);
+        let per_shard = additional.div_ceil(self.custodian.active_count().max(1));
+        let (_topology, topology_mask) = self.custodian.acquire_all();
         let mut guards = Vec::new();
-        for shard_index in 0..self.shard_count.0 {
-            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index));
+        for shard_index in self.custodian.active_ids_in(topology_mask) {
+            let guard = self.custodian.write_guard_at(ShardIndex(shard_index));
             guard.reserve(per_shard, |entry| self.indexer.hash(&entry.0).0);
             guards.push(guard);
         }
@@ -265,10 +267,11 @@ where
     ///
     /// The additional capacity is distributed evenly across all shards.
     pub fn try_reserve(&self, additional: usize) -> Result<(), crate::result::TryReserveError> {
-        let per_shard = additional.div_ceil(self.shard_count.0 as usize);
+        let per_shard = additional.div_ceil(self.custodian.active_count().max(1));
+        let (_topology, topology_mask) = self.custodian.acquire_all();
         let mut guards = Vec::new();
-        for shard_index in 0..self.shard_count.0 {
-            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index));
+        for shard_index in self.custodian.active_ids_in(topology_mask) {
+            let guard = self.custodian.write_guard_at(ShardIndex(shard_index));
             guard
                 .try_reserve(per_shard, |entry| self.indexer.hash(&entry.0).0)
                 .map_err(|error| match error {
@@ -286,9 +289,10 @@ where
 
     /// Shrinks the capacity of all shards as much as possible.
     pub fn shrink_to_fit(&self) {
+        let (_topology, topology_mask) = self.custodian.acquire_all();
         let mut guards = Vec::new();
-        for shard_index in 0..self.shard_count.0 {
-            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index));
+        for shard_index in self.custodian.active_ids_in(topology_mask) {
+            let guard = self.custodian.write_guard_at(ShardIndex(shard_index));
             guard.shrink_to_fit(|entry| self.indexer.hash(&entry.0).0);
             guards.push(guard);
         }
@@ -298,19 +302,19 @@ where
     ///
     /// The lower bound is distributed evenly across all shards.
     pub fn shrink_to(&self, min_capacity: usize) {
-        let per_shard = min_capacity.div_ceil(self.shard_count.0 as usize);
+        let per_shard = min_capacity.div_ceil(self.custodian.active_count().max(1));
+        let (_topology, topology_mask) = self.custodian.acquire_all();
         let mut guards = Vec::new();
-        for shard_index in 0..self.shard_count.0 {
-            let mut guard = self.custodian.write_guard_at(ShardIndex(shard_index));
+        for shard_index in self.custodian.active_ids_in(topology_mask) {
+            let guard = self.custodian.write_guard_at(ShardIndex(shard_index));
             guard.shrink_to(per_shard, |entry| self.indexer.hash(&entry.0).0);
             guards.push(guard);
         }
     }
 }
 
-impl<K, V, L, S> TxMap<K, V, L, S>
+impl<K, V, S> TxMap<K, V, S>
 where
-    L: LockPolicy,
     S: BuildHasher,
 {
     #[must_use]
@@ -318,7 +322,7 @@ where
     ///
     /// The type parameter `STATE` defines the mutable working state
     /// for the transaction and must implement `Default`.
-    pub fn immediate_tx<'tx, STATE>(&'tx self) -> ImmediateTxBuilder<'tx, K, V, L, S, STATE>
+    pub fn immediate_tx<'tx, STATE>(&'tx self) -> ImmediateTxBuilder<'tx, K, V, S, STATE>
     where
         K: 'tx,
         V: 'tx,
@@ -339,11 +343,10 @@ where
     /// `schema` is a schema constant created via the [`tx_schema`](macro@crate::tx_schema) macro.
     /// The returned builder can be turned into a transaction that can be
     /// executed many times with different keys/parameters.
-    pub fn prepared_tx<'tx, SCHEMA>(&'tx self, schema: &SCHEMA) -> SCHEMA::Builder<'tx, V, L, S>
+    pub fn prepared_tx<'tx, SCHEMA>(&'tx self, schema: &SCHEMA) -> SCHEMA::Builder<'tx, V, S>
     where
         K: 'tx,
         V: 'tx,
-        L: LockPolicy + 'tx,
         S: BuildHasher + 'tx,
         SCHEMA: TxSchema<K> + 'tx,
         SCHEMA::IndexedKeys: 'tx,
@@ -359,9 +362,10 @@ where
     /// acquired locks until every shard has been cleared so the operation is
     /// a consistent snapshot.
     pub fn clear(&self) {
+        let (_topology, topology_mask) = self.custodian.acquire_all();
         let mut guards = Vec::new();
-        for shard_index in 0..self.shard_count.0 {
-            let mut write_guard = self.custodian.write_guard_at(ShardIndex(shard_index));
+        for shard_index in self.custodian.active_ids_in(topology_mask) {
+            let write_guard = self.custodian.write_guard_at(ShardIndex(shard_index));
             write_guard.clear();
             guards.push(write_guard);
         }
@@ -374,8 +378,9 @@ where
         // Acquire each shard's read lock lazily, one at a time, and hold all
         // acquired locks until the count is complete so the result is a
         // consistent snapshot.
+        let (_topology, topology_mask) = self.custodian.acquire_all();
         let mut guards = Vec::new();
-        for shard_index in 0..self.shard_count.0 {
+        for shard_index in self.custodian.active_ids_in(topology_mask) {
             let guard = self.custodian.read_guard_at(ShardIndex(shard_index));
             total_length += guard.len();
             guards.push(guard);
@@ -390,8 +395,9 @@ where
     /// as needed instead of locking all of them.
     #[must_use]
     pub fn is_empty(&self) -> bool {
+        let (_topology, topology_mask) = self.custodian.acquire_all();
         let mut guards = Vec::new();
-        for shard_index in 0..self.shard_count.0 {
+        for shard_index in self.custodian.active_ids_in(topology_mask) {
             let guard = self.custodian.read_guard_at(ShardIndex(shard_index));
             if !guard.is_empty() {
                 return false;
@@ -409,8 +415,9 @@ where
     #[must_use]
     pub fn capacity(&self) -> usize {
         let mut total_capacity = 0;
+        let (_topology, topology_mask) = self.custodian.acquire_all();
         let mut guards = Vec::new();
-        for shard_index in 0..self.shard_count.0 {
+        for shard_index in self.custodian.active_ids_in(topology_mask) {
             let guard = self.custodian.read_guard_at(ShardIndex(shard_index));
             total_capacity += guard.capacity();
             guards.push(guard);
@@ -440,8 +447,9 @@ where
         let mut result = initial;
         // Acquire each shard's read lock lazily, one at a time, and hold all
         // acquired locks until the fold is complete.
+        let (_topology, topology_mask) = self.custodian.acquire_all();
         let mut guards = Vec::new();
-        for shard_index in 0..self.shard_count.0 {
+        for shard_index in self.custodian.active_ids_in(topology_mask) {
             let guard = self.custodian.read_guard_at(ShardIndex(shard_index));
             for (key, value) in guard.iter() {
                 if let Some(intermediate) = convert(key, value) {
@@ -458,7 +466,7 @@ where
     ///
     /// Acquires read locks lazily, one shard at a time, as iteration
     /// progresses. Acquired locks are held until the iterator is dropped.
-    pub fn iter(&self) -> Iter<'_, K, V, L> {
+    pub fn iter(&self) -> Iter<'_, K, V> {
         Iter::new(&self.custodian)
     }
 
@@ -466,7 +474,7 @@ where
     /// Returns an iterator over all the keys.
     ///
     /// Acquires read locks on all shards for the duration of iteration.
-    pub fn keys(&self) -> Keys<'_, K, V, L> {
+    pub fn keys(&self) -> Keys<'_, K, V> {
         Keys(self.iter())
     }
 
@@ -474,7 +482,7 @@ where
     /// Returns an iterator over all the values.
     ///
     /// Acquires read locks on all shards for the duration of iteration.
-    pub fn values(&self) -> Values<'_, K, V, L> {
+    pub fn values(&self) -> Values<'_, K, V> {
         Values(self.iter())
     }
 
@@ -484,7 +492,7 @@ where
     /// iterator without fully consuming it removes all remaining entries.
     /// Acquires write locks lazily, one shard at a time, as iteration
     /// progresses. Acquired locks are held until the iterator is dropped.
-    pub fn drain(&self) -> Drain<'_, K, V, L> {
+    pub fn drain(&self) -> Drain<'_, K, V> {
         Drain::new(&self.custodian)
     }
 
@@ -512,20 +520,20 @@ where
     /// each shard's write lock lazily, one at a time, and holds all acquired
     /// locks until every shard has been processed.
     pub fn retain(&self, condition: impl Fn(&K, &V) -> bool) {
+        let (_topology, topology_mask) = self.custodian.acquire_all();
         let mut guards = Vec::new();
-        for shard_index in 0..self.shard_count.0 {
-            let mut shard = self.custodian.write_guard_at(ShardIndex(shard_index));
+        for shard_index in self.custodian.active_ids_in(topology_mask) {
+            let shard = self.custodian.write_guard_at(ShardIndex(shard_index));
             shard.retain(|entry| condition(&entry.0, &entry.1));
             guards.push(shard);
         }
     }
 }
 
-impl<K, V, L, S> TxMap<K, V, L, S>
+impl<K, V, S> TxMap<K, V, S>
 where
     K: Hash + Eq,
     V: Copy,
-    L: LockPolicy,
     S: BuildHasher,
 {
     /// Returns a copy of the value for `key` (`V: Copy`).
@@ -535,11 +543,10 @@ where
     }
 }
 
-impl<K, V, L, S> TxMap<K, V, L, S>
+impl<K, V, S> TxMap<K, V, S>
 where
     K: Hash + Eq,
     V: Clone,
-    L: LockPolicy,
     S: BuildHasher,
 {
     /// Returns a clone of the value for `key` (`V: Clone`).
@@ -549,42 +556,36 @@ where
     }
 }
 
-impl<K, V, L, S> Clone for TxMap<K, V, L, S>
+impl<K, V, S> Clone for TxMap<K, V, S>
 where
     K: Clone,
     V: Clone,
-    L: LockPolicy,
     S: Clone + BuildHasher,
 {
     fn clone(&self) -> Self {
-        let shard_count = self.shard_count;
-        let mut shards = Vec::with_capacity(shard_count.0 as usize);
-        // Acquire each shard's read lock lazily, one at a time, and hold all
-        // acquired locks until every shard has been cloned.
+        let mut shards = Vec::with_capacity(self.custodian.active_count());
+        // Hold every read guard until all shards have been cloned.
+        let (_topology, topology_mask) = self.custodian.acquire_all();
         let mut guards = Vec::new();
-        for shard_index in 0..self.shard_count.0 {
-            let shard = self.custodian.read_guard_at(ShardIndex(shard_index));
-            let cloned_shard = shard.clone();
-            shards.push(CachePadded::new(L::new(cloned_shard)));
+        for id in self.custodian.active_ids_in(topology_mask) {
+            let shard = self.custodian.read_guard_at(ShardIndex(id));
+            shards.push(shard.clone());
             guards.push(shard);
         }
-        let custodian = Custodian {
-            shard_count,
-            shards,
-        };
+        drop(guards);
+        let custodian = Custodian::from_shards(self.shard_count, shards);
         TxMap {
-            shard_count,
+            shard_count: self.shard_count,
             custodian,
             indexer: Indexer::new(self.indexer.hasher_builder().clone()),
         }
     }
 }
 
-impl<K, V, L, S> PartialEq for TxMap<K, V, L, S>
+impl<K, V, S> PartialEq for TxMap<K, V, S>
 where
     K: Hash + Eq,
     V: PartialEq,
-    L: LockPolicy,
     S: BuildHasher,
 {
     /// Two maps are equal if they contain the same key-value pairs.
@@ -600,20 +601,18 @@ where
     }
 }
 
-impl<K, V, L, S> Eq for TxMap<K, V, L, S>
+impl<K, V, S> Eq for TxMap<K, V, S>
 where
     K: Hash + Eq,
     V: Eq,
-    L: LockPolicy,
     S: BuildHasher,
 {
 }
 
-impl<K, V, L, S> std::fmt::Debug for TxMap<K, V, L, S>
+impl<K, V, S> std::fmt::Debug for TxMap<K, V, S>
 where
     K: std::fmt::Debug,
     V: std::fmt::Debug,
-    L: LockPolicy,
     S: BuildHasher,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -621,10 +620,9 @@ where
     }
 }
 
-impl<K, V, L, S> Extend<(K, V)> for TxMap<K, V, L, S>
+impl<K, V, S> Extend<(K, V)> for TxMap<K, V, S>
 where
     K: Hash + Eq,
-    L: LockPolicy,
     S: BuildHasher,
 {
     fn extend<T: IntoIterator<Item = (K, V)>>(&mut self, iter: T) {
@@ -634,11 +632,10 @@ where
     }
 }
 
-impl<'a, K, V, L, S> Extend<(&'a K, &'a V)> for TxMap<K, V, L, S>
+impl<'a, K, V, S> Extend<(&'a K, &'a V)> for TxMap<K, V, S>
 where
     K: Clone + Hash + Eq + 'a,
     V: Clone + 'a,
-    L: LockPolicy,
     S: BuildHasher,
 {
     fn extend<T: IntoIterator<Item = (&'a K, &'a V)>>(&mut self, iter: T) {
@@ -648,33 +645,25 @@ where
     }
 }
 
-impl<K, V, L, S> FromIterator<(K, V)> for TxMap<K, V, L, S>
+impl<K, V, S> FromIterator<(K, V)> for TxMap<K, V, S>
 where
     K: Hash + Eq,
-    L: LockPolicy,
     S: BuildHasher + Default,
 {
     fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
-        let mut map: TxMap<K, V, L, S> = TxMapBuilder::default()
-            .with_lock_policy::<L>()
-            .with_hasher(S::default())
-            .build();
+        let mut map: TxMap<K, V, S> = TxMapBuilder::default().with_hasher(S::default()).build();
         map.extend(iter);
         map
     }
 }
 
-impl<K, V, L, S, const N: usize> From<[(K, V); N]> for TxMap<K, V, L, S>
+impl<K, V, S, const N: usize> From<[(K, V); N]> for TxMap<K, V, S>
 where
     K: Hash + Eq,
-    L: LockPolicy,
     S: BuildHasher + Default,
 {
     fn from(array: [(K, V); N]) -> Self {
-        let map: TxMap<K, V, L, S> = TxMapBuilder::default()
-            .with_lock_policy::<L>()
-            .with_hasher(S::default())
-            .build();
+        let map: TxMap<K, V, S> = TxMapBuilder::default().with_hasher(S::default()).build();
         for (key, value) in array {
             map.insert(key, value);
         }
@@ -682,9 +671,8 @@ where
     }
 }
 
-impl<K, V, L, S> IntoIterator for TxMap<K, V, L, S>
+impl<K, V, S> IntoIterator for TxMap<K, V, S>
 where
-    L: LockPolicy,
     S: BuildHasher,
 {
     type Item = (K, V);

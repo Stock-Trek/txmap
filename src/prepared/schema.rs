@@ -2,7 +2,6 @@ use crate::{
     custodian::Custodian,
     hasher::DefaultBuildHasher,
     indexer::Indexer,
-    lock_policies::lock_policy::LockPolicy,
     new_types::ShardCount,
     prepared::tx_builder::{PreparedTxOperationsBuilder, PreparedTxRequirementsBuilder},
 };
@@ -29,13 +28,12 @@ pub trait TxSchema<K> {
     /// transaction. It implements
     /// [`PreparedTxRequirementsBuilder`] and
     /// [`PreparedTxOperationsBuilder`].
-    type Builder<'tx, V, L, S>: PreparedTxRequirementsBuilder<'tx, K, V, L, S, Self::IndexedKeys, Self::Params, Self::State>
-        + PreparedTxOperationsBuilder<'tx, K, V, L, S, Self::IndexedKeys, Self::Params, Self::State>
+    type Builder<'tx, V, S>: PreparedTxRequirementsBuilder<'tx, K, V, S, Self::IndexedKeys, Self::Params, Self::State>
+        + PreparedTxOperationsBuilder<'tx, K, V, S, Self::IndexedKeys, Self::Params, Self::State>
     where
         Self: 'tx,
         K: 'tx,
         V: 'tx,
-        L: LockPolicy + 'tx,
         S: BuildHasher + 'tx,
         Self::IndexedKeys: 'tx,
         Self::Params: 'tx,
@@ -47,17 +45,16 @@ pub trait TxSchema<K> {
     /// Every type is inferred from the map, so no generic parameters need to
     /// be written. [`TxMap::prepared_tx`](crate::tx_map::TxMap::prepared_tx)
     /// delegates to this method.
-    fn builder<'tx, V, L, S>(
+    fn builder<'tx, V, S>(
         &self,
         shard_count: ShardCount,
-        custodian: &'tx Custodian<K, V, L>,
+        custodian: &'tx Custodian<K, V>,
         indexer: &'tx Indexer<S>,
-    ) -> Self::Builder<'tx, V, L, S>
+    ) -> Self::Builder<'tx, V, S>
     where
         Self: Sized + 'tx,
         K: 'tx,
         V: 'tx,
-        L: LockPolicy + 'tx,
         S: BuildHasher + 'tx,
         Self::IndexedKeys: 'tx,
         Self::Params: 'tx,
@@ -125,27 +122,25 @@ macro_rules! tx_schema {
                     type Params = [<$name Params>];
                     type State =  [<$name State>];
 
-                    type Builder<'tx, V, L, S> = [<$name Builder>]<'tx, K, V, L, S>
+                    type Builder<'tx, V, S> = [<$name Builder>]<'tx, K, V, S>
                     where
                         Self: 'tx,
                         K: 'tx,
                         V: 'tx,
-                        L: $crate::LockPolicy + 'tx,
                         S: std::hash::BuildHasher + 'tx,
                         Self::IndexedKeys: 'tx,
                         Self::Params: 'tx,
                         Self::State: 'tx;
 
-                    fn builder<'tx, V, L, S>(
+                    fn builder<'tx, V, S>(
                         &self,
                         shard_count: $crate::ShardCount,
-                        custodian: &'tx $crate::custodian::Custodian<K, V, L>,
+                        custodian: &'tx $crate::custodian::Custodian<K, V>,
                         indexer: &'tx $crate::indexer::Indexer<S>,
-                    ) -> [<$name Builder>]<'tx, K, V, L, S>
+                    ) -> [<$name Builder>]<'tx, K, V, S>
                     where
                         K: 'tx,
                         V: 'tx,
-                        L: $crate::LockPolicy + 'tx,
                         S: std::hash::BuildHasher + 'tx,
                         Self::IndexedKeys: 'tx,
                         Self::Params: 'tx,
@@ -225,37 +220,34 @@ macro_rules! tx_schema {
                 }
 
                 // builder (accepts guards and operations)
-                pub struct [<$name Builder>]<'tx, K, V, L, S>
+                pub struct [<$name Builder>]<'tx, K, V, S>
                 where
                     K: 'tx,
                     V: 'tx,
-                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
                     pub(crate) shard_count: $crate::ShardCount,
-                    pub(crate) custodian: &'tx $crate::custodian::Custodian<K, V, L>,
+                    pub(crate) custodian: &'tx $crate::custodian::Custodian<K, V>,
                     pub(crate) indexer: &'tx $crate::indexer::Indexer<S>,
                     pub(crate) guards: std::vec::Vec<$crate::prepared::guard::PreparedGuard<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>>,
                 }
 
-                impl<'tx, K, V, L, S>
+                impl<'tx, K, V, S>
                     $crate::prepared::tx_builder::PreparedTxRequirementsBuilder<
                         'tx,
                         K,
                         V,
-                        L,
                         S,
                         [<$name IndexedKeys>]<K>,
                         [<$name Params>],
                         [<$name State>],
-                    > for [<$name Builder>]<'tx, K, V, L, S>
+                    > for [<$name Builder>]<'tx, K, V, S>
                 where
                     K: 'tx,
                     V: 'tx,
-                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
-                    type Builder = [<$name Builder>]<'tx, K, V, L, S>;
+                    type Builder = [<$name Builder>]<'tx, K, V, S>;
 
                     fn with_guard(
                         mut self,
@@ -266,24 +258,22 @@ macro_rules! tx_schema {
                     }
                 }
 
-                impl<'tx, K, V, L, S>
+                impl<'tx, K, V, S>
                     $crate::prepared::tx_builder::PreparedTxOperationsBuilder<
                         'tx,
                         K,
                         V,
-                        L,
                         S,
                         [<$name IndexedKeys>]<K>,
                         [<$name Params>],
                         [<$name State>],
-                    > for [<$name Builder>]<'tx, K, V, L, S>
+                    > for [<$name Builder>]<'tx, K, V, S>
                 where
                     K: 'tx,
                     V: 'tx,
-                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
-                    type Builder = [<$name Buildable>]<'tx, K, V, L, S>;
+                    type Builder = [<$name Buildable>]<'tx, K, V, S>;
 
                     fn with_operation(
                         self,
@@ -307,38 +297,35 @@ macro_rules! tx_schema {
                 }
 
                 // buildable (accepts operations and can be turned into a tx)
-                pub struct [<$name Buildable>]<'tx, K, V, L, S>
+                pub struct [<$name Buildable>]<'tx, K, V, S>
                 where
                     K: 'tx,
                     V: 'tx,
-                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
                     pub(crate) shard_count: $crate::ShardCount,
-                    pub(crate) custodian: &'tx $crate::custodian::Custodian<K, V, L>,
+                    pub(crate) custodian: &'tx $crate::custodian::Custodian<K, V>,
                     pub(crate) indexer: &'tx $crate::indexer::Indexer<S>,
                     pub(crate) guards: std::vec::Vec<$crate::prepared::guard::PreparedGuard<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>>,
                     pub(crate) ops: std::vec::Vec<$crate::prepared::op::PreparedOp<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>>,
                 }
 
-                impl<'tx, K, V, L, S>
+                impl<'tx, K, V, S>
                     $crate::prepared::tx_builder::PreparedTxOperationsBuilder<
                         'tx,
                         K,
                         V,
-                        L,
                         S,
                         [<$name IndexedKeys>]<K>,
                         [<$name Params>],
                         [<$name State>],
-                    > for [<$name Buildable>]<'tx, K, V, L, S>
+                    > for [<$name Buildable>]<'tx, K, V, S>
                 where
                     K: 'tx,
                     V: 'tx,
-                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
-                    type Builder = [<$name Buildable>]<'tx, K, V, L, S>;
+                    type Builder = [<$name Buildable>]<'tx, K, V, S>;
 
                     fn with_operation(
                         mut self,
@@ -349,24 +336,22 @@ macro_rules! tx_schema {
                     }
                 }
 
-                impl<'tx, K, V, L, S>
+                impl<'tx, K, V, S>
                     $crate::prepared::tx_builder::PreparedTxBuilder<
                         'tx,
                         K,
                         V,
-                        L,
                         S,
                         [<$name IndexedKeys>]<K>,
                         [<$name Params>],
                         [<$name State>],
-                    > for [<$name Buildable>]<'tx, K, V, L, S>
+                    > for [<$name Buildable>]<'tx, K, V, S>
                 where
                     K: 'tx,
                     V: 'tx,
-                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
-                    type Tx = [<$name Tx>]<'tx, K, V, L, S>;
+                    type Tx = [<$name Tx>]<'tx, K, V, S>;
 
                     fn into_transaction(self) -> Self::Tx {
                         // Ops apply in order, so a consuming op may move its key out of the
@@ -416,25 +401,23 @@ macro_rules! tx_schema {
                 }
 
                 // tx (the prepared transaction)
-                pub struct [<$name Tx>]<'tx, K, V, L, S>
+                pub struct [<$name Tx>]<'tx, K, V, S>
                 where
                     K: 'tx,
                     V: 'tx,
-                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
                     pub(crate) shard_count: $crate::ShardCount,
-                    pub(crate) custodian: &'tx $crate::custodian::Custodian<K, V, L>,
+                    pub(crate) custodian: &'tx $crate::custodian::Custodian<K, V>,
                     pub(crate) indexer: &'tx $crate::indexer::Indexer<S>,
                     pub(crate) guards: std::vec::Vec<$crate::prepared::guard::PreparedGuard<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>>,
                     pub(crate) ops: std::vec::Vec<$crate::prepared::op::PreparedOp<'tx, K, V, [<$name IndexedKeys>]<K>, [<$name Params>], [<$name State>]>>,
                 }
 
-                impl<'tx, K, V, L, S> [<$name Tx>]<'tx, K, V, L, S>
+                impl<'tx, K, V, S> [<$name Tx>]<'tx, K, V, S>
                 where
                     K: 'tx + std::clone::Clone + std::hash::Hash + std::cmp::Eq,
                     V: 'tx,
-                    L: $crate::LockPolicy + 'tx,
                     S: std::hash::BuildHasher + 'tx,
                 {
                     #[must_use]
@@ -451,45 +434,93 @@ macro_rules! tx_schema {
                     ) -> $crate::TxResult<[<$name State>]>
                     {
                         let mut indexed_keys = keys.into_indexed(self.shard_count, self.indexer);
-                        let mut total_read_bitmask = $crate::new_types::BitMask::ZERO;
-                        let mut total_write_bitmask = $crate::new_types::BitMask::ZERO;
+                        loop {
+                            // Route (or re-route after a concurrent split/merge)
+                            // every key through the live routing trie.
+                            $(
+                                if let std::option::Option::Some(tx_key) = indexed_keys.$key.as_mut() {
+                                    tx_key.shard_index = self.custodian.route(tx_key.hash_code);
+                                    tx_key.version = self.custodian.version(tx_key.shard_index);
+                                }
+                            )*
 
-                        // get all bitmasks
-                        for guard in self.guards.iter() {
-                            total_read_bitmask |= guard.read_bitmask(&indexed_keys);
-                        }
-                        for op in self.ops.iter() {
-                            let (read_bitmask, write_bitmask) = op.read_write_bitmasks(&indexed_keys);
-                            total_read_bitmask |= read_bitmask;
-                            total_write_bitmask |= write_bitmask;
-                        }
-                        // ensure locks are either read or write, not both
-                        total_read_bitmask &= !total_write_bitmask;
+                            let mut total_read_bitmask = $crate::new_types::BitMask::ZERO;
+                            let mut total_write_bitmask = $crate::new_types::BitMask::ZERO;
 
-                        let mut lock_guards = self
-                            .custodian
-                            .lock_guards(total_read_bitmask, total_write_bitmask);
-                        let mut state = [<$name State>]::default();
-                        for (index, guard) in self.guards.iter().enumerate() {
-                            if !guard.is_condition_met::<L>(&mut lock_guards, &indexed_keys, &params, &mut state)
-                            {
-                                return $crate::TxResult::RequirementNotMet {
-                                    index,
-                                    requirement: guard.name.clone(),
-                                    state,
-                                };
+                            // get all bitmasks
+                            for guard in self.guards.iter() {
+                                total_read_bitmask |= guard.read_bitmask(&indexed_keys);
                             }
-                        }
-                        for op in self.ops.iter() {
-                            op.apply::<L, S>(
-                                &mut lock_guards,
-                                &mut indexed_keys,
-                                &params,
+                            for op in self.ops.iter() {
+                                let (read_bitmask, write_bitmask) = op.read_write_bitmasks(&indexed_keys);
+                                total_read_bitmask |= read_bitmask;
+                                total_write_bitmask |= write_bitmask;
+                            }
+                            // ensure locks are either read or write, not both
+                            total_read_bitmask &= !total_write_bitmask;
+
+                            // Snapshot the versions so a routing change that raced
+                            // with us can be detected after locking.
+                            let mut versions = std::vec::Vec::new();
+                            $(
+                                if let std::option::Option::Some(tx_key) = indexed_keys.$key.as_ref() {
+                                    versions.push((*tx_key.shard_index, tx_key.version));
+                                }
+                            )*
+
+                            let mut lock_guards = match self.custodian.try_lock_guards(
                                 self.indexer,
-                                &mut state,
-                            );
+                                total_read_bitmask,
+                                total_write_bitmask,
+                                &versions,
+                            ) {
+                                std::option::Option::Some(lock_guards) => lock_guards,
+                                std::option::Option::None => continue,
+                            };
+
+                            // The version snapshot and the routing lookup are
+                            // not atomic: a split/merge publishes its new
+                            // routing *before* bumping the versions, so a
+                            // transaction can read an already-bumped version
+                            // while still holding the pre-split leaf id and
+                            // pass the version check above. Now that the locks
+                            // are held, confirm every key still routes to the
+                            // leaf we locked. If not, release and retry.
+                            let mut routing_changed = false;
+                            $(
+                                if let std::option::Option::Some(tx_key) = indexed_keys.$key.as_ref() {
+                                    if self.custodian.route(tx_key.hash_code) != tx_key.shard_index {
+                                        routing_changed = true;
+                                    }
+                                }
+                            )*
+                            if routing_changed {
+                                std::mem::drop(lock_guards);
+                                continue;
+                            }
+
+                            let mut state = [<$name State>]::default();
+                            for (index, guard) in self.guards.iter().enumerate() {
+                                if !guard.is_condition_met(&mut lock_guards, &indexed_keys, &params, &mut state)
+                                {
+                                    return $crate::TxResult::RequirementNotMet {
+                                        index,
+                                        requirement: guard.name.clone(),
+                                        state,
+                                    };
+                                }
+                            }
+                            for op in self.ops.iter() {
+                                op.apply::<S>(
+                                    &mut lock_guards,
+                                    &mut indexed_keys,
+                                    &params,
+                                    self.indexer,
+                                    &mut state,
+                                );
+                            }
+                            return $crate::TxResult::Completed { state };
                         }
-                        $crate::TxResult::Completed { state }
                     }
                 }
             }

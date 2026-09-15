@@ -1,11 +1,8 @@
 use crate::{
-    indexer::Indexer, key::TxKey, lock_guards::LockGuards, lock_policies::lock_policy::LockPolicy,
+    custodian::Custodian, indexer::Indexer, key::TxKey, lock_guards::LockGuards,
     multi_shard_ops::MultiShardOps, new_types::BitMask, shard_ops::ShardOps,
 };
-use std::{
-    hash::{BuildHasher, Hash},
-    ops::{Deref, DerefMut},
-};
+use std::hash::{BuildHasher, Hash};
 
 #[allow(clippy::type_complexity)]
 pub(crate) enum ImmediateOp<'tx, K, V, STATE> {
@@ -80,28 +77,81 @@ impl<'tx, K, V, STATE> ImmediateOp<'tx, K, V, STATE> {
             ),
         }
     }
+
+    /// Re-routes every key after a routing change, refreshing the leaf ids
+    /// and versions that were captured at build time.
+    pub fn reroute(&mut self, custodian: &Custodian<K, V>) {
+        let rekey = |key: &mut TxKey<K>| {
+            key.shard_index = custodian.route(key.hash_code);
+            key.version = custodian.version(key.shard_index);
+        };
+        match self {
+            Self::Get { key, .. }
+            | Self::GetOrInsert { key, .. }
+            | Self::GetOrInsertWith { key, .. }
+            | Self::InsertWith { key, .. }
+            | Self::InsertWithIfAbsent { key, .. }
+            | Self::Modify { key, .. }
+            | Self::Remove { key, .. }
+            | Self::RemoveIf { key, .. }
+            | Self::Update { key, .. } => rekey(key),
+            Self::MoveValue { key_from, key_to } => {
+                rekey(key_from);
+                rekey(key_to);
+            }
+            Self::SwapValue { key_a, key_b } => {
+                rekey(key_a);
+                rekey(key_b);
+            }
+        }
+    }
+
+    /// Records the routed leaf and version of every referenced key.
+    pub fn push_versions(&self, out: &mut Vec<(u8, u32)>) {
+        let push = |key: &TxKey<K>, out: &mut Vec<(u8, u32)>| {
+            out.push((key.shard_index.0, key.version));
+        };
+        match self {
+            Self::Get { key, .. }
+            | Self::GetOrInsert { key, .. }
+            | Self::GetOrInsertWith { key, .. }
+            | Self::InsertWith { key, .. }
+            | Self::InsertWithIfAbsent { key, .. }
+            | Self::Modify { key, .. }
+            | Self::Remove { key, .. }
+            | Self::RemoveIf { key, .. }
+            | Self::Update { key, .. } => push(key, out),
+            Self::MoveValue { key_from, key_to } => {
+                push(key_from, out);
+                push(key_to, out);
+            }
+            Self::SwapValue { key_a, key_b } => {
+                push(key_a, out);
+                push(key_b, out);
+            }
+        }
+    }
 }
 
 impl<'tx, K, V, STATE> ImmediateOp<'tx, K, V, STATE>
 where
     K: Clone + Hash + Eq,
 {
-    pub fn apply<L, S>(
+    pub fn apply<S>(
         self,
-        lock_guards: &mut LockGuards<'_, K, V, L>,
+        lock_guards: &mut LockGuards<'_, K, V>,
         indexer: &Indexer<S>,
         state: &mut STATE,
     ) where
-        L: LockPolicy,
         S: BuildHasher,
     {
         match self {
             Self::Get { key, get } => {
-                let shard =
+                let shard: &_ =
                     if (key.shard_index.bitmask() & lock_guards.write_bitmask) != BitMask::ZERO {
-                        lock_guards.write_guard(&key).deref_mut()
+                        &*lock_guards.write_guard(&key)
                     } else {
-                        lock_guards.read_guard(&key).deref()
+                        lock_guards.read_guard(&key)
                     };
                 let value_ref = ShardOps::value_ref(shard, key.hash_code, &key.key);
                 (get)(&key.key, value_ref, state)
@@ -164,7 +214,7 @@ where
                 ShardOps::modify(shard, key.hash_code, &key.key, |k, v| mutate(k, v, state));
             }
             Self::MoveValue { key_from, key_to } => {
-                MultiShardOps::move_value::<K, V, L, S>(
+                MultiShardOps::move_value::<K, V, S>(
                     &mut lock_guards.write,
                     &key_from,
                     &key_to,
@@ -182,7 +232,7 @@ where
                 });
             }
             Self::SwapValue { key_a, key_b } => {
-                MultiShardOps::swap_value::<K, V, L, S>(
+                MultiShardOps::swap_value::<K, V, S>(
                     &mut lock_guards.write,
                     &key_a,
                     &key_b,
