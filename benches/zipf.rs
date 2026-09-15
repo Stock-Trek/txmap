@@ -9,8 +9,12 @@
 //! distribution, and larger values concentrate traffic on an even smaller set
 //! of hot keys.
 //!
+//! Worker threads are pinned to distinct CPU cores where the platform allows
+//! it, so OS scheduling does not distort the contention measurements.
+//!
 //! Run with: `cargo bench --bench zipf`
 
+use core_affinity::CoreId;
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use hashbrown::HashMap;
 use parking_lot::{Mutex, RwLock};
@@ -86,15 +90,53 @@ fn build_trace(zipf: &Zipf, seed: u64, len: usize) -> Vec<u64> {
     (0..len).map(|_| zipf.sample(&mut rng)).collect()
 }
 
-/// Spawns one thread per trace and joins them all.
-fn run_concurrent<M, F>(map: &M, traces: &[Vec<u64>], run: F)
+/// The CPU cores available for pinning worker threads.
+///
+/// Empty when the platform does not expose affinity information, in which case
+/// pinning is skipped and threads are left to the OS scheduler.
+struct CorePool {
+    cores: Vec<CoreId>,
+}
+
+impl CorePool {
+    fn new() -> Self {
+        Self {
+            cores: core_affinity::get_core_ids().unwrap_or_default(),
+        }
+    }
+
+    /// Assigns worker `index` a core, cycling when there are more workers than
+    /// cores.
+    fn core_for(&self, index: usize) -> Option<CoreId> {
+        if self.cores.is_empty() {
+            None
+        } else {
+            Some(self.cores[index % self.cores.len()])
+        }
+    }
+}
+
+/// Pins the current thread to `core`, if a core is available.
+fn pin_current(core: Option<CoreId>) {
+    if let Some(core) = core {
+        core_affinity::set_for_current(core);
+    }
+}
+
+/// Spawns one thread per trace, pins it to a core, and joins them all.
+fn run_concurrent<M, F>(map: &M, traces: &[Vec<u64>], cores: &CorePool, run: F)
 where
     M: Sync,
     F: Fn(&M, &[u64]) + Sync,
 {
+    let run = &run;
     thread::scope(|scope| {
-        for trace in traces {
-            scope.spawn(|| run(map, trace));
+        for (index, trace) in traces.iter().enumerate() {
+            let core = cores.core_for(index);
+            scope.spawn(move || {
+                pin_current(core);
+                run(map, trace);
+            });
         }
     });
 }
@@ -134,6 +176,8 @@ fn run_mutex_modifies(map: &Mutex<HashMap<u64, u64>>, keys: &[u64]) {
 }
 
 fn single_threaded_reads(c: &mut Criterion) {
+    pin_current(CorePool::new().core_for(0));
+
     let mut group = c.benchmark_group("zipf/read");
     group.warm_up_time(Duration::from_secs(3));
     group.measurement_time(Duration::from_secs(5));
@@ -166,6 +210,7 @@ fn single_threaded_reads(c: &mut Criterion) {
 }
 
 fn concurrent_reads(c: &mut Criterion) {
+    let cores = CorePool::new();
     let mut group = c.benchmark_group("zipf/concurrent_read");
     group.warm_up_time(Duration::from_secs(3));
     group.measurement_time(Duration::from_secs(5));
@@ -191,13 +236,13 @@ fn concurrent_reads(c: &mut Criterion) {
                 BenchmarkId::new("txmap", &parameter),
                 &traces,
                 |b, traces| {
-                    b.iter(|| run_concurrent(&txmap, traces, run_txmap_reads));
+                    b.iter(|| run_concurrent(&txmap, traces, &cores, run_txmap_reads));
                 },
             );
             group.bench_with_input(
                 BenchmarkId::new("rwlock_hashbrown", &parameter),
                 &traces,
-                |b, traces| b.iter(|| run_concurrent(&hashmap, traces, run_rwlock_reads)),
+                |b, traces| b.iter(|| run_concurrent(&hashmap, traces, &cores, run_rwlock_reads)),
             );
         }
     }
@@ -205,6 +250,7 @@ fn concurrent_reads(c: &mut Criterion) {
 }
 
 fn concurrent_modifies(c: &mut Criterion) {
+    let cores = CorePool::new();
     let mut group = c.benchmark_group("zipf/concurrent_modify");
     group.warm_up_time(Duration::from_secs(3));
     group.measurement_time(Duration::from_secs(5));
@@ -230,13 +276,13 @@ fn concurrent_modifies(c: &mut Criterion) {
                 BenchmarkId::new("txmap", &parameter),
                 &traces,
                 |b, traces| {
-                    b.iter(|| run_concurrent(&txmap, traces, run_txmap_modifies));
+                    b.iter(|| run_concurrent(&txmap, traces, &cores, run_txmap_modifies));
                 },
             );
             group.bench_with_input(
                 BenchmarkId::new("mutex_hashbrown", &parameter),
                 &traces,
-                |b, traces| b.iter(|| run_concurrent(&hashmap, traces, run_mutex_modifies)),
+                |b, traces| b.iter(|| run_concurrent(&hashmap, traces, &cores, run_mutex_modifies)),
             );
         }
     }
