@@ -494,6 +494,28 @@ macro_rules! tx_schema {
                                 std::option::Option::Some(lock_guards) => lock_guards,
                                 std::option::Option::None => continue,
                             };
+
+                            // The version snapshot and the routing lookup are
+                            // not atomic: a split/merge publishes its new
+                            // routing *before* bumping the versions, so a
+                            // transaction can read an already-bumped version
+                            // while still holding the pre-split leaf id and
+                            // pass the version check above. Now that the locks
+                            // are held, confirm every key still routes to the
+                            // leaf we locked. If not, release and retry.
+                            let mut routing_changed = false;
+                            $(
+                                if let std::option::Option::Some(tx_key) = indexed_keys.$key.as_ref() {
+                                    if self.custodian.route(tx_key.hash_code) != tx_key.shard_index {
+                                        routing_changed = true;
+                                    }
+                                }
+                            )*
+                            if routing_changed {
+                                std::mem::drop(lock_guards);
+                                continue;
+                            }
+
                             let mut state = [<$name State>]::default();
                             for (index, guard) in self.guards.iter().enumerate() {
                                 if !guard.is_condition_met::<L>(&mut lock_guards, &indexed_keys, &params, &mut state)
